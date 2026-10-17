@@ -1,0 +1,14 @@
+name = "four-kings"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./public"
+
+[[durable_objects.bindings]]
+name = "TABLE"
+class_name = "Table"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Table"]

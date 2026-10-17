@@ -8,6 +8,7 @@
 <title>Four Kings</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
   --felt:#1f5a3a; --felt-deep:#153f2a; --felt-light:#2a7049;
@@ -72,6 +73,9 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .wait{text-align:center;padding:2rem 0;opacity:.85}
 .tick{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--brass);margin-right:6px}
 .codebig{font-family:"Fraunces",Georgia,serif;font-size:3rem;letter-spacing:.25em;color:var(--brass);text-align:center;line-height:1}
+.qrwrap{display:flex;gap:18px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.qr{background:#fbf7ec;padding:10px;border-radius:12px;line-height:0}
+.qr img,.qr canvas{display:block}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
 #vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto;min-height:0}
 #vid:empty{display:none}
@@ -248,6 +252,7 @@ function render(){
   app.className='app'+(mode==='table'?' table':'');
   app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button></p>`;
   bind();
+  const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   if(S.phase==='claim') tickCount();
 }
 function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+CLAIM_MS-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickCount,250); }
@@ -263,7 +268,7 @@ function tableHTML(st){
   let main=''; const host=st.host;
   const link=location.origin+location.pathname+'?room='+room+'&mode=hand';
   if(st.phase==='lobby'){
-    main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><p class="small muted">Players open <b>${esc(link)}</b> on their phones, or the main page and type the code.</p></div>
+    main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="max-width:260px;text-align:left">Scan with the phone camera to join as a hand, or open <b>${esc(link)}</b>, or go to the main page and type the code.</div></div></div>
     <h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
     ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>`:''}`;
   } else if(st.phase==='ante'){

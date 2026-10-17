@@ -239,7 +239,7 @@ function scoresHTML(st){
   const order=st.players.map((p,i)=>({p,i})).sort((a,b)=>b.p.balance-a.p.balance); const top=order[0].p.balance;
   const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:(st.phase==='swap'?swapOrder(st,st.swapIdx):-1);
   return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
-  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${esc(o.p.name)}${o.p.id===pid&&mode==='hand'?' <span class="muted small">(you)</span>':''}${['swap','play','claim'].includes(st.phase)?` <span class="muted small">${o.p.cards} cards</span>`:''}${st.phase==='ante'?` <span class="muted small">${o.p.placed?'bet placed':'betting…'}</span>`:''}</td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
+  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode==='hand'?' <span class="muted small">(you)</span>':''}${['swap','play','claim'].includes(st.phase)?` <span class="muted small">${o.p.cards} cards</span>`:''}${st.phase==='ante'?` <span class="muted small">${o.p.placed?'bet placed':'betting…'}</span>`:''}</td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
 }
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
@@ -256,7 +256,7 @@ function startHTML(){
   return `<div style="padding-top:1.5rem"><h1>Four Kings</h1><p class="muted">One device is the table in the middle (an iPad is ideal). Everyone else opens this page on their phone to hold their hand.</p>
   <div class="panel"><h3>Set up the table</h3><p class="small muted">Starts a new table with a code the players type in.</p><button class="big" id="newtable">This device is the table</button></div>
   <div class="panel"><h3>Join as a player</h3><input class="code" id="code" placeholder="CODE" maxlength="6" value="${esc(room)}" autocapitalize="characters" autocomplete="off"><button class="big ghost" id="joinroom">This is my hand</button></div>
-  <p class="small muted">No sign-in needed. Players can tap <b>Join video</b> on their phones to see and hear each other, so the table works across cities too. Share this address: <b>${esc(link)}</b></p></div>`;
+  <p class="small muted">No sign-in needed. Short of players? The table can add bots. Players can tap <b>Join video</b> on their phones to see and hear each other, so the table works across cities too. Share this address: <b>${esc(link)}</b></p></div>`;
 }
 /* --- table (iPad) --- */
 function tableHTML(st){
@@ -264,8 +264,8 @@ function tableHTML(st){
   const link=location.origin+location.pathname+'?room='+room+'&mode=hand';
   if(st.phase==='lobby'){
     main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><p class="small muted">Players open <b>${esc(link)}</b> on their phones, or the main page and type the code.</p></div>
-    <h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
-    ${host?`<button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>`:''}`;
+    <h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
+    ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>`:''}`;
   } else if(st.phase==='ante'){
     main=`<h2>Place your bets</h2><p class="muted">Each player picks a king and a stake on their phone. Cards deal as soon as the last bet is in.</p>
     <div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} ${p.placed?`<span class="muted small">$${p.bet} on ${SYM[p.king]}</span>`:'<span class="muted small">deciding…</span>'}</div>`).join('')}</div>`;
@@ -279,7 +279,7 @@ function tableHTML(st){
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center"><h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.${st.note?' '+esc(st.note):''}</p><p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p></div>
-    ${host?`<button class="big" id="nextgame">Bets for game ${st.game+1}</button>`:''}`;
+    ${host?`<button class="big" id="nextgame">Bets for game ${st.game+1}</button><div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
   }
   return `<div class="tgrid"><div>${kingsHTML(st)}${main}</div><div>${scoresHTML(st)}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div></div>`;
 }
@@ -297,7 +297,7 @@ function handHTML(st){
     else main=`<div class="wait">A game is in progress at table ${esc(room)}. You can join when it finishes.</div>`;
     return kingsHTML(st)+main+scoresHTML(st);
   }
-  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> `:''}<button class="ghost" id="leave">Leave</button></div>`; }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button></div>`; }
   else if(st.phase==='ante'){
     if(p.placed) main=`<div class="wait"><h2>Bet placed</h2><p class="muted">$${p.bet} on the king of ${NAME[p.king]} and $${p.bet} in the centre. Waiting for the others.</p></div>`;
     else { const max=Math.max(10,Math.floor(p.balance/20)*10); if(draft.bet>max) draft.bet=max;
@@ -335,6 +335,8 @@ function bind(){
   if(q('#switch')) q('#switch').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='table'?'hand':'table'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('fk-mode',''); render(); renderVideo(); };
   if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'});
+  if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
+  if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
   if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});
   if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick}); };

@@ -83,10 +83,10 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .qr img,.qr canvas{display:block}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
 .minirun{display:flex;gap:22px;align-items:center;justify-content:center;padding:10px 6px 24px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:96px}
-.stack{position:relative;width:70px;height:80px;flex:none}
-.stack .card{position:absolute;left:50%;top:50%;width:52px;height:72px;margin:-36px 0 0 -26px;font-size:1.4rem}
-.stack .card small{font-size:.95rem}
-.stack .c1{transform:rotate(-22deg)}.stack .c2{transform:rotate(22deg)}.stack .c3{transform:rotate(-14deg) translate(-6px,-4px);opacity:.75}
+.fan{position:relative;height:80px;flex:1;max-width:260px}
+.fan .card{position:absolute;top:50%;width:48px;height:68px;margin-top:-34px;font-size:1.3rem;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.fan .card small{font-size:.9rem}
+.fan .card.last{outline:2px solid var(--brass);outline-offset:1px}
 .minirun .card.ghost{width:52px;height:72px;font-size:1.4rem}.minirun .card.ghost small{font-size:.95rem}
 .minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
 .card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
@@ -361,9 +361,9 @@ function handHTML(st){
 }
 function miniRun(st,live,need){
   if(!st.run.length) return `<div class="minirun"><span class="muted small">Table is clear</span></div>`;
-  const last3=st.run.slice(-3).reverse(); // [last, second last, third last]
-  const stack=last3.map((x,k)=>cardHTML(x.c,k===0?'c2':k===1?'c1':'c3')).reverse().join('');
-  return `<div class="minirun"><div class="stack">${stack}<div class="lbl">last played</div></div>${need?`<div style="position:relative">${cardHTML(need,'ghost')}<div class="lbl">wanted</div></div>`:''}</div>`;
+  const shown=st.run.slice(-5), n=shown.length;
+  const fan=shown.map((x,k)=>{ const ang=(k%2?9:-9); const left=n>1?`calc(${k} * (100% - 48px) / ${n-1})`:'calc(50% - 24px)'; return `<div style="position:absolute;top:0;bottom:0;left:${left};transform:rotate(${ang}deg)">${cardHTML(x.c,k===n-1?'last':'')}</div>`; }).join('');
+  return `<div class="minirun"><div class="fan">${fan}<div class="lbl">last ${n} played</div></div>${need?`<div style="position:relative;flex:none">${cardHTML(need,'ghost')}<div class="lbl">wanted</div></div>`:''}</div>`;
 }
 function handView(h,leads,claim){
   return `<div class="hand">${SUITS.map(s=>{const cards=h.filter(c=>c.s===s); if(!cards.length) return ''; return `<div class="suitrow"><span class="tag ${RED[s]?'red':''}">${SYM[s]}</span><div class="cards">${cards.map(c=>{

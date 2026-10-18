@@ -384,7 +384,7 @@ function handHTML(st){
   const i=pidx(st,pid); const p=i>=0?st.players[i]:null; const hand=p&&p.hand?p.hand:[];
   let main='';
   if(!p){
-    if(st.phase==='lobby'||st.phase==='over') main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Sit down</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
+    if(st.phase==='lobby'||st.phase==='over') main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
     else main=`<div class="wait">A game is in progress at table ${esc(room)}. You can join when it finishes.</div>`;
     return kingsHTML(st)+main+scoresHTML(st);
   }

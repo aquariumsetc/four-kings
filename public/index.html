@@ -92,6 +92,19 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
 .card.ghost.red{color:#ff9d99}
 .dealin{font-family:"Fraunces",Georgia,serif;font-size:1.4rem;color:var(--brass);text-align:center}
+.leadcall{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;line-height:1.1;text-align:center;margin:.4rem 0}
+.leadcall .col{display:inline-block;padding:.05em .35em;border-radius:8px;background:var(--ivory);color:var(--ink);text-transform:uppercase;letter-spacing:.06em}
+.leadcall .col.red{color:var(--red)}
+#banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:50}
+#banner:empty{display:none}
+.fanfare{background:linear-gradient(160deg,#fff4c2,#e9c54a);color:#2a2410;border-radius:22px;padding:1.2rem 1.6rem;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 6px rgba(201,162,39,.35);max-width:88vw;animation:pop .5s cubic-bezier(.2,1.4,.4,1),fade .6s 3.6s forwards}
+.fanfare h2{font-size:1.9rem;color:#2a2410}.fanfare .big{font-family:"Fraunces",Georgia,serif;font-size:3rem;line-height:1;margin:.2rem 0}
+.fanfare .sub{font-size:.95rem;opacity:.8}
+.fanfare .card{display:inline-flex;width:56px;height:78px;font-size:1.6rem;margin:.3rem 0;box-shadow:0 4px 12px rgba(0,0,0,.3)}.fanfare .card small{font-size:1rem}
+@keyframes pop{from{transform:scale(.4) rotate(-6deg);opacity:0}}
+@keyframes fade{to{opacity:0;transform:scale(.9)}}
+.spark{position:absolute;font-size:1.6rem;animation:spark 1.4s ease-out forwards}
+@keyframes spark{from{transform:translate(0,0) scale(.4);opacity:1}to{transform:translate(var(--dx),var(--dy)) scale(1.3);opacity:0}}
 #vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto;min-height:0}
 #vid:empty{display:none}
 .tile{position:relative;flex:none;width:78px;height:104px;border-radius:10px;overflow:hidden;background:#111;box-shadow:0 2px 6px rgba(0,0,0,.4)}
@@ -109,6 +122,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <body>
 <div class="app" id="app"></div>
 <div id="vid"></div>
+<div id="banner"></div>
 <div class="conn" id="conn"></div>
 <script>
 (function(){
@@ -130,7 +144,7 @@ const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('fk-mode')||'';
 let nick=get('fk-nick'); let hints=get('fk-hints')==='1';
-let S=null, prev=null, ws=null, timer=null, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
+let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
 const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -168,8 +182,21 @@ function onState(st,old){
   if(st.phase==='claim'&&(!old||old.phase!=='claim'||old.run.length!==st.run.length||old.runSuit!==st.runSuit)) claimSeen=Date.now();
   if(mode==='hand'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:10};
   if(st.phase==='ante'&&st.dealAt&&(!old||!old.dealAt)) dealSeen=Date.now()+(st.dealAt-st.serverNow);
+  if(st.event&&st.event.at!==lastEvent){ if(old) showBanner(st); lastEvent=st.event.at; }
   announce(st,old);
 }
+function showBanner(st){
+  const e=st.event, b=document.getElementById('banner'); const name=pname(st,e.who), me=st.players[e.who]&&st.players[e.who].id===pid&&mode==='hand';
+  const sparks=Array.from({length:14},(_,i)=>{ const a=i/14*Math.PI*2, d=120+Math.random()*120; return `<span class="spark" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;animation-delay:${Math.random()*.3}s">${['✨','⭐','💰','🎉'][i%4]}</span>`; }).join('');
+  const body=e.t==='queen'
+    ?`<h2>${me?'You':esc(name)} took the King of ${NAME[e.suit]}!</h2>${cardHTML({s:e.suit,r:12})}<div class="big">+$${e.won}</div><div class="sub">played the Queen of ${NAME[e.suit]}</div>`
+    :`<h2>${me?'You are':esc(name)+' is'} out of cards!</h2><div class="big">+$${e.won}</div><div class="sub">takes the centre</div>`;
+  b.innerHTML=`<div class="fanfare" style="position:relative">${sparks}${body}</div>`;
+  try{ chime(e.t==='out'); }catch(x){}
+  if(bannerTimer) clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>{ b.innerHTML=''; },4300);
+}
+let actx=null;
+function chime(big){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; actx=actx||new AC(); const t=actx.currentTime; const notes=big?[523,659,784,1047,1319]:[659,880,1175]; notes.forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='triangle'; o.frequency.value=f; g.gain.setValueAtTime(0,t+i*.12); g.gain.linearRampToValueAtTime(.25,t+i*.12+.02); g.gain.exponentialRampToValueAtTime(.001,t+i*.12+.5); o.connect(g).connect(actx.destination); o.start(t+i*.12); o.stop(t+i*.12+.55); }); }
 
 /* ---------- speech (table only) ---------- */
 function say(t){ try{ if(mode!=='table'||!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.05; speechSynthesis.speak(u);}catch(e){} }
@@ -345,7 +372,7 @@ function handHTML(st){
   else if(st.phase==='play'){
     const note=st.note?`<p class="center small">${esc(st.note)}</p>`:'';
     if(st.leader===i){ const {opts}=leadOptions(st,i); const leads={}; opts.forEach(o=>leads[o.s]=o.low.r);
-      main=`${miniRun(st)}${note}<h2>Your lead</h2><p class="muted small">${st.colour?`Lead your lowest ${st.colour}. Tap the card.`:'First lead: tap the lowest card of any suit.'}</p>${handView(hand,leads)}`; }
+      main=`${miniRun(st)}${note}<div class="leadcall">Your lead: ${st.colour?`lowest <span class="col ${st.colour}">${st.colour}</span>`:'lowest card of <span class="col">any suit</span>'}</div><p class="muted small center">${st.colour?`Tap your lowest ${st.colour} card.`:'First lead of the game: tap any of your lowest cards.'}</p>${handView(hand,leads)}`; }
     else main=`${miniRun(st)}${note}<p class="center">${esc(pname(st,st.leader))} to lead their lowest ${st.colour||'card'}.</p>${handView(hand)}`;
   }
   else if(st.phase==='claim'){
@@ -396,6 +423,7 @@ function bind(){
   if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };
 }
 
+document.addEventListener('touchstart',()=>{ try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC&&!actx){ actx=new AC(); } if(actx&&actx.state==='suspended') actx.resume(); }catch(e){} },{passive:true});
 if(qs.get('room')&&qs.get('mode')){ set('fk-room',room); set('fk-mode',mode); }
 render();
 if(room&&mode) connect();

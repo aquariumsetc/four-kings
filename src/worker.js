@@ -50,9 +50,8 @@ function startPlay(st) { st.leader = st.first; st.colour = null; st.run = []; st
 function leadOptions(st, i) {
   const h = st.players[i].hand, want = st.colour;
   const suitsOf = (col) => SUITS.filter((s) => (col === "red") === RED[s]);
-  let suits = want ? suitsOf(want) : SUITS;
-  let avail = suits.filter((s) => h.some((c) => c.s === s));
-  if (want && !avail.length) avail = suitsOf(want === "red" ? "black" : "red").filter((s) => h.some((c) => c.s === s));
+  const suits = want ? suitsOf(want) : SUITS;
+  const avail = suits.filter((s) => h.some((c) => c.s === s));
   return avail.map((s) => ({ s, low: h.filter((c) => c.s === s).sort((a, b) => a.r - b.r)[0] }));
 }
 function playFrom(st, who, r) {
@@ -67,7 +66,20 @@ function playFrom(st, who, r) {
   }
   st.nextRank = r; st.leader = who; st.phase = "claim"; st.calledAt = Date.now(); st.note = note;
 }
-function endRun(st, who, note) { st.leader = who; st.colour = RED[st.runSuit] ? "black" : "red"; st.note = note; st.phase = "play"; }
+function endRun(st, who, note) { st.leader = who; st.colour = RED[st.runSuit] ? "black" : "red"; st.note = note; st.phase = "play"; settleLeader(st); }
+// The leader must lead the required colour. With none, the lead passes to the next player;
+// if it comes all the way round, the game ends and the centre and kings carry over.
+function settleLeader(st) {
+  const n = st.players.length; let tries = 0;
+  while (tries < n && !leadOptions(st, st.leader).length) {
+    st.note = (st.note ? st.note + " " : "") + `${st.players[st.leader].name} has no ${st.colour} card and passes.`;
+    st.leader = (st.leader + 1) % n; tries++;
+  }
+  if (tries >= n) {
+    st.note = `Nobody can lead a ${st.colour} card, so the game ends. The centre and the kings carry over.`;
+    st.winner = null; st.phase = "over"; st.first = (st.first + 1) % n;
+  }
+}
 
 // ---------- bots ----------
 const BOT_NAMES = ["Robo Rita", "Dealer Dan", "Lucky Lou", "Queenie", "Ace Alvarez", "Blackjack Bea", "Shuffle Sam"];

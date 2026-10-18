@@ -114,17 +114,15 @@ function bestLead(st, i) {
   return opts.sort((a, b) => score(b) - score(a))[0];
 }
 function doLead(st, i, o) { st.run = []; st.runSuit = o.s; st.note = ""; playFrom(st, i, o.low.r); }
+// One card per tap: play the card of rank r, then call for the next one, even if this same player holds it.
 function playFrom(st, who, r) {
   const p = st.players[who], suit = st.runSuit; let note = "";
-  for (;;) {
-    const ci = p.hand.findIndex((c) => c.s === suit && c.r === r); if (ci < 0) break;
-    const c = p.hand.splice(ci, 1)[0]; st.run.push({ c, who });
-    if (c.r === 12) { const won = st.kings[suit]; st.kings[suit] = 0; p.balance += won; p.gq = (p.gq || 0) + 1; note = `${p.name} played the queen and takes $${won} from the king of ${NAME[suit]}.`; st.event = { t: "queen", who, suit, won, at: Date.now() }; }
-    if (p.hand.length === 0) { const won = st.pot; st.pot = 0; p.balance += won; st.winner = { idx: who, won }; st.note = note; st.leader = who; endGame(st); st.event = { t: "out", who, won, at: Date.now() }; return; }
-    if (c.r === 12) { endRun(st, who, note); return; }
-    r++;
-  }
-  st.nextRank = r; st.leader = who; st.phase = "claim"; st.calledAt = Date.now(); st.note = note;
+  const ci = p.hand.findIndex((c) => c.s === suit && c.r === r); if (ci < 0) return;
+  const c = p.hand.splice(ci, 1)[0]; st.run.push({ c, who });
+  if (c.r === 12) { const won = st.kings[suit]; st.kings[suit] = 0; p.balance += won; p.gq = (p.gq || 0) + 1; note = `${p.name} played the queen and takes $${won} from the king of ${NAME[suit]}.`; st.event = { t: "queen", who, suit, won, at: Date.now() }; }
+  if (p.hand.length === 0) { const won = st.pot; st.pot = 0; p.balance += won; st.winner = { idx: who, won }; st.note = note; st.leader = who; endGame(st); st.event = { t: "out", who, won, at: Date.now() }; return; }
+  if (c.r === 12) { endRun(st, who, note); return; }
+  st.nextRank = r + 1; st.leader = who; st.phase = "claim"; st.calledAt = Date.now(); st.note = note;
 }
 function endGame(st) { st.phase = "over"; st.overAt = Date.now(); st.first = (st.first + 1) % st.players.length; recordGame(st); }
 function endRun(st, who, note) { st.leader = who; st.colour = RED[st.runSuit] ? "black" : "red"; st.note = note; st.phase = "play"; st.turnAt = Date.now(); settleLeader(st); }

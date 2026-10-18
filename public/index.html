@@ -84,6 +84,7 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .settings .srow{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-top:1px solid rgba(251,247,236,.1)}
 .settings button{padding:.35rem .6rem}
 .nudge{animation:pulse 1s ease-in-out infinite alternate}@keyframes pulse{to{transform:scale(1.04);color:var(--brass)}}
+#sndhint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:40;background:rgba(0,0,0,.72);color:#fff;font-size:.85rem;padding:.45rem .9rem;border-radius:999px;pointer-events:none}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
 .minirun{display:flex;gap:22px;align-items:center;justify-content:center;padding:10px 6px 24px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:96px}
 .fan{position:relative;height:80px;flex:1;max-width:260px}
@@ -131,6 +132,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="vid"></div>
 <div id="banner"></div>
 <div class="conn" id="conn"></div>
+<div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
 const SUITS=['S','H','D','C'];
@@ -210,8 +212,25 @@ function showBanner(st){
 }
 
 /* ---------- sounds (all synthesised, nothing to download) ---------- */
-let actx=null;
-function ac(){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; actx=actx||new AC(); if(actx.state==='suspended') actx.resume().catch(()=>{}); return actx; }
+let actx=null, audioStale=false;
+const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function ac(){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(actx&&actx.state==='closed') actx=null; actx=actx||new AC(); if(actx.state!=='running') actx.resume().catch(()=>{}); return actx; }
+// iOS pauses page audio when the phone locks or the app goes to the background, and only lets it
+// start again from a tap. After a lock some iOS versions leave the old audio engine silent, so the
+// first tap after coming back builds a fresh one.
+function unlockAudio(){
+  try{
+    if(audioStale&&actx){ const hadMusic=music.on; musicHalt(); try{ actx.close(); }catch(e){} actx=null; if(hadMusic) music.want=true; }
+    audioStale=false;
+    const a=ac(); if(!a) return;
+    const b=a.createBuffer(1,1,22050), src=a.createBufferSource(); src.buffer=b; src.connect(a.destination); src.start(0);
+    if((musicOn||music.want)&&!music.on&&room&&mode){ music.want=false; musicStart(); }
+    if('speechSynthesis' in window) speechSynthesis.resume();
+  }catch(e){}
+}
+function soundBlocked(){ return (sfxOn||winOn||musicOn)&&room&&mode&&(!actx||actx.state!=='running'||audioStale); }
+document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; } else if(actx) actx.resume().catch(()=>{}); });
+window.addEventListener('pageshow',e=>{ if(e.persisted&&IOS) audioStale=true; });
 function tone(f,t0,dur,vol,type){ const a=ac(); if(!a) return; const o=a.createOscillator(), g=a.createGain(); o.type=type||'triangle'; o.frequency.value=f; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(vol,t0+.015); g.gain.exponentialRampToValueAtTime(.001,t0+dur); o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur+.05); }
 function noise(t0,dur,vol,hp){ const a=ac(); if(!a) return; const n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0); for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n); const src=a.createBufferSource(); src.buffer=buf; const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp||1200; const g=a.createGain(); g.gain.value=vol; src.connect(f).connect(g).connect(a.destination); src.start(t0); }
 function chime(big){ const a=ac(); if(!a) return; const t=a.currentTime; const notes=big?[523,659,784,1047,1319]:[659,880,1175]; notes.forEach((f,i)=>tone(f,t+i*.12,.5,.22)); }
@@ -249,6 +268,7 @@ function musicStart(){
   const src=a.createBufferSource(); src.buffer=buf; src.loop=true; const cf=a.createBiquadFilter(); cf.type='bandpass'; cf.frequency.value=3000; const cg=a.createGain(); cg.gain.value=.25; src.connect(cf).connect(cg).connect(g); src.start(); music.crackle=src;
   music.step=0; music.next=a.currentTime+.1; music.timer=setInterval(musicTick,90); musicTick();
 }
+function musicHalt(){ if(!music.on) return; music.on=false; clearInterval(music.timer); try{ music.crackle&&music.crackle.stop(); }catch(e){} music.master=null; }
 function musicStop(){ if(!music.on) return; music.on=false; clearInterval(music.timer); const a=ac(); if(music.master){ const g=music.master; g.gain.linearRampToValueAtTime(0,a.currentTime+1.2); setTimeout(()=>{ try{ g.disconnect(); music.crackle.stop(); }catch(e){} },1400); } }
 function musicTick(){
   const a=ac(); if(!a||!music.on) return; const bpm=82, sixteenth=60/bpm/4;
@@ -401,7 +421,7 @@ function render(){
 }
 function tickDeal(){ const el=document.getElementById('dealin'); if(!el||!S||S.phase!=='ante'||!S.dealAt) return; const left=Math.max(0,Math.ceil((dealSeen-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickDeal,250); }
 function tickAll(){
-  const now=Date.now();
+  const now=Date.now(); const sh=document.getElementById('sndhint'); if(sh) sh.hidden=!soundBlocked();
   app.querySelectorAll('[data-until]').forEach(el=>{ const t=+el.dataset.until; if(t) el.textContent=fmtSec(Math.max(0,Math.ceil((t-now)/1000))); });
   app.querySelectorAll('[data-showbelow]').forEach(el=>{ const left=(+el.dataset.for-now)/1000, show=left<=+el.dataset.showbelow; el.style.display=show?'':'none';
     if(show&&nudged!==el.dataset.for){ nudged=el.dataset.for; try{ navigator.vibrate&&navigator.vibrate([120,80,120]); }catch(e){} sfx.lead(); } });
@@ -567,7 +587,7 @@ function bind(){
   if(q('#winsnd')) q('#winsnd').onclick=()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); if(winOn){ try{ chime(false); coins(10,.3); }catch(e){} } render(); };
 }
 
-['touchstart','pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ try{ ac(); if(musicOn&&!music.on&&room&&mode) musicStart(); }catch(e){} },{passive:true}));
+['touchend','click','keydown'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true,capture:true}));
 if(qs.get('room')&&qs.get('mode')){ set('fk-room',room); set('fk-mode',mode); }
 render();
 if(room&&mode) connect();

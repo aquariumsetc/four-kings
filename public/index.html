@@ -147,7 +147,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('fk-mode')||'';
-let nick=get('fk-nick'); let hints=get('fk-hints')==='1';
+let nick=get('fk-nick'); let hints=get('fk-hints')==='1'; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -187,6 +187,7 @@ function onState(st,old){
   if(mode==='hand'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:10};
   if(st.phase==='ante'&&st.dealAt&&(!old||!old.dealAt)) dealSeen=Date.now()+(st.dealAt-st.serverNow);
   if(st.event&&st.event.at!==lastEvent){ if(old) showBanner(st); lastEvent=st.event.at; }
+  try{ soundsFor(st,old); }catch(e){}
   announce(st,old);
 }
 function showBanner(st){
@@ -196,11 +197,34 @@ function showBanner(st){
     ?`<h2>${me?'You':esc(name)} took the King of ${NAME[e.suit]}!</h2>${cardHTML({s:e.suit,r:12})}<div class="big">+$${e.won}</div><div class="sub">played the Queen of ${NAME[e.suit]}</div>`
     :`<h2>${me?'You are':esc(name)+' is'} out of cards!</h2><div class="big">+$${e.won}</div><div class="sub">takes the centre</div>`;
   b.innerHTML=`<div class="fanfare" style="position:relative">${sparks}${body}</div>`;
-  try{ chime(e.t==='out'); }catch(x){}
+  if(winOn){ try{ chime(e.t==='out'); coins(e.t==='out'?28:14, .35); }catch(x){} }
   if(bannerTimer) clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>{ b.innerHTML=''; },4300);
 }
+
+/* ---------- sounds (all synthesised, nothing to download) ---------- */
 let actx=null;
-function chime(big){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; actx=actx||new AC(); const t=actx.currentTime; const notes=big?[523,659,784,1047,1319]:[659,880,1175]; notes.forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='triangle'; o.frequency.value=f; g.gain.setValueAtTime(0,t+i*.12); g.gain.linearRampToValueAtTime(.25,t+i*.12+.02); g.gain.exponentialRampToValueAtTime(.001,t+i*.12+.5); o.connect(g).connect(actx.destination); o.start(t+i*.12); o.stop(t+i*.12+.55); }); }
+function ac(){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; actx=actx||new AC(); if(actx.state==='suspended') actx.resume().catch(()=>{}); return actx; }
+function tone(f,t0,dur,vol,type){ const a=ac(); if(!a) return; const o=a.createOscillator(), g=a.createGain(); o.type=type||'triangle'; o.frequency.value=f; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(vol,t0+.015); g.gain.exponentialRampToValueAtTime(.001,t0+dur); o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur+.05); }
+function noise(t0,dur,vol,hp){ const a=ac(); if(!a) return; const n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0); for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n); const src=a.createBufferSource(); src.buffer=buf; const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp||1200; const g=a.createGain(); g.gain.value=vol; src.connect(f).connect(g).connect(a.destination); src.start(t0); }
+function chime(big){ const a=ac(); if(!a) return; const t=a.currentTime; const notes=big?[523,659,784,1047,1319]:[659,880,1175]; notes.forEach((f,i)=>tone(f,t+i*.12,.5,.22)); }
+function coins(n,vol){ const a=ac(); if(!a) return; const t=a.currentTime+.15; for(let i=0;i<n;i++){ const at=t+i*.045+Math.random()*.03, f=2400+Math.random()*2600; tone(f,at,.12,vol*(.5+Math.random()*.5),'sine'); tone(f*1.5,at,.06,vol*.25,'square'); } }
+const sfx={
+  card(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; noise(t,.07,.5,900); tone(180,t+.01,.06,.12,'sine'); },
+  deal(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; for(let i=0;i<10;i++) noise(t+i*.055,.04,.35,1500); },
+  stop(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; tone(140,t,.25,.3,'sine'); noise(t,.12,.25,300); },
+  lead(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; tone(880,t,.12,.18,'sine'); tone(1175,t+.14,.18,.18,'sine'); },
+  tap(){ if(!sfxOn) return; const a=ac(); if(!a) return; tone(1400,a.currentTime,.05,.1,'square'); },
+  bet(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; coins(3,.25); }
+};
+function soundsFor(st,old){
+  if(!old) return;
+  const runGrew=st.run.length>old.run.length&&(st.phase==='claim'||st.phase==='play'||st.phase==='over');
+  if(runGrew) sfx.card();
+  if(st.phase==='swap'&&old.phase==='ante') sfx.deal();
+  if(st.phase==='play'&&old.phase==='claim'&&st.run.length===old.run.length) sfx.stop();
+  if(st.phase==='play'&&(old.phase!=='play'||old.leader!==st.leader)&&mode==='hand'&&st.players[st.leader]&&st.players[st.leader].id===pid) sfx.lead();
+  if(st.phase==='ante'&&old.phase==='ante'&&st.players.filter(p=>p.placed).length>old.players.filter(p=>p.placed).length) sfx.bet();
+}
 
 /* ---------- speech (table only) ---------- */
 function say(t){ try{ if(mode!=='table'||!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.05; speechSynthesis.speak(u);}catch(e){} }
@@ -308,7 +332,7 @@ function render(){
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(mode==='table'?' table':'');
-  app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button>${mode==='hand'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button>`:''}</p>`;
+  app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button>${mode==='hand'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button>`:''}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   if(S.phase==='claim') tickCount();
@@ -430,13 +454,15 @@ function bind(){
   if(q('#deal')) q('#deal').onclick=()=>sendMsg({t:'deal'});
   if(q('#keep')) q('#keep').onclick=()=>sendMsg({t:'swap',swap:false});
   if(q('#swap')) q('#swap').onclick=()=>sendMsg({t:'swap',swap:true});
-  app.querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>{ b.disabled=true; sendMsg({t:'lead',suit:b.dataset.lead}); });
+  app.querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>{ b.disabled=true; sfx.tap(); sendMsg({t:'lead',suit:b.dataset.lead}); });
   if(q('#claim')) q('#claim').onclick=()=>{ q('#claim').disabled=true; sendMsg({t:'claim'}); };
-  app.querySelectorAll('[data-claim]').forEach(b=>b.onclick=()=>{ if(!S||S.phase!=='claim') return; const need=S.runSuit+S.nextRank; if(b.dataset.claim===need){ b.disabled=true; sendMsg({t:'claim'}); } else { viewMsg='Not that one.'; render(); setTimeout(()=>{ if(viewMsg==='Not that one.'){ viewMsg=''; render(); } },1200); } });
+  app.querySelectorAll('[data-claim]').forEach(b=>b.onclick=()=>{ if(!S||S.phase!=='claim') return; const need=S.runSuit+S.nextRank; if(b.dataset.claim===need){ b.disabled=true; sfx.tap(); sendMsg({t:'claim'}); } else { viewMsg='Not that one.'; render(); setTimeout(()=>{ if(viewMsg==='Not that one.'){ viewMsg=''; render(); } },1200); } });
   if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };
+  if(q('#sfx')) q('#sfx').onclick=()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); if(sfxOn) sfx.card(); render(); };
+  if(q('#winsnd')) q('#winsnd').onclick=()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); if(winOn){ try{ chime(false); coins(10,.3); }catch(e){} } render(); };
 }
 
-document.addEventListener('touchstart',()=>{ try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC&&!actx){ actx=new AC(); } if(actx&&actx.state==='suspended') actx.resume(); }catch(e){} },{passive:true});
+['touchstart','pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ try{ ac(); }catch(e){} },{passive:true}));
 if(qs.get('room')&&qs.get('mode')){ set('fk-room',room); set('fk-mode',mode); }
 render();
 if(room&&mode) connect();

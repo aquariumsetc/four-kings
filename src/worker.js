@@ -59,8 +59,8 @@ function playFrom(st, who, r) {
   for (;;) {
     const ci = p.hand.findIndex((c) => c.s === suit && c.r === r); if (ci < 0) break;
     const c = p.hand.splice(ci, 1)[0]; st.run.push({ c, who });
-    if (c.r === 12) { const won = st.kings[suit]; st.kings[suit] = 0; p.balance += won; note = `${p.name} played the queen and takes $${won} from the king of ${NAME[suit]}.`; }
-    if (p.hand.length === 0) { const won = st.pot; st.pot = 0; p.balance += won; st.winner = { idx: who, won }; st.note = note; st.leader = who; st.phase = "over"; st.first = (st.first + 1) % st.players.length; return; }
+    if (c.r === 12) { const won = st.kings[suit]; st.kings[suit] = 0; p.balance += won; note = `${p.name} played the queen and takes $${won} from the king of ${NAME[suit]}.`; st.event = { t: "queen", who, suit, won, at: Date.now() }; }
+    if (p.hand.length === 0) { const won = st.pot; st.pot = 0; p.balance += won; st.winner = { idx: who, won }; st.note = note; st.leader = who; st.phase = "over"; st.first = (st.first + 1) % st.players.length; st.event = { t: "out", who, won, at: Date.now() }; return; }
     if (c.r === 12) { endRun(st, who, note); return; }
     r++;
   }

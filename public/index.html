@@ -92,6 +92,10 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
 .card.ghost.red{color:#ff9d99}
 .dealin{font-family:"Fraunces",Georgia,serif;font-size:1.4rem;color:var(--brass);text-align:center}
+.won{display:inline-flex;align-items:center;gap:8px;background:rgba(201,162,39,.18);border:1px solid rgba(201,162,39,.55);border-radius:14px;padding:6px 12px;margin:.3rem auto;font-size:1.05rem}
+.won .card{width:34px;height:46px;font-size:1rem;flex:none}.won .card small{font-size:.65rem}
+.won .amt{font-family:"Fraunces",Georgia,serif;font-size:1.5rem;color:var(--brass);line-height:1}
+.app.table .won{font-size:1.3rem;padding:8px 16px}.app.table .won .card{width:46px;height:62px;font-size:1.3rem}.app.table .won .amt{font-size:2rem}
 .leadcall{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;line-height:1.1;text-align:center;margin:.4rem 0}
 .leadcall .col{display:inline-block;padding:.05em .35em;border-radius:8px;background:var(--ivory);color:var(--ink);text-transform:uppercase;letter-spacing:.06em}
 .leadcall .col.red{color:var(--red)}
@@ -276,6 +280,15 @@ function renderVideo(){
 }
 
 /* ---------- rendering ---------- */
+function noteHTML(st,cls){
+  if(!st.note) return '';
+  const e=st.event;
+  if(e&&e.t==='queen'&&st.note.indexOf('played the queen')>=0){
+    const rest=st.note.replace(/^[^.]*played the queen[^.]*\.\s*/,'');
+    return `<div class="center"><div class="won"><b>${esc(pname(st,e.who))}</b> played ${cardHTML({s:e.suit,r:12})}<span class="amt">+$${e.won}</span></div></div>${rest?`<p class="center ${cls||''}">${esc(rest)}</p>`:''}`;
+  }
+  return `<p class="center ${cls||''}">${esc(st.note)}</p>`;
+}
 function cardHTML(c,cls,who){ return `<div class="card ${RED[c.s]?'red':''} ${c.r===12?'q':''} ${cls||''}" ${who?`data-who="${esc(who)}"`:''}><span>${rname(c.r)}</span><small>${SYM[c.s]}</small></div>`; }
 function kingsHTML(st){
   const ante=st.phase==='ante';
@@ -327,12 +340,12 @@ function tableHTML(st){
     const i=swapOrder(st,st.swapIdx);
     main=`<h2>${esc(pname(st,i))}: keep or swap?</h2><p class="muted">${st.swapIdx+1} of ${st.players.length} asked. The spare hand goes to the first player who takes it.</p>`;
   } else if(st.phase==='play'){
-    main=`<div class="pile">${pileHTML(st,false)}</div>${st.note?`<p class="center">${esc(st.note)}</p>`:''}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
+    main=`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
   } else if(st.phase==='claim'){
-    main=`<div class="pile">${pileHTML(st,true)}</div>${st.note?`<p class="center">${esc(st.note)}</p>`:''}<div class="call">Who has the ${cs({s:st.runSuit,r:st.nextRank})}?</div><div class="count" id="count">5</div>`;
+    main=`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">Who has the ${cs({s:st.runSuit,r:st.nextRank})}?</div><div class="count" id="count">5</div>`;
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
-    main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.${st.note?' '+esc(st.note):''}</p><p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
+    main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
     ${host?`<button class="big" id="nextgame">Bets for game ${st.game+1}</button><div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
   }
   return `<div class="tgrid"><div>${kingsHTML(st)}${main}</div><div>${scoresHTML(st)}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div></div>`;
@@ -370,14 +383,14 @@ function handHTML(st){
     else main=`${handView(hand)}<div class="wait">${esc(pname(st,turn))} is deciding whether to swap…</div>`;
   }
   else if(st.phase==='play'){
-    const note=st.note?`<p class="center small">${esc(st.note)}</p>`:'';
+    const note=noteHTML(st,'small');
     if(st.leader===i){ const {opts}=leadOptions(st,i); const leads={}; opts.forEach(o=>leads[o.s]=o.low.r);
       main=`${miniRun(st)}${note}<div class="leadcall">Your lead: ${st.colour?`lowest <span class="col ${st.colour}">${st.colour}</span>`:'lowest card of <span class="col">any suit</span>'}</div><p class="muted small center">${st.colour?`Tap your lowest ${st.colour} card.`:'First lead of the game: tap any of your lowest cards.'}</p>${handView(hand,leads)}`; }
     else main=`${miniRun(st)}${note}<p class="center">${esc(pname(st,st.leader))} to lead their lowest ${st.colour||'card'}.</p>${handView(hand)}`;
   }
   else if(st.phase==='claim'){
     const need={s:st.runSuit,r:st.nextRank}; const have=hand.some(c=>c.s===need.s&&c.r===need.r);
-    main=`${miniRun(st,true,need)}${st.note?`<p class="center small">${esc(st.note)}</p>`:''}
+    main=`${miniRun(st,true,need)}${noteHTML(st,'small')}
       ${hints&&have?`<button class="huge" id="claim">I've got the ${cs(need)}!</button><div class="count" id="count">5</div>`:`<p class="center">Got it? Tap the card in your hand. <span class="serif" id="count">5</span></p>`}
       ${handView(hand,null,{need,hint:hints})}`;
   }

@@ -13,7 +13,7 @@ function fresh() {
   return {
     phase: "lobby", players: [], kings: { S: 0, H: 0, D: 0, C: 0 }, pot: 0, first: 0, game: 0,
     dead: [], spare: [], swapIdx: 0, leader: 0, colour: null, runSuit: null, run: [], nextRank: 0,
-    calledAt: 0, note: "", winner: null, v: 0,
+    calledAt: 0, note: "", winner: null, v: 0, claimMs: CLAIM_MS,
   };
 }
 function deck() {
@@ -207,6 +207,7 @@ export class Table extends DurableObject {
         playFrom(st, i, st.nextRank); changed = true; break;
       }
       case "stop": if (isHost && st.phase === "claim") { this.stopRun(st); changed = true; } break;
+      case "settings": if (isHost && [5000, 30000, 300000].includes(Number(m.claimMs))) { st.claimMs = Number(m.claimMs); changed = true; } break;
     }
     if (err) ws.send(JSON.stringify({ t: "err", msg: err }));
     if (changed) await this.commit();
@@ -218,7 +219,7 @@ export class Table extends DurableObject {
 
   async alarm() {
     const st = this.S, now = Date.now(); let changed = false;
-    if (st.phase === "claim" && now >= st.calledAt + CLAIM_MS - 50) { this.stopRun(st); changed = true; }
+    if (st.phase === "claim" && now >= st.calledAt + (st.claimMs || CLAIM_MS) - 50) { this.stopRun(st); changed = true; }
     else if (st.phase === "ante" && st.dealAt && now >= st.dealAt - 50) { if (canDealAll(st)) dealInto(st); else st.dealAt = 0; changed = true; }
     else if (now >= (st.botAt || 0) - 50) { const i = botPending(st); if (i >= 0) { botAct(st, i); changed = true; } st.botAt = 0; }
     if (changed) await this.commit(); else await this.schedule();
@@ -226,7 +227,7 @@ export class Table extends DurableObject {
 
   async schedule() {
     const st = this.S, times = [];
-    if (st.phase === "claim") times.push(st.calledAt + CLAIM_MS);
+    if (st.phase === "claim") times.push(st.calledAt + (st.claimMs || CLAIM_MS));
     if (st.phase === "ante" && st.dealAt) times.push(st.dealAt);
     const bi = botPending(st);
     if (bi >= 0) { if (!st.botAt || st.botAt < Date.now() - 10000) st.botAt = Date.now() + botDelay(st); times.push(st.botAt); } else st.botAt = 0;
@@ -254,7 +255,7 @@ export class Table extends DurableObject {
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined,
       players: st.players.map((p) => ({ id: p.id, name: p.name, bot: !!p.bot, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
-      canDeal: canDealAll(st), you: pid, sid, peers, host: role === "table" || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
+      canDeal: canDealAll(st), claimMs: st.claimMs || CLAIM_MS, you: pid, sid, peers, host: role === "table" || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
     };
     try { ws.send(JSON.stringify({ t: "state", s: view })); } catch {}
   }

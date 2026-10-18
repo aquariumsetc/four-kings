@@ -131,9 +131,8 @@ const pname=(st,i)=>st.players[i]?st.players[i].name:'?';
 const swapOrder=(st,k)=>(st.first+k)%st.players.length;
 function leadOptions(st,i){
   const h=st.players[i].hand||[], want=st.colour; const suitsOf=col=>SUITS.filter(s=>(col==='red')===RED[s]);
-  let suits=want?suitsOf(want):SUITS; let avail=suits.filter(s=>h.some(c=>c.s===s)); let forced=false;
-  if(want&&!avail.length){ avail=suitsOf(want==='red'?'black':'red').filter(s=>h.some(c=>c.s===s)); forced=true; }
-  return {opts:avail.map(s=>({s,low:h.filter(c=>c.s===s).sort((a,b)=>a.r-b.r)[0]})),forced};
+  const suits=want?suitsOf(want):SUITS; const avail=suits.filter(s=>h.some(c=>c.s===s));
+  return {opts:avail.map(s=>({s,low:h.filter(c=>c.s===s).sort((a,b)=>a.r-b.r)[0]}))};
 }
 function tailLen(st){ const w=st.run[st.run.length-1].who; let n=0; for(let i=st.run.length-1;i>=0&&st.run[i].who===w;i--) n++; return n; }
 function newCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
@@ -169,7 +168,7 @@ function announce(st,old){
     const n=tailLen(st); const tail=st.run.slice(st.run.length-n);
     say(tail.map(x=>WORD[x.c.r]+' of '+NAME[x.c.s]).join(', ')+'. Who has the '+WORD[st.nextRank]+'?');
   } else if(st.phase==='play'&&old.phase!=='play'){ say((st.note?st.note+' ':'')+pname(st,st.leader)+', your lowest '+(st.colour||'card')); }
-  else if(st.phase==='over'&&old.phase!=='over'){ say((st.note?st.note+' ':'')+pname(st,st.winner.idx)+' is out of cards and takes the centre, '+st.winner.won+' dollars.'); }
+  else if(st.phase==='over'&&old.phase!=='over'){ say(st.winner?(st.note?st.note+' ':'')+pname(st,st.winner.idx)+' is out of cards and takes the centre, '+st.winner.won+' dollars.':st.note); }
   else if(st.phase==='ante'&&old.phase!=='ante'){ say('Place your bets.'); }
   else if(st.phase==='swap'&&old.phase==='ante'){ say('Cards are dealt. '+pname(st,swapOrder(st,0))+', keep or swap?'); }
 }
@@ -295,7 +294,7 @@ function tableHTML(st){
     main=`<div class="pile">${pileHTML(st,true)}</div>${st.note?`<p class="center">${esc(st.note)}</p>`:''}<div class="call">Who has the ${cs({s:st.runSuit,r:st.nextRank})}?</div><div class="count" id="count">5</div>`;
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
-    main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center"><h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.${st.note?' '+esc(st.note):''}</p><p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p></div>
+    main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.${st.note?' '+esc(st.note):''}</p><p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
     ${host?`<button class="big" id="nextgame">Bets for game ${st.game+1}</button><div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
   }
   return `<div class="tgrid"><div>${kingsHTML(st)}${main}</div><div>${scoresHTML(st)}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div></div>`;
@@ -334,8 +333,8 @@ function handHTML(st){
   }
   else if(st.phase==='play'){
     const note=st.note?`<p class="center small">${esc(st.note)}</p>`:'';
-    if(st.leader===i){ const {opts,forced}=leadOptions(st,i); const leads={}; opts.forEach(o=>leads[o.s]=o.low.r);
-      main=`${miniRun(st)}${note}<h2>Your lead</h2><p class="muted small">${st.colour?(forced?`No ${st.colour} cards, so lead your lowest ${st.colour==='red'?'black':'red'}.`:`Lead your lowest ${st.colour}. Tap the card.`):'First lead: tap the lowest card of any suit.'}</p>${handView(hand,leads)}`; }
+    if(st.leader===i){ const {opts}=leadOptions(st,i); const leads={}; opts.forEach(o=>leads[o.s]=o.low.r);
+      main=`${miniRun(st)}${note}<h2>Your lead</h2><p class="muted small">${st.colour?`Lead your lowest ${st.colour}. Tap the card.`:'First lead: tap the lowest card of any suit.'}</p>${handView(hand,leads)}`; }
     else main=`${miniRun(st)}${note}<p class="center">${esc(pname(st,st.leader))} to lead their lowest ${st.colour||'card'}.</p>${handView(hand)}`;
   }
   else if(st.phase==='claim'){
@@ -343,7 +342,7 @@ function handHTML(st){
     main=`${miniRun(st,true)}${st.note?`<p class="center small">${esc(st.note)}</p>`:''}${have?`<button class="huge" id="claim">I've got the ${cs({s:st.runSuit,r:st.nextRank})}!</button><div class="count" id="count">5</div>`:`<p class="center">Who has the <b>${cs({s:st.runSuit,r:st.nextRank})}</b>? <span class="serif" id="count">5</span></p>`}${handView(hand)}`;
   }
   else if(st.phase==='over'){
-    main=`${miniRun(st)}<div class="wait"><h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the table to start the next game.</p>${st.host?`<button id="nextgame">Next game</button>`:''}</div>`;
+    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} $${st.pot} stays in the centre for next game.</p>`}${st.host?`<button id="nextgame">Next game</button>`:''}</div>`;
   }
   return kingsHTML(st)+main+scoresHTML(st);
 }

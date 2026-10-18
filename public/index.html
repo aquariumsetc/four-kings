@@ -80,6 +80,9 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .minirun{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:8px 6px 18px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:60px}
 .minirun .card.who::after{content:attr(data-who);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:3px;font:600 .6rem -apple-system,"Segoe UI",sans-serif;white-space:nowrap;color:var(--fg)}
 .minirun .card.hot{outline:3px solid var(--brass);outline-offset:1px}
+.card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
+.card.ghost.red{color:#ff9d99}
+.minirun .card.ghost::after{content:"?";position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:3px;font:600 .6rem -apple-system,"Segoe UI",sans-serif;color:var(--fg)}
 .dealin{font-family:"Fraunces",Georgia,serif;font-size:1.4rem;color:var(--brass);text-align:center}
 #vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto;min-height:0}
 #vid:empty{display:none}
@@ -118,7 +121,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('fk-mode')||'';
-let nick=get('fk-nick');
+let nick=get('fk-nick'); let hints=get('fk-hints')==='1';
 let S=null, prev=null, ws=null, timer=null, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -257,7 +260,7 @@ function render(){
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(mode==='table'?' table':'');
-  app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button></p>`;
+  app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button>${mode==='hand'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button>`:''}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   if(S.phase==='claim') tickCount();
@@ -338,21 +341,26 @@ function handHTML(st){
     else main=`${miniRun(st)}${note}<p class="center">${esc(pname(st,st.leader))} to lead their lowest ${st.colour||'card'}.</p>${handView(hand)}`;
   }
   else if(st.phase==='claim'){
-    const have=hand.some(c=>c.s===st.runSuit&&c.r===st.nextRank);
-    main=`${miniRun(st,true)}${st.note?`<p class="center small">${esc(st.note)}</p>`:''}${have?`<button class="huge" id="claim">I've got the ${cs({s:st.runSuit,r:st.nextRank})}!</button><div class="count" id="count">5</div>`:`<p class="center">Who has the <b>${cs({s:st.runSuit,r:st.nextRank})}</b>? <span class="serif" id="count">5</span></p>`}${handView(hand)}`;
+    const need={s:st.runSuit,r:st.nextRank}; const have=hand.some(c=>c.s===need.s&&c.r===need.r);
+    main=`${miniRun(st,true,need)}${st.note?`<p class="center small">${esc(st.note)}</p>`:''}
+      ${hints&&have?`<button class="huge" id="claim">I've got the ${cs(need)}!</button><div class="count" id="count">5</div>`:`<p class="center">Got it? Tap the card in your hand. <span class="serif" id="count">5</span></p>`}
+      ${handView(hand,null,{need,hint:hints})}`;
   }
   else if(st.phase==='over'){
     main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} $${st.pot} stays in the centre for next game.</p>`}${st.host?`<button id="nextgame">Next game</button>`:''}</div>`;
   }
   return kingsHTML(st)+main+scoresHTML(st);
 }
-function miniRun(st,live){
+function miniRun(st,live,need){
   if(!st.run.length) return `<div class="minirun"><span class="muted small" style="align-self:center">Table is clear</span></div>`;
-  const n=st.run.length, newest=live?tailLen(st):0; const shown=st.run.slice(-8);
-  return `<div class="minirun">${shown.map((x,k)=>{ const i=n-shown.length+k; return cardHTML(x.c,'who'+(i>=n-newest?' hot':''),pname(st,x.who)); }).join('')}</div>`;
+  const n=st.run.length, newest=live?tailLen(st):0; const shown=st.run.slice(-7);
+  return `<div class="minirun">${shown.map((x,k)=>{ const i=n-shown.length+k; return cardHTML(x.c,'who'+(i>=n-newest?' hot':''),pname(st,x.who)); }).join('')}${need?cardHTML(need,'ghost'):''}</div>`;
 }
-function handView(h,leads){
-  return `<div class="hand">${SUITS.map(s=>{const cards=h.filter(c=>c.s===s); if(!cards.length) return ''; return `<div class="suitrow"><span class="tag ${RED[s]?'red':''}">${SYM[s]}</span><div class="cards">${cards.map(c=>(leads&&leads[s]===c.r)?`<button class="cardbtn" data-lead="${s}">${cardHTML(c,'lead')}</button>`:cardHTML(c)).join('')}</div></div>`;}).join('')}</div>`;
+function handView(h,leads,claim){
+  return `<div class="hand">${SUITS.map(s=>{const cards=h.filter(c=>c.s===s); if(!cards.length) return ''; return `<div class="suitrow"><span class="tag ${RED[s]?'red':''}">${SYM[s]}</span><div class="cards">${cards.map(c=>{
+    if(leads&&leads[s]===c.r) return `<button class="cardbtn" data-lead="${s}">${cardHTML(c,'lead')}</button>`;
+    if(claim){ const match=c.s===claim.need.s&&c.r===claim.need.r; return `<button class="cardbtn" data-claim="${c.s}${c.r}">${cardHTML(c,match&&claim.hint?'lead':'')}</button>`; }
+    return cardHTML(c); }).join('')}</div></div>`;}).join('')}</div>`;
 }
 function bind(){
   const q=s=>app.querySelector(s);
@@ -375,6 +383,8 @@ function bind(){
   if(q('#swap')) q('#swap').onclick=()=>sendMsg({t:'swap',swap:true});
   app.querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>{ b.disabled=true; sendMsg({t:'lead',suit:b.dataset.lead}); });
   if(q('#claim')) q('#claim').onclick=()=>{ q('#claim').disabled=true; sendMsg({t:'claim'}); };
+  app.querySelectorAll('[data-claim]').forEach(b=>b.onclick=()=>{ if(!S||S.phase!=='claim') return; const need=S.runSuit+S.nextRank; if(b.dataset.claim===need){ b.disabled=true; sendMsg({t:'claim'}); } else { viewMsg='Not that one.'; render(); setTimeout(()=>{ if(viewMsg==='Not that one.'){ viewMsg=''; render(); } },1200); } });
+  if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };
 }
 
 if(qs.get('room')&&qs.get('mode')){ set('fk-room',room); set('fk-mode',mode); }

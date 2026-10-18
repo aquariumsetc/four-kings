@@ -77,6 +77,10 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .qr{background:#fbf7ec;padding:10px;border-radius:12px;line-height:0}
 .qr img,.qr canvas{display:block}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
+.minirun{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:8px 6px 18px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:60px}
+.minirun .card.who::after{content:attr(data-who);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:3px;font:600 .6rem -apple-system,"Segoe UI",sans-serif;white-space:nowrap;color:var(--fg)}
+.minirun .card.hot{outline:3px solid var(--brass);outline-offset:1px}
+.dealin{font-family:"Fraunces",Georgia,serif;font-size:1.4rem;color:var(--brass);text-align:center}
 #vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto;min-height:0}
 #vid:empty{display:none}
 .tile{position:relative;flex:none;width:78px;height:104px;border-radius:10px;overflow:hidden;background:#111;box-shadow:0 2px 6px rgba(0,0,0,.4)}
@@ -115,7 +119,10 @@ const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('fk-mode')||'';
 let nick=get('fk-nick');
-let S=null, prev=null, ws=null, timer=null, draft={king:null,bet:10}, viewMsg='', claimSeen=0, reconnectIn=800;
+let S=null, prev=null, ws=null, timer=null, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
+const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
+const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
+const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const app=document.getElementById('app'), connEl=document.getElementById('conn');
 
 /* ---------- helpers ---------- */
@@ -149,7 +156,8 @@ function connect(){
 function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function onState(st,old){
   if(st.phase==='claim'&&(!old||old.phase!=='claim'||old.run.length!==st.run.length||old.runSuit!==st.runSuit)) claimSeen=Date.now();
-  if(mode==='hand'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={king:null,bet:10};
+  if(mode==='hand'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:10};
+  if(st.phase==='ante'&&st.dealAt&&(!old||!old.dealAt)) dealSeen=Date.now()+(st.dealAt-st.serverNow);
   announce(st,old);
 }
 
@@ -234,7 +242,7 @@ function renderVideo(){
 function cardHTML(c,cls,who){ return `<div class="card ${RED[c.s]?'red':''} ${c.r===12?'q':''} ${cls||''}" ${who?`data-who="${esc(who)}"`:''}><span>${rname(c.r)}</span><small>${SYM[c.s]}</small></div>`; }
 function kingsHTML(st){
   const ante=st.phase==='ante';
-  const onK=s=>st.kings[s]+(ante?st.players.filter(p=>p.placed&&p.king===s).reduce((a,p)=>a+p.bet,0):0);
+  const onK=s=>st.kings[s]+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+(p.bets[s]||0),0):0);
   const pot=st.pot+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+p.bet,0):0);
   return `<div class="kings">${SUITS.map(s=>`<div class="spot"><span class="k ${RED[s]?'red':''}"><span>K</span><span>${SYM[s]}</span></span><div class="coins">$${onK(s)}</div></div>`).join('')}<div class="pot"><div class="n">$${pot}</div><div class="l">in the centre</div></div></div>`;
 }
@@ -254,7 +262,9 @@ function render(){
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   if(S.phase==='claim') tickCount();
+  if(S.phase==='ante'&&S.dealAt) tickDeal();
 }
+function tickDeal(){ const el=document.getElementById('dealin'); if(!el||!S||S.phase!=='ante'||!S.dealAt) return; const left=Math.max(0,Math.ceil((dealSeen-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickDeal,250); }
 function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+CLAIM_MS-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickCount,250); }
 function startHTML(){
   const link=location.origin+location.pathname;
@@ -272,8 +282,10 @@ function tableHTML(st){
     <h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
     ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>`:''}`;
   } else if(st.phase==='ante'){
-    main=`<h2>Place your bets</h2><p class="muted">Each player picks a king and a stake on their phone. Cards deal as soon as the last bet is in.</p>
-    <div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} ${p.placed?`<span class="muted small">$${p.bet} on ${SYM[p.king]}</span>`:'<span class="muted small">deciding…</span>'}</div>`).join('')}</div>`;
+    main=`<h2>Place your bets</h2><p class="muted">Each player picks one or two kings and a stake on their phone. Bets can be moved until the cards are dealt.</p>
+    <div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} ${p.placed?`<span class="muted small">${betsText(p.bets)}</span>`:'<span class="muted small">deciding…</span>'}</div>`).join('')}</div>
+    ${st.dealAt?`<p class="center small muted">All bets are in. Dealing in <span class="dealin" id="dealin">15</span> s — last chance to move your bet.</p>`:''}
+    ${host&&st.canDeal?`<button class="big" id="deal">Deal the cards now</button>`:''}`;
   } else if(st.phase==='swap'){
     const i=swapOrder(st,st.swapIdx);
     main=`<h2>${esc(pname(st,i))}: keep or swap?</h2><p class="muted">${st.swapIdx+1} of ${st.players.length} asked. The spare hand goes to the first player who takes it.</p>`;
@@ -304,12 +316,16 @@ function handHTML(st){
   }
   if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button></div>`; }
   else if(st.phase==='ante'){
-    if(p.placed) main=`<div class="wait"><h2>Bet placed</h2><p class="muted">$${p.bet} on the king of ${NAME[p.king]} and $${p.bet} in the centre. Waiting for the others.</p></div>`;
-    else { const max=Math.max(10,Math.floor(p.balance/20)*10); if(draft.bet>max) draft.bet=max;
-      main=`<h2>Your bet</h2><p class="muted small">You have $${p.balance}. Pick a king and a stake (min $10); the same again goes in the centre.</p>
-      <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.king===s?'on':''}" data-king="${s}">${SYM[s]}</button>`).join('')}</div>
-      <div class="row" style="margin-top:10px"><button class="ghost" data-bet="-10" style="flex:0 0 56px">−</button><div class="center"><span class="serif" style="font-size:1.8rem">$${draft.bet}</span><div class="small muted">on ${draft.king?'the king of '+NAME[draft.king]:'a king'} + $${draft.bet} centre</div></div><button class="ghost" data-bet="10" style="flex:0 0 56px">+</button></div>
-      <button class="big" id="place" ${draft.king&&p.balance>=2*draft.bet?'':'disabled'}>Place bet</button>`; }
+    if(p.placed&&!draft.suits.length){ draft.suits=Object.keys(p.bets); draft.total=p.bet; }
+    const max=Math.max(10,Math.floor(p.balance/20)*10); const step=draft.suits.length===2?20:10;
+    if(draft.total>max) draft.total=Math.max(step,Math.floor(max/step)*step); if(draft.total<step) draft.total=step; if(draft.total%step) draft.total=Math.ceil(draft.total/step)*step;
+    const bets=betsOf(draft), each=draft.suits.length?draft.total/draft.suits.length:0, dirty=!p.placed||!sameBets(bets,p.bets);
+    main=`<h2>${p.placed?'Your bet is in':'Your bet'}</h2><p class="muted small">You have $${p.balance}. Tap a king, or two kings to split the stake; the same again goes in the centre. ${p.placed?'You can change it until the cards are dealt.':''}</p>
+      <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.suits.includes(s)?'on':''}" data-king="${s}">${SYM[s]}${draft.suits.includes(s)?`<div class="small" style="font-family:-apple-system,sans-serif;font-weight:600">$${each}</div>`:''}</button>`).join('')}</div>
+      <div class="row" style="margin-top:10px"><button class="ghost" data-bet="-${step}" style="flex:0 0 56px">−</button><div class="center"><span class="serif" style="font-size:1.8rem">$${draft.total}</span><div class="small muted">${draft.suits.length?betsText(bets):'on a king'} + $${draft.total} centre</div></div><button class="ghost" data-bet="${step}" style="flex:0 0 56px">+</button></div>
+      <button class="big" id="place" ${draft.suits.length&&dirty&&p.balance>=2*draft.total?'':'disabled'}>${p.placed?(dirty?'Change my bet':'Bet placed'):'Place bet'}</button>
+      ${st.dealAt?`<p class="center small muted">All bets are in — dealing in <span class="dealin" id="dealin">15</span> s</p>`:'<p class="center small muted">Waiting for everyone to bet…</p>'}
+      ${st.host&&st.canDeal?`<button class="big ghost" id="deal">Deal the cards now</button>`:''}`;
   }
   else if(st.phase==='swap'){
     const turn=swapOrder(st,st.swapIdx);
@@ -317,18 +333,24 @@ function handHTML(st){
     else main=`${handView(hand)}<div class="wait">${esc(pname(st,turn))} is deciding whether to swap…</div>`;
   }
   else if(st.phase==='play'){
+    const note=st.note?`<p class="center small">${esc(st.note)}</p>`:'';
     if(st.leader===i){ const {opts,forced}=leadOptions(st,i); const leads={}; opts.forEach(o=>leads[o.s]=o.low.r);
-      main=`<h2>Your lead</h2><p class="muted small">${st.colour?(forced?`No ${st.colour} cards, so lead your lowest ${st.colour==='red'?'black':'red'}.`:`Lead your lowest ${st.colour}. Tap the card.`):'First lead: tap the lowest card of any suit.'}</p>${handView(hand,leads)}`; }
-    else main=`${handView(hand)}<div class="wait">${esc(pname(st,st.leader))} to lead their lowest ${st.colour||'card'}.</div>`;
+      main=`${miniRun(st)}${note}<h2>Your lead</h2><p class="muted small">${st.colour?(forced?`No ${st.colour} cards, so lead your lowest ${st.colour==='red'?'black':'red'}.`:`Lead your lowest ${st.colour}. Tap the card.`):'First lead: tap the lowest card of any suit.'}</p>${handView(hand,leads)}`; }
+    else main=`${miniRun(st)}${note}<p class="center">${esc(pname(st,st.leader))} to lead their lowest ${st.colour||'card'}.</p>${handView(hand)}`;
   }
   else if(st.phase==='claim'){
-    const have=hand.some(c=>c.s===st.runSuit&&c.r===st.nextRank); const last=st.run[st.run.length-1];
-    main=`${handView(hand)}<p class="center">Last played: <b>${cs(last.c)}</b> by ${esc(pname(st,last.who))}</p>${have?`<button class="huge" id="claim">I've got the ${cs({s:st.runSuit,r:st.nextRank})}!</button><div class="count" id="count">5</div>`:`<div class="wait">Who has the ${cs({s:st.runSuit,r:st.nextRank})}? <span class="serif" id="count">5</span></div>`}`;
+    const have=hand.some(c=>c.s===st.runSuit&&c.r===st.nextRank);
+    main=`${miniRun(st,true)}${st.note?`<p class="center small">${esc(st.note)}</p>`:''}${have?`<button class="huge" id="claim">I've got the ${cs({s:st.runSuit,r:st.nextRank})}!</button><div class="count" id="count">5</div>`:`<p class="center">Who has the <b>${cs({s:st.runSuit,r:st.nextRank})}</b>? <span class="serif" id="count">5</span></p>`}${handView(hand)}`;
   }
   else if(st.phase==='over'){
-    main=`<div class="wait"><h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the table to start the next game.</p>${st.host?`<button id="nextgame">Next game</button>`:''}</div>`;
+    main=`${miniRun(st)}<div class="wait"><h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the table to start the next game.</p>${st.host?`<button id="nextgame">Next game</button>`:''}</div>`;
   }
   return kingsHTML(st)+main+scoresHTML(st);
+}
+function miniRun(st,live){
+  if(!st.run.length) return `<div class="minirun"><span class="muted small" style="align-self:center">Table is clear</span></div>`;
+  const n=st.run.length, newest=live?tailLen(st):0; const shown=st.run.slice(-8);
+  return `<div class="minirun">${shown.map((x,k)=>{ const i=n-shown.length+k; return cardHTML(x.c,'who'+(i>=n-newest?' hot':''),pname(st,x.who)); }).join('')}</div>`;
 }
 function handView(h,leads){
   return `<div class="hand">${SUITS.map(s=>{const cards=h.filter(c=>c.s===s); if(!cards.length) return ''; return `<div class="suitrow"><span class="tag ${RED[s]?'red':''}">${SYM[s]}</span><div class="cards">${cards.map(c=>(leads&&leads[s]===c.r)?`<button class="cardbtn" data-lead="${s}">${cardHTML(c,'lead')}</button>`:cardHTML(c)).join('')}</div></div>`;}).join('')}</div>`;
@@ -346,9 +368,10 @@ function bind(){
   if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});
   if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick}); };
   if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
-  app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ draft.king=b.dataset.king; render(); });
-  app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.bet=Math.max(10,draft.bet+(+b.dataset.bet)); render(); });
-  if(q('#place')) q('#place').onclick=()=>{ q('#place').disabled=true; sendMsg({t:'bet',king:draft.king,bet:draft.bet}); };
+  app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<2) draft.suits.push(s); else draft.suits=[draft.suits[1],s]; if(draft.suits.length===2&&draft.total<20) draft.total=20; render(); });
+  app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.total=Math.max(10,draft.total+(+b.dataset.bet)); render(); });
+  if(q('#place')) q('#place').onclick=()=>{ q('#place').disabled=true; sendMsg({t:'bet',bets:betsOf(draft)}); };
+  if(q('#deal')) q('#deal').onclick=()=>sendMsg({t:'deal'});
   if(q('#keep')) q('#keep').onclick=()=>sendMsg({t:'swap',swap:false});
   if(q('#swap')) q('#swap').onclick=()=>sendMsg({t:'swap',swap:true});
   app.querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>{ b.disabled=true; sendMsg({t:'lead',suit:b.dataset.lead}); });

@@ -84,10 +84,10 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
 .minirun{display:flex;gap:22px;align-items:center;justify-content:center;padding:10px 6px 24px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:96px}
 .fan{position:relative;height:80px;flex:1;max-width:260px}
-.fan .card{position:absolute;top:50%;width:48px;height:68px;margin-top:-34px;font-size:1.3rem;box-shadow:0 2px 6px rgba(0,0,0,.45)}
-.fan .card small{font-size:.9rem}
+.fan .card{position:absolute;top:50%;width:40px;height:56px;margin-top:-28px;font-size:1.55rem;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.fan .card small{font-size:1.1rem}
 .fan .card.last{outline:2px solid var(--brass);outline-offset:1px}
-.minirun .card.ghost{width:52px;height:72px;font-size:1.4rem}.minirun .card.ghost small{font-size:.95rem}
+.minirun .card.ghost{width:44px;height:60px;font-size:1.5rem}.minirun .card.ghost small{font-size:1.05rem}
 .minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
 .card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
 .card.ghost.red{color:#ff9d99}
@@ -147,7 +147,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('fk-mode')||'';
-let nick=get('fk-nick'); let hints=get('fk-hints')==='1'; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
+let nick=get('fk-nick'); let hints=get('fk-hints')==='1'; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -214,7 +214,8 @@ const sfx={
   stop(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; tone(140,t,.25,.3,'sine'); noise(t,.12,.25,300); },
   lead(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; tone(880,t,.12,.18,'sine'); tone(1175,t+.14,.18,.18,'sine'); },
   tap(){ if(!sfxOn) return; const a=ac(); if(!a) return; tone(1400,a.currentTime,.05,.1,'square'); },
-  bet(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; coins(3,.25); }
+  beep(last){ if(!sfxOn) return; const a=ac(); if(!a) return; tone(last?1320:990,a.currentTime,last?.18:.09,.14,'square'); },
+  bet(){ if(!sfxOn) return; const a=ac(); if(!a) return; coins(3,.2); }
 };
 function soundsFor(st,old){
   if(!old) return;
@@ -223,7 +224,36 @@ function soundsFor(st,old){
   if(st.phase==='swap'&&old.phase==='ante') sfx.deal();
   if(st.phase==='play'&&old.phase==='claim'&&st.run.length===old.run.length) sfx.stop();
   if(st.phase==='play'&&(old.phase!=='play'||old.leader!==st.leader)&&mode==='hand'&&st.players[st.leader]&&st.players[st.leader].id===pid) sfx.lead();
-  if(st.phase==='ante'&&old.phase==='ante'&&st.players.filter(p=>p.placed).length>old.players.filter(p=>p.placed).length) sfx.bet();
+  if(st.phase==='ante'&&old.phase==='ante'&&st.players.filter(p=>p.placed).length>old.players.filter(p=>p.placed).length&&!(mode==='hand'&&st.players.some(p=>p.id===pid&&p.placed&&!old.players.find(o=>o.id===pid&&o.placed)))) sfx.bet();
+}
+
+/* ---------- background music: an original lo-fi loop, generated on the device ---------- */
+const music={on:false,timer:null,step:0,next:0,master:null,delay:null};
+const CHORDS=[[57,60,64,67],[62,65,69,72],[55,59,62,65],[60,64,67,71]]; // Am7 Dm7 G7 Cmaj7 (MIDI)
+const PENTA=[69,72,74,76,79,81,84];
+const mhz=m=>440*Math.pow(2,(m-69)/12);
+function musicStart(){
+  const a=ac(); if(!a||music.on) return; music.on=true;
+  const g=a.createGain(); g.gain.value=0; g.connect(a.destination); g.gain.linearRampToValueAtTime(.55,a.currentTime+2); music.master=g;
+  const d=a.createDelay(1); d.delayTime.value=.36; const fb=a.createGain(); fb.gain.value=.32; const df=a.createBiquadFilter(); df.type='lowpass'; df.frequency.value=1800; d.connect(df).connect(fb).connect(d); d.connect(g); music.delay=d;
+  // vinyl crackle bed
+  const n=a.sampleRate*2, buf=a.createBuffer(1,n,a.sampleRate), ch=buf.getChannelData(0); for(let i=0;i<n;i++) ch[i]=Math.random()<.004?(Math.random()*2-1)*.6:(Math.random()*2-1)*.02;
+  const src=a.createBufferSource(); src.buffer=buf; src.loop=true; const cf=a.createBiquadFilter(); cf.type='bandpass'; cf.frequency.value=3000; const cg=a.createGain(); cg.gain.value=.25; src.connect(cf).connect(cg).connect(g); src.start(); music.crackle=src;
+  music.step=0; music.next=a.currentTime+.1; music.timer=setInterval(musicTick,90); musicTick();
+}
+function musicStop(){ if(!music.on) return; music.on=false; clearInterval(music.timer); const a=ac(); if(music.master){ const g=music.master; g.gain.linearRampToValueAtTime(0,a.currentTime+1.2); setTimeout(()=>{ try{ g.disconnect(); music.crackle.stop(); }catch(e){} },1400); } }
+function musicTick(){
+  const a=ac(); if(!a||!music.on) return; const bpm=82, sixteenth=60/bpm/4;
+  while(music.next<a.currentTime+.35){
+    const s=music.step, bar=Math.floor(s/16), inBar=s%16, swing=(inBar%2)?sixteenth*.18:0, t=music.next+swing, g=music.master, chord=CHORDS[bar%4];
+    if(inBar===0){ chord.forEach((m,i)=>{ const o=a.createOscillator(), og=a.createGain(), f=a.createBiquadFilter(); o.type=i%2?'triangle':'sawtooth'; o.frequency.value=mhz(m); o.detune.value=(i-1.5)*6; f.type='lowpass'; f.frequency.value=700; og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(.045,t+.35); og.gain.setValueAtTime(.045,t+sixteenth*13); og.gain.linearRampToValueAtTime(0,t+sixteenth*16); o.connect(f).connect(og).connect(g); o.start(t); o.stop(t+sixteenth*16.2); }); }
+    if(inBar===0||inBar===8||(inBar===11&&bar%2)){ const o=a.createOscillator(), og=a.createGain(); o.type='sine'; o.frequency.value=mhz(chord[0]-24); og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(.22,t+.02); og.gain.exponentialRampToValueAtTime(.001,t+sixteenth*6); o.connect(og).connect(g); o.start(t); o.stop(t+sixteenth*6.5); }
+    if(inBar===0||inBar===8||inBar===10){ const o=a.createOscillator(), og=a.createGain(); o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(45,t+.12); og.gain.setValueAtTime(.5,t); og.gain.exponentialRampToValueAtTime(.001,t+.22); o.connect(og).connect(g); o.start(t); o.stop(t+.25); }
+    if(inBar===4||inBar===12){ const nb=a.createBuffer(1,a.sampleRate*.15,a.sampleRate), c=nb.getChannelData(0); for(let i=0;i<c.length;i++) c[i]=(Math.random()*2-1)*Math.pow(1-i/c.length,2); const ns=a.createBufferSource(); ns.buffer=nb; const nf=a.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=1800; nf.Q.value=.7; const ng=a.createGain(); ng.gain.value=.22; ns.connect(nf).connect(ng).connect(g); ns.start(t); }
+    if(inBar%2===0||Math.random()<.35){ const nb=a.createBuffer(1,a.sampleRate*.04,a.sampleRate), c=nb.getChannelData(0); for(let i=0;i<c.length;i++) c[i]=(Math.random()*2-1)*(1-i/c.length); const ns=a.createBufferSource(); ns.buffer=nb; const nf=a.createBiquadFilter(); nf.type='highpass'; nf.frequency.value=7000; const ng=a.createGain(); ng.gain.value=inBar%4===2?.12:.07; ns.connect(nf).connect(ng).connect(g); ns.start(t); }
+    if(inBar%2===0&&Math.random()<.28){ const m=PENTA[Math.floor(Math.random()*PENTA.length)]; const o=a.createOscillator(), og=a.createGain(); o.type='triangle'; o.frequency.value=mhz(m); og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(.09,t+.03); og.gain.exponentialRampToValueAtTime(.001,t+sixteenth*3); o.connect(og).connect(g); o.connect(og).connect(music.delay); o.start(t); o.stop(t+sixteenth*3.2); }
+    music.step++; music.next+=sixteenth;
+  }
 }
 
 /* ---------- speech (table only) ---------- */
@@ -332,7 +362,7 @@ function render(){
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(mode==='table'?' table':'');
-  app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button>${mode==='hand'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button>`:''}</p>`;
+  app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode==='hand'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button>`:''}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   if(S.phase==='claim') tickCount();
@@ -340,7 +370,7 @@ function render(){
 }
 function tickDeal(){ const el=document.getElementById('dealin'); if(!el||!S||S.phase!=='ante'||!S.dealAt) return; const left=Math.max(0,Math.ceil((dealSeen-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickDeal,250); }
 function fmtSec(n){ return n>=60?Math.floor(n/60)+':'+String(n%60).padStart(2,'0'):String(n); }
-function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left>0) timer=setTimeout(tickCount,250); }
+function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left!==lastLeft){ lastLeft=left; if(left>=1&&left<=3) sfx.beep(left===1); } if(left>0) timer=setTimeout(tickCount,250); }
 function timerPicker(st){ const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min']]; return `<div class="small muted" style="margin-top:8px">Time to play the next card: ${opts.map(([v,l])=>`<button class="ghost small ${st.claimMs===v?'on':''}" data-timer="${v}" style="${st.claimMs===v?'background:var(--ivory);color:var(--ink);':''}">${l}</button>`).join(' ')}</div>`; }
 function startHTML(){
   const link=location.origin+location.pathname;
@@ -428,7 +458,7 @@ function handHTML(st){
 function miniRun(st,live,need){
   if(!st.run.length) return `<div class="minirun"><span class="muted small">Table is clear</span></div>`;
   const shown=st.run.slice(-5), n=shown.length;
-  const fan=shown.map((x,k)=>{ const ang=(k%2?9:-9); const left=n>1?`calc(${k} * (100% - 48px) / ${n-1})`:'calc(50% - 24px)'; return `<div style="position:absolute;top:0;bottom:0;left:${left};transform:rotate(${ang}deg)">${cardHTML(x.c,k===n-1?'last':'')}</div>`; }).join('');
+  const fan=shown.map((x,k)=>{ const ang=(k%2?9:-9); const left=n>1?`calc(${k} * (100% - 40px) / ${n-1})`:'calc(50% - 20px)'; return `<div style="position:absolute;top:0;bottom:0;left:${left};transform:rotate(${ang}deg)">${cardHTML(x.c,k===n-1?'last':'')}</div>`; }).join('');
   return `<div class="minirun"><div class="fan">${fan}<div class="lbl">last ${n} played</div></div>${need?`<div style="position:relative;flex:none">${cardHTML(need,'ghost')}<div class="lbl">wanted</div></div>`:''}</div>`;
 }
 function handView(h,leads,claim){
@@ -453,7 +483,7 @@ function bind(){
   if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
   app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<2) draft.suits.push(s); else draft.suits=[draft.suits[1],s]; if(draft.suits.length===2&&draft.total<20) draft.total=20; render(); });
   app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.total=Math.max(10,draft.total+(+b.dataset.bet)); render(); });
-  if(q('#place')) q('#place').onclick=()=>{ q('#place').disabled=true; sendMsg({t:'bet',bets:betsOf(draft)}); };
+  if(q('#place')) q('#place').onclick=()=>{ q('#place').disabled=true; if(sfxOn){ try{ coins(6,.35); }catch(e){} } sendMsg({t:'bet',bets:betsOf(draft)}); };
   if(q('#deal')) q('#deal').onclick=()=>sendMsg({t:'deal'});
   if(q('#keep')) q('#keep').onclick=()=>sendMsg({t:'swap',swap:false});
   if(q('#swap')) q('#swap').onclick=()=>sendMsg({t:'swap',swap:true});
@@ -462,10 +492,11 @@ function bind(){
   app.querySelectorAll('[data-claim]').forEach(b=>b.onclick=()=>{ if(!S||S.phase!=='claim') return; const need=S.runSuit+S.nextRank; if(b.dataset.claim===need){ b.disabled=true; sfx.tap(); sendMsg({t:'claim'}); } else { viewMsg='Not that one.'; render(); setTimeout(()=>{ if(viewMsg==='Not that one.'){ viewMsg=''; render(); } },1200); } });
   if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };
   if(q('#sfx')) q('#sfx').onclick=()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); if(sfxOn) sfx.card(); render(); };
+  if(q('#musicbtn')) q('#musicbtn').onclick=()=>{ musicOn=!musicOn; set('fk-music',musicOn?'1':'0'); try{ musicOn?musicStart():musicStop(); }catch(e){} render(); };
   if(q('#winsnd')) q('#winsnd').onclick=()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); if(winOn){ try{ chime(false); coins(10,.3); }catch(e){} } render(); };
 }
 
-['touchstart','pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ try{ ac(); }catch(e){} },{passive:true}));
+['touchstart','pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ try{ ac(); if(musicOn&&!music.on&&room&&mode) musicStart(); }catch(e){} },{passive:true}));
 if(qs.get('room')&&qs.get('mode')){ set('fk-room',room); set('fk-mode',mode); }
 render();
 if(room&&mode) connect();

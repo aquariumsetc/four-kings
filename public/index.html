@@ -339,7 +339,9 @@ function render(){
   if(S.phase==='ante'&&S.dealAt) tickDeal();
 }
 function tickDeal(){ const el=document.getElementById('dealin'); if(!el||!S||S.phase!=='ante'||!S.dealAt) return; const left=Math.max(0,Math.ceil((dealSeen-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickDeal,250); }
-function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+CLAIM_MS-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickCount,250); }
+function fmtSec(n){ return n>=60?Math.floor(n/60)+':'+String(n%60).padStart(2,'0'):String(n); }
+function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left>0) timer=setTimeout(tickCount,250); }
+function timerPicker(st){ const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min']]; return `<div class="small muted" style="margin-top:8px">Time to play the next card: ${opts.map(([v,l])=>`<button class="ghost small ${st.claimMs===v?'on':''}" data-timer="${v}" style="${st.claimMs===v?'background:var(--ivory);color:var(--ink);':''}">${l}</button>`).join(' ')}</div>`; }
 function startHTML(){
   const link=location.origin+location.pathname;
   return `<div style="padding-top:1.5rem"><h1>Four Kings</h1><p class="muted">One device is the table in the middle (an iPad is ideal). Everyone else opens this page on their phone to hold their hand.</p>
@@ -354,7 +356,7 @@ function tableHTML(st){
   if(st.phase==='lobby'){
     main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div style="max-width:240px;text-align:left"><div class="small muted">Scan with the phone camera to join, or send the link, or type the code on the main page.</div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:8px">🔗 Share join link</button></div></div></div>
     <h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
-    ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>`:''}`;
+    ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>${timerPicker(st)}`:''}`;
   } else if(st.phase==='ante'){
     main=`<h2>Place your bets</h2><p class="muted">Each player picks one or two kings and a stake on their phone. Bets can be moved until the cards are dealt.</p>
     <div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} ${p.placed?`<span class="muted small">${betsText(p.bets)}</span>`:'<span class="muted small">deciding…</span>'}</div>`).join('')}</div>
@@ -366,11 +368,11 @@ function tableHTML(st){
   } else if(st.phase==='play'){
     main=`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
   } else if(st.phase==='claim'){
-    main=`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">Who has the ${cs({s:st.runSuit,r:st.nextRank})}?</div><div class="count" id="count">5</div>`;
+    main=`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">Who has the ${cs({s:st.runSuit,r:st.nextRank})}?</div><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`;
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
-    ${host?`<button class="big" id="nextgame">Bets for game ${st.game+1}</button><div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
+    ${host?`<button class="big" id="nextgame">Bets for game ${st.game+1}</button><div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>${timerPicker(st)}`:''}`;
   }
   return `<div class="tgrid"><div>${kingsHTML(st)}${main}</div><div>${scoresHTML(st)}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div></div>`;
 }
@@ -388,7 +390,7 @@ function handHTML(st){
     else main=`<div class="wait">A game is in progress at table ${esc(room)}. You can join when it finishes.</div>`;
     return kingsHTML(st)+main+scoresHTML(st);
   }
-  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button></div>`; }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${st.host?timerPicker(st):`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`}</div>`; }
   else if(st.phase==='ante'){
     if(p.placed&&!draft.suits.length){ draft.suits=Object.keys(p.bets); draft.total=p.bet; }
     const max=Math.max(10,Math.floor(p.balance/20)*10); const step=draft.suits.length===2?20:10;
@@ -415,7 +417,7 @@ function handHTML(st){
   else if(st.phase==='claim'){
     const need={s:st.runSuit,r:st.nextRank}; const have=hand.some(c=>c.s===need.s&&c.r===need.r);
     main=`${miniRun(st,true,need)}${noteHTML(st,'small')}
-      ${hints&&have?`<button class="huge" id="claim">I've got the ${cs(need)}!</button><div class="count" id="count">5</div>`:`<p class="center">Got it? Tap the card in your hand. <span class="serif" id="count">5</span></p>`}
+      ${hints&&have?`<button class="huge" id="claim">I've got the ${cs(need)}!</button><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`:`<p class="center">Got it? Tap the card in your hand. <span class="serif" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</span></p>`}
       ${handView(hand,null,{need,hint:hints})}`;
   }
   else if(st.phase==='over'){
@@ -443,6 +445,7 @@ function bind(){
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('fk-mode',''); render(); renderVideo(); };
   if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Four Kings, table '+room,text:'Join my Four Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
+  app.querySelectorAll('[data-timer]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',claimMs:+b.dataset.timer}));
   if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
   if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});

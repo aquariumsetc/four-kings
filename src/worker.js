@@ -13,7 +13,7 @@ function fresh() {
   return {
     phase: "lobby", players: [], kings: { S: 0, H: 0, D: 0, C: 0 }, pot: 0, first: 0, game: 0,
     dead: [], spare: [], swapIdx: 0, leader: 0, colour: null, runSuit: null, run: [], nextRank: 0,
-    calledAt: 0, note: "", winner: null, v: 0, claimMs: CLAIM_MS,
+    calledAt: 0, note: "", winner: null, v: 0, claimMs: CLAIM_MS, ledger: {},
   };
 }
 function deck() {
@@ -59,8 +59,8 @@ function playFrom(st, who, r) {
   for (;;) {
     const ci = p.hand.findIndex((c) => c.s === suit && c.r === r); if (ci < 0) break;
     const c = p.hand.splice(ci, 1)[0]; st.run.push({ c, who });
-    if (c.r === 12) { const won = st.kings[suit]; st.kings[suit] = 0; p.balance += won; note = `${p.name} played the queen and takes $${won} from the king of ${NAME[suit]}.`; st.event = { t: "queen", who, suit, won, at: Date.now() }; }
-    if (p.hand.length === 0) { const won = st.pot; st.pot = 0; p.balance += won; st.winner = { idx: who, won }; st.note = note; st.leader = who; st.phase = "over"; st.first = (st.first + 1) % st.players.length; st.event = { t: "out", who, won, at: Date.now() }; return; }
+    if (c.r === 12) { const won = st.kings[suit]; st.kings[suit] = 0; p.balance += won; p.gq = (p.gq || 0) + 1; note = `${p.name} played the queen and takes $${won} from the king of ${NAME[suit]}.`; st.event = { t: "queen", who, suit, won, at: Date.now() }; }
+    if (p.hand.length === 0) { const won = st.pot; st.pot = 0; p.balance += won; st.winner = { idx: who, won }; st.note = note; st.leader = who; st.phase = "over"; st.first = (st.first + 1) % st.players.length; st.event = { t: "out", who, won, at: Date.now() }; recordGame(st); return; }
     if (c.r === 12) { endRun(st, who, note); return; }
     r++;
   }
@@ -77,8 +77,18 @@ function settleLeader(st) {
   }
   if (tries >= n) {
     st.note = `Nobody can lead a ${st.colour} card, so the game ends. The centre and the kings carry over.`;
-    st.winner = null; st.phase = "over"; st.first = (st.first + 1) % n;
+    st.winner = null; st.phase = "over"; st.first = (st.first + 1) % n; recordGame(st);
   }
+}
+// Season scoreboard: only games with no bots at the table count.
+function recordGame(st) {
+  if (st.players.some((p) => p.bot)) return;
+  st.ledger = st.ledger || {};
+  st.players.forEach((p, i) => {
+    const L = st.ledger[p.id] || { name: p.name, games: 0, wins: 0, queens: 0, net: 0 };
+    L.name = p.name; L.games++; if (st.winner && st.winner.idx === i) L.wins++; L.queens += p.gq || 0; L.net += p.balance - (p.startBal ?? p.balance);
+    st.ledger[p.id] = L;
+  });
 }
 
 // ---------- bots ----------
@@ -207,6 +217,7 @@ export class Table extends DurableObject {
         playFrom(st, i, st.nextRank); changed = true; break;
       }
       case "stop": if (isHost && st.phase === "claim") { this.stopRun(st); changed = true; } break;
+      case "clearboard": if (isHost) { st.ledger = {}; changed = true; } break;
       case "settings": if (isHost && [5000, 30000, 300000].includes(Number(m.claimMs))) { st.claimMs = Number(m.claimMs); changed = true; } break;
     }
     if (err) ws.send(JSON.stringify({ t: "err", msg: err }));
@@ -236,7 +247,7 @@ export class Table extends DurableObject {
 
   beginAnte(st) {
     st.game++; st.phase = "ante"; st.run = []; st.note = ""; st.winner = null; st.dead = []; st.spare = []; st.dealAt = 0;
-    st.players.forEach((p) => { p.placed = false; p.bets = {}; p.hand = []; });
+    st.players.forEach((p) => { p.placed = false; p.bets = {}; p.hand = []; p.gq = 0; p.startBal = p.balance; });
   }
   stopRun(st) { endRun(st, st.leader, `Nobody played the ${rname(st.nextRank)}${SYM[st.runSuit]}, so the run stops.`); }
 
@@ -255,7 +266,7 @@ export class Table extends DurableObject {
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined,
       players: st.players.map((p) => ({ id: p.id, name: p.name, bot: !!p.bot, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
-      canDeal: canDealAll(st), claimMs: st.claimMs || CLAIM_MS, you: pid, sid, peers, host: role === "table" || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
+      canDeal: canDealAll(st), claimMs: st.claimMs || CLAIM_MS, ledger: st.ledger || {}, you: pid, sid, peers, host: role === "table" || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
     };
     try { ws.send(JSON.stringify({ t: "state", s: view })); } catch {}
   }

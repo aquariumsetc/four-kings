@@ -358,6 +358,13 @@ function scoresHTML(st){
   return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
   <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${['swap','play','claim'].includes(st.phase)?` <span class="muted small">${o.p.cards} cards</span>`:''}${st.phase==='ante'?` <span class="muted small">${o.p.placed?'bet placed':'betting…'}</span>`:''}</td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
 }
+function boardHTML(st,host){
+  const L=st.ledger||{}; const rows=Object.values(L).sort((a,b)=>b.net-a.net||b.wins-a.wins);
+  if(!rows.length) return `<div class="panel small muted">Season scoreboard: no games yet. Only games without bots count.</div>`;
+  return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Season scoreboard</span><span class="muted">bot-free games only</span></div>
+  <table><tr class="small muted"><td>Player</td><td style="text-align:right">Games</td><td style="text-align:right">Wins</td><td style="text-align:right">Queens</td><td style="text-align:right">Net</td></tr>${rows.map((r,i)=>`<tr class="${i===0&&r.net>0?'lead':''}"><td>${esc(r.name)}</td><td style="text-align:right;font-weight:400">${r.games}</td><td style="text-align:right;font-weight:400">${r.wins}</td><td style="text-align:right;font-weight:400">${r.queens}</td><td style="text-align:right;color:${r.net>0?'#d8e8b7':r.net<0?'#f3b3b0':'inherit'}">${r.net>0?'+':''}$${r.net}</td></tr>`).join('')}</table>
+  ${host?`<button class="ghost small" id="clearboard" style="margin-top:6px">Reset scoreboard</button>`:''}</div>`;
+}
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
@@ -405,7 +412,7 @@ function tableHTML(st){
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
     ${host?`<button class="big" id="nextgame">Bets for game ${st.game+1}</button><div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>${timerPicker(st)}`:''}`;
   }
-  return `<div class="tgrid"><div>${kingsHTML(st)}${main}</div><div>${scoresHTML(st)}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div></div>`;
+  return `<div class="tgrid"><div>${kingsHTML(st)}${main}</div><div>${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div></div>`;
 }
 function pileHTML(st,live){
   if(!st.run.length) return `<div class="wait" style="padding-top:110px">${st.game?'Table is clear':''}</div>`;
@@ -413,7 +420,7 @@ function pileHTML(st,live){
   return st.run.map((x,i)=>{ const ang=((i*47)%21)-10, dx=(i-(n-1)/2)*26; return `<div style="position:absolute;inset:0;transform:translate(${dx}px,0) rotate(${ang}deg)">${cardHTML(x.c,'lg who'+(i>=n-newest?' new':''),pname(st,x.who))}</div>`; }).join('');
 }
 /* --- hand (phone) --- */
-function handHTML(st){ return kingsHTML(st)+handMain(st)+scoresHTML(st); }
+function handHTML(st){ return kingsHTML(st)+handMain(st)+scoresHTML(st)+((st.phase==='lobby'||st.phase==='over')?boardHTML(st,st.host):''); }
 function handMain(st){
   const i=pidx(st,pid); const p=i>=0?st.players[i]:null; const hand=p&&p.hand?p.hand:[];
   let main='';
@@ -481,6 +488,7 @@ function bind(){
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
   app.querySelectorAll('[data-timer]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',claimMs:+b.dataset.timer}));
   if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});
+  if(q('#clearboard')) q('#clearboard').onclick=()=>{ if(confirm('Reset the season scoreboard?')) sendMsg({t:'clearboard'}); };
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
   if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});
   if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick}); };

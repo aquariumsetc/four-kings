@@ -352,7 +352,7 @@ function tableHTML(st){
   let main=''; const host=st.host;
   const link=location.origin+location.pathname+'?room='+room+'&mode=hand';
   if(st.phase==='lobby'){
-    main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="max-width:260px;text-align:left">Scan with the phone camera to join as a hand, or open <b>${esc(link)}</b>, or go to the main page and type the code.</div></div></div>
+    main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div style="max-width:240px;text-align:left"><div class="small muted">Scan with the phone camera to join, or send the link, or type the code on the main page.</div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:8px">🔗 Share join link</button></div></div></div>
     <h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
     ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>`:''}`;
   } else if(st.phase==='ante'){
@@ -441,7 +441,7 @@ function bind(){
   if(q('#joinroom')) q('#joinroom').onclick=()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } room=c; mode='hand'; set('fk-room',room); set('fk-mode',mode); S=null; render(); connect(); };
   if(q('#switch')) q('#switch').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='table'?'hand':'table'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('fk-mode',''); render(); renderVideo(); };
-  if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'});
+  if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Four Kings, table '+room,text:'Join my Four Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
   if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };

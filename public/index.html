@@ -153,6 +153,7 @@ const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
 const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const app=document.getElementById('app'), connEl=document.getElementById('conn');
+const isTbl=()=>mode==='table'||mode==='both';
 
 /* ---------- helpers ---------- */
 const pidx=(st,id)=>st.players.findIndex(p=>p.id===id);
@@ -171,9 +172,9 @@ function connect(){
   if(!room||!mode) return;
   if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
   const proto=location.protocol==='https:'?'wss':'ws';
-  ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${mode}`);
+  ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${mode==='both'?'hand':mode}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(mode==='table') loadIce(); };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2500); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
@@ -184,14 +185,14 @@ function connect(){
 function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function onState(st,old){
   if(st.phase==='claim'&&(!old||old.phase!=='claim'||old.run.length!==st.run.length||old.runSuit!==st.runSuit)) claimSeen=Date.now();
-  if(mode==='hand'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:10};
+  if(mode!=='table'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:10};
   if(st.phase==='ante'&&st.dealAt&&(!old||!old.dealAt)) dealSeen=Date.now()+(st.dealAt-st.serverNow);
   if(st.event&&st.event.at!==lastEvent){ if(old) showBanner(st); lastEvent=st.event.at; }
   try{ soundsFor(st,old); }catch(e){}
   announce(st,old);
 }
 function showBanner(st){
-  const e=st.event, b=document.getElementById('banner'); const name=pname(st,e.who), me=st.players[e.who]&&st.players[e.who].id===pid&&mode==='hand';
+  const e=st.event, b=document.getElementById('banner'); const name=pname(st,e.who), me=st.players[e.who]&&st.players[e.who].id===pid&&mode!=='table';
   const sparks=Array.from({length:14},(_,i)=>{ const a=i/14*Math.PI*2, d=120+Math.random()*120; return `<span class="spark" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;animation-delay:${Math.random()*.3}s">${['✨','⭐','💰','🎉'][i%4]}</span>`; }).join('');
   const body=e.t==='queen'
     ?`<h2>${me?'You':esc(name)} took the King of ${NAME[e.suit]}!</h2>${cardHTML({s:e.suit,r:12})}<div class="big">+$${e.won}</div><div class="sub">played the Queen of ${NAME[e.suit]}</div>`
@@ -223,8 +224,8 @@ function soundsFor(st,old){
   if(runGrew) sfx.card();
   if(st.phase==='swap'&&old.phase==='ante') sfx.deal();
   if(st.phase==='play'&&old.phase==='claim'&&st.run.length===old.run.length) sfx.stop();
-  if(st.phase==='play'&&(old.phase!=='play'||old.leader!==st.leader)&&mode==='hand'&&st.players[st.leader]&&st.players[st.leader].id===pid) sfx.lead();
-  if(st.phase==='ante'&&old.phase==='ante'&&st.players.filter(p=>p.placed).length>old.players.filter(p=>p.placed).length&&!(mode==='hand'&&st.players.some(p=>p.id===pid&&p.placed&&!old.players.find(o=>o.id===pid&&o.placed)))) sfx.bet();
+  if(st.phase==='play'&&(old.phase!=='play'||old.leader!==st.leader)&&mode!=='table'&&st.players[st.leader]&&st.players[st.leader].id===pid) sfx.lead();
+  if(st.phase==='ante'&&old.phase==='ante'&&st.players.filter(p=>p.placed).length>old.players.filter(p=>p.placed).length&&!(mode!=='table'&&st.players.some(p=>p.id===pid&&p.placed&&!old.players.find(o=>o.id===pid&&o.placed)))) sfx.bet();
 }
 
 /* ---------- background music: an original lo-fi loop, generated on the device ---------- */
@@ -257,7 +258,7 @@ function musicTick(){
 }
 
 /* ---------- speech (table only) ---------- */
-function say(t){ try{ if(mode!=='table'||!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.05; speechSynthesis.speak(u);}catch(e){} }
+function say(t){ try{ if(!isTbl()||!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.05; speechSynthesis.speak(u);}catch(e){} }
 function announce(st,old){
   if(!old||st.v===old.v) return;
   if(st.phase==='claim'&&st.run.length>(old.phase==='claim'&&old.runSuit===st.runSuit?old.run.length:0)){
@@ -283,7 +284,7 @@ async function startVideo(){
 }
 function stopVideo(){ if(!rtc.on) return; rtc.on=false; rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
 function toggleMic(){ rtc.mic=!rtc.mic; if(rtc.stream) rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic); renderVideo(); }
-function iParticipate(){ return rtc.on||mode==='table'; }
+function iParticipate(){ return rtc.on||isTbl(); }
 function wantPeer(p){ return p.sid!==S.sid && (p.video||p.role==='table') && (p.video||rtc.on); }
 function syncPeers(){
   if(!S||!S.sid) return;
@@ -316,7 +317,7 @@ async function onRtc(from,data){
   }catch(e){ console.warn(e); }
 }
 function renderVideo(){
-  const tiles=[]; document.body.classList.toggle('tbl',mode==='table');
+  const tiles=[]; document.body.classList.toggle('tbl',isTbl());
   if(rtc.on) tiles.push({key:'me',stream:rtc.stream,name:'You',me:true});
   for(const sid in rtc.peers){ const peer=S&&S.peers.find(x=>x.sid===sid); if(peer&&peer.video&&rtc.peers[sid].stream) tiles.push({key:sid,stream:rtc.peers[sid].stream,name:peer.name}); }
   const keep=new Set(tiles.map(t=>t.key));
@@ -325,7 +326,7 @@ function renderVideo(){
     if(!el){ el=document.createElement('div'); el.className='tile'+(t.me?' me':''); el.dataset.key=t.key; const v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.setAttribute('playsinline',''); v.muted=!!t.me; el.appendChild(v); const n=document.createElement('div'); n.className='nm'; el.appendChild(n); vidEl.insertBefore(el,vidEl.querySelector('.vctl')); }
     const v=el.querySelector('video'); if(v.srcObject!==t.stream){ v.srcObject=t.stream; v.play().catch(()=>{}); } el.querySelector('.nm').textContent=t.name; });
   let ctl=vidEl.querySelector('.vctl');
-  const showCtl=mode==='hand'&&room&&S;
+  const showCtl=mode!=='table'&&room&&S;
   if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
     ctl.innerHTML=rtc.on?`<button class="ghost" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Mic off'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`;
     const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic;
@@ -355,14 +356,14 @@ function scoresHTML(st){
   const order=st.players.map((p,i)=>({p,i})).sort((a,b)=>b.p.balance-a.p.balance); const top=order[0].p.balance;
   const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:(st.phase==='swap'?swapOrder(st,st.swapIdx):-1);
   return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
-  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode==='hand'?' <span class="muted small">(you)</span>':''}${['swap','play','claim'].includes(st.phase)?` <span class="muted small">${o.p.cards} cards</span>`:''}${st.phase==='ante'?` <span class="muted small">${o.p.placed?'bet placed':'betting…'}</span>`:''}</td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
+  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${['swap','play','claim'].includes(st.phase)?` <span class="muted small">${o.p.cards} cards</span>`:''}${st.phase==='ante'?` <span class="muted small">${o.p.placed?'bet placed':'betting…'}</span>`:''}</td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
 }
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
-  app.className='app'+(mode==='table'?' table':'');
-  app.innerHTML=(mode==='table'?tableHTML(S):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':'use as the table instead'}</button> · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode==='hand'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button>`:''}</p>`;
+  app.className='app'+(isTbl()?' table':'');
+  app.innerHTML=(mode==='table'?tableHTML(S):mode==='both'?tableHTML(S)+`<div class="panel" style="margin-top:14px;border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your hand on this device</div>${handMain(S)}</div>`:handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button>`:''}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   if(S.phase==='claim') tickCount();
@@ -375,7 +376,7 @@ function timerPicker(st){ const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min
 function startHTML(){
   const link=location.origin+location.pathname;
   return `<div style="padding-top:1.5rem"><h1>Four Kings</h1><p class="muted">One device is the table in the middle (an iPad is ideal). Everyone else opens this page on their phone to hold their hand.</p>
-  <div class="panel"><h3>Set up the table</h3><p class="small muted">Starts a new table with a code the players type in.</p><button class="big" id="newtable">This device is the table</button></div>
+  <div class="panel"><h3>Set up the table</h3><p class="small muted">Starts a new table with a code the players type in.</p><button class="big" id="newtable">This device is the table</button><button class="big ghost" id="newboth">This device is the table and my hand</button><p class="small muted" style="margin:.4rem 0 0">Use the second one when there is no iPad: the shared table shows on top and your own cards underneath.</p></div>
   <div class="panel"><h3>Join as a player</h3><input class="code" id="code" placeholder="CODE" maxlength="6" value="${esc(room)}" autocapitalize="characters" autocomplete="off"><button class="big ghost" id="joinroom">This is my hand</button></div>
   <p class="small muted">No sign-in needed. Short of players? The table can add bots. Players can tap <b>Join video</b> on their phones to see and hear each other, so the table works across cities too. Share this address: <b>${esc(link)}</b></p></div>`;
 }
@@ -412,13 +413,14 @@ function pileHTML(st,live){
   return st.run.map((x,i)=>{ const ang=((i*47)%21)-10, dx=(i-(n-1)/2)*26; return `<div style="position:absolute;inset:0;transform:translate(${dx}px,0) rotate(${ang}deg)">${cardHTML(x.c,'lg who'+(i>=n-newest?' new':''),pname(st,x.who))}</div>`; }).join('');
 }
 /* --- hand (phone) --- */
-function handHTML(st){
+function handHTML(st){ return kingsHTML(st)+handMain(st)+scoresHTML(st); }
+function handMain(st){
   const i=pidx(st,pid); const p=i>=0?st.players[i]:null; const hand=p&&p.hand?p.hand:[];
   let main='';
   if(!p){
     if(st.phase==='lobby'||st.phase==='over') main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
     else main=`<div class="wait">A game is in progress at table ${esc(room)}. You can join when it finishes.</div>`;
-    return kingsHTML(st)+main+scoresHTML(st);
+    return main;
   }
   if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${st.host?timerPicker(st):`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`}</div>`; }
   else if(st.phase==='ante'){
@@ -453,7 +455,7 @@ function handHTML(st){
   else if(st.phase==='over'){
     main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} $${st.pot} stays in the centre for next game.</p>`}${st.host?`<button id="nextgame">Next game</button>`:''}</div>`;
   }
-  return kingsHTML(st)+main+scoresHTML(st);
+  return main;
 }
 function miniRun(st,live,need){
   if(!st.run.length) return `<div class="minirun"><span class="muted small">Table is clear</span></div>`;
@@ -470,8 +472,10 @@ function handView(h,leads,claim){
 function bind(){
   const q=s=>app.querySelector(s);
   if(q('#newtable')) q('#newtable').onclick=()=>{ room=newCode(); mode='table'; set('fk-room',room); set('fk-mode',mode); say(' '); S=null; render(); connect(); };
+  if(q('#newboth')) q('#newboth').onclick=()=>{ room=newCode(); mode='both'; set('fk-room',room); set('fk-mode',mode); say(' '); S=null; render(); connect(); };
+  if(q('#both')) q('#both').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode='both'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
   if(q('#joinroom')) q('#joinroom').onclick=()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } room=c; mode='hand'; set('fk-room',room); set('fk-mode',mode); S=null; render(); connect(); };
-  if(q('#switch')) q('#switch').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='table'?'hand':'table'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
+  if(q('#switch')) q('#switch').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='hand'?'table':mode==='both'?'table':'hand'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('fk-mode',''); render(); renderVideo(); };
   if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Four Kings, table '+room,text:'Join my Four Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});

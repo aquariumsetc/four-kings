@@ -45,6 +45,11 @@ input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fraunces",G
 .coins{margin-top:4px;font-size:.95rem;font-weight:600;color:var(--brass)}
 .pot{text-align:center;border-left:1px solid rgba(251,247,236,.18);padding-left:6px}
 .pot .n{font-family:"Fraunces",Georgia,serif;font-size:2.2rem;line-height:1;color:var(--brass)}.pot .l{font-size:.78rem;opacity:.8}
+/* compact kings on phones */
+.app:not(.table) .kings{padding:6px 8px 5px;gap:4px;border-radius:12px}
+.app:not(.table) .spot .k{max-width:30px;font-size:.78rem;border-radius:4px;gap:0;aspect-ratio:5/7}
+.app:not(.table) .coins{margin-top:2px;font-size:.78rem}
+.app:not(.table) .pot .n{font-size:1.3rem}.app:not(.table) .pot .l{font-size:.68rem}
 .card{width:38px;height:52px;border-radius:5px;background:var(--ivory);color:var(--ink);font-family:"Fraunces",Georgia,serif;font-size:1.05rem;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 0 rgba(0,0,0,.4);position:relative}
 .card.red{color:var(--red)}.card.q{background:linear-gradient(160deg,#fff8dc,var(--ivory))}
 .card small{font-size:.7rem;font-weight:500}
@@ -77,12 +82,15 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .qr{background:#fbf7ec;padding:10px;border-radius:12px;line-height:0}
 .qr img,.qr canvas{display:block}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
-.minirun{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:8px 6px 18px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:60px}
-.minirun .card.who::after{content:attr(data-who);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:3px;font:600 .6rem -apple-system,"Segoe UI",sans-serif;white-space:nowrap;color:var(--fg)}
-.minirun .card.hot{outline:3px solid var(--brass);outline-offset:1px}
+.minirun{display:flex;gap:22px;align-items:center;justify-content:center;padding:10px 6px 24px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:96px}
+.stack{position:relative;width:70px;height:80px;flex:none}
+.stack .card{position:absolute;left:50%;top:50%;width:52px;height:72px;margin:-36px 0 0 -26px;font-size:1.4rem}
+.stack .card small{font-size:.95rem}
+.stack .c1{transform:rotate(-22deg)}.stack .c2{transform:rotate(22deg)}.stack .c3{transform:rotate(-14deg) translate(-6px,-4px);opacity:.75}
+.minirun .card.ghost{width:52px;height:72px;font-size:1.4rem}.minirun .card.ghost small{font-size:.95rem}
+.minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
 .card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
 .card.ghost.red{color:#ff9d99}
-.minirun .card.ghost::after{content:"?";position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:3px;font:600 .6rem -apple-system,"Segoe UI",sans-serif;color:var(--fg)}
 .dealin{font-family:"Fraunces",Georgia,serif;font-size:1.4rem;color:var(--brass);text-align:center}
 #vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto;min-height:0}
 #vid:empty{display:none}
@@ -352,9 +360,10 @@ function handHTML(st){
   return kingsHTML(st)+main+scoresHTML(st);
 }
 function miniRun(st,live,need){
-  if(!st.run.length) return `<div class="minirun"><span class="muted small" style="align-self:center">Table is clear</span></div>`;
-  const n=st.run.length, newest=live?tailLen(st):0; const shown=st.run.slice(-7);
-  return `<div class="minirun">${shown.map((x,k)=>{ const i=n-shown.length+k; return cardHTML(x.c,'who'+(i>=n-newest?' hot':''),pname(st,x.who)); }).join('')}${need?cardHTML(need,'ghost'):''}</div>`;
+  if(!st.run.length) return `<div class="minirun"><span class="muted small">Table is clear</span></div>`;
+  const last3=st.run.slice(-3).reverse(); // [last, second last, third last]
+  const stack=last3.map((x,k)=>cardHTML(x.c,k===0?'c2':k===1?'c1':'c3')).reverse().join('');
+  return `<div class="minirun"><div class="stack">${stack}<div class="lbl">last played</div></div>${need?`<div style="position:relative">${cardHTML(need,'ghost')}<div class="lbl">wanted</div></div>`:''}</div>`;
 }
 function handView(h,leads,claim){
   return `<div class="hand">${SUITS.map(s=>{const cards=h.filter(c=>c.s===s); if(!cards.length) return ''; return `<div class="suitrow"><span class="tag ${RED[s]?'red':''}">${SYM[s]}</span><div class="cards">${cards.map(c=>{

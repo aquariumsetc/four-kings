@@ -186,7 +186,7 @@ function sortHand(h){ const order=c=>(c.c==='W'?9:COLS.indexOf(c.c))*100+(/^\d$/
 function connect(){
   if(!room||!mode) return;
   if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
-  ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/uws/${room}?pid=${encodeURIComponent(pid)}&role=${mode==='both'?'hand':mode}`);
+  ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/uws/${room}?pid=${encodeURIComponent(pid)}&role=${mode}`);
   connEl.textContent='connecting…';
   ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}

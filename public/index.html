@@ -299,16 +299,18 @@ function announce(st,old){
 }
 
 /* ---------- video: WebRTC mesh between everyone at this table ---------- */
-const rtc={on:false,mic:false,stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false};
+const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false};
 const vidEl=document.getElementById('vid');
 async function loadIce(){ if(rtc.iceLoaded) return; try{ const r=await fetch('/ice'); if(r.ok){ rtc.ice=await r.json(); } }catch(e){} rtc.iceLoaded=true; }
 async function startVideo(){
-  if(rtc.on) return;
+  if(rtc.on||rtc.joining) return;
+  rtc.joining=true; // while the camera starts, hold any connection requests that arrive (answered below)
   try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
-  catch(e){ viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
+  catch(e){ rtc.joining=false; rtc.queue=[]; viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
   rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
   rtc.on=true; await loadIce();
-  Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers(); renderVideo();
+  Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();
+  rtc.joining=false; const held=rtc.queue; rtc.queue=[]; held.forEach(([f,d])=>onRtc(f,d)); renderVideo();
 }
 function stopVideo(){ if(!rtc.on) return; rtc.on=false; rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
 function toggleMic(){ rtc.mic=!rtc.mic; if(rtc.stream) rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic); renderVideo(); }
@@ -322,9 +324,11 @@ function syncPeers(){
   renderVideo();
 }
 function makePeer(sid){
-  const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:S.sid>sid,stream:null,making:false,ignore:false}; rtc.peers[sid]=p;
-  if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream)); else { pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }
-  pc.onnegotiationneeded=async()=>{ try{ p.making=true; await pc.setLocalDescription(); sendMsg({t:'rtc',to:sid,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
+  const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:S.sid>sid,stream:null,making:false,ignore:false,cands:[]}; rtc.peers[sid]=p;
+  // only a device that is sending video opens the connection; a watch-only table just answers
+  if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
+  // two cameras: only one side opens the connection, so the two never collide
+  pc.onnegotiationneeded=async()=>{ const other=S&&S.peers.find(x=>x.sid===sid); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; await pc.setLocalDescription(); sendMsg({t:'rtc',to:sid,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
   pc.onicecandidate=({candidate})=>{ if(candidate) sendMsg({t:'rtc',to:sid,data:{candidate}}); };
   pc.ontrack=ev=>{ p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };
   pc.onconnectionstatechange=()=>{ if(pc.connectionState==='failed'){ closePeer(sid); setTimeout(syncPeers,1500); } renderVideo(); };
@@ -332,6 +336,7 @@ function makePeer(sid){
 }
 function closePeer(sid){ const p=rtc.peers[sid]; if(!p) return; try{p.pc.close();}catch(e){} delete rtc.peers[sid]; }
 async function onRtc(from,data){
+  if(rtc.joining){ rtc.queue.push([from,data]); return; }
   if(!S||!S.peers.some(x=>x.sid===from)) return;
   let p=rtc.peers[from]; if(!p){ if(!iParticipate()) return; await loadIce(); p=makePeer(from); }
   const pc=p.pc;
@@ -340,8 +345,9 @@ async function onRtc(from,data){
       const collision=data.description.type==='offer'&&(p.making||pc.signalingState!=='stable');
       p.ignore=!p.polite&&collision; if(p.ignore) return;
       await pc.setRemoteDescription(data.description);
+      for(const c of p.cands.splice(0)){ try{ await pc.addIceCandidate(c); }catch(e){} }
       if(data.description.type==='offer'){ await pc.setLocalDescription(); sendMsg({t:'rtc',to:from,data:{description:pc.localDescription}}); }
-    } else if(data.candidate){ try{ await pc.addIceCandidate(data.candidate); }catch(e){ if(!p.ignore) console.warn(e); } }
+    } else if(data.candidate){ if(!pc.remoteDescription){ p.cands.push(data.candidate); return; } try{ await pc.addIceCandidate(data.candidate); }catch(e){ if(!p.ignore) console.warn(e); } }
   }catch(e){ console.warn(e); }
 }
 function renderVideo(){

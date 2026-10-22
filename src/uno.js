@@ -329,6 +329,7 @@ export class UnoTable extends DurableObject {
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); }
         if (m.rule && m.rule in RULES && st.phase !== "play") st.rules[m.rule] = !!m.on;
         if (m.preset && PRESETS[m.preset] && st.phase !== "play") st.rules = { ...PRESETS[m.preset] };
+        if (["table", "phones"].includes(m.layout)) st.layout = m.layout; // iPad in the middle, or everyone on their own device
         if (Array.isArray(m.customs) && st.phase !== "play") st.customs = [0, 1, 2, 3].map((k) => String(m.customs[k] || "").slice(0, 60));
         break;
       }

@@ -1,0 +1,11 @@
+{
+  "name": "Game Night: Four Kings & Ultium UNO",
+  "short_name": "Game Night",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b1e3a",
+  "theme_color": "#1b1e3a",
+  "icons": [
+    { "src": "/icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+  ]
+}

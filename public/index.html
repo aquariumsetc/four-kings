@@ -434,6 +434,7 @@ function startHTML(){
   return `<div style="padding-top:1.5rem"><h1>Four Kings</h1><p class="muted">One device is the table in the middle (an iPad is ideal). Everyone else opens this page on their phone to hold their hand.</p>
   <div class="panel"><h3>Set up the table</h3><p class="small muted">Starts a new table with a code the players type in.</p><button class="big" id="newtable">This device is the table</button><button class="big ghost" id="newboth">This device is the table and my hand</button><p class="small muted" style="margin:.4rem 0 0">Use the second one when there is no iPad: the shared table shows on top and your own cards underneath.</p></div>
   <div class="panel"><h3>Join as a player</h3><input class="code" id="code" placeholder="CODE" maxlength="6" value="${esc(room)}" autocapitalize="characters" autocomplete="off"><button class="big ghost" id="joinroom">This is my hand</button></div>
+  <div class="panel"><h3>Ultium UNO</h3><p class="small muted">Match colours and numbers, stack the draws, swap hands. Same phones-as-cards setup.</p><a href="/uno.html" style="text-decoration:none"><button class="big ghost" tabindex="-1">Play Ultium UNO</button></a></div>
   <p class="small muted">No sign-in needed. Short of players? The table can add bots. Players can tap <b>Join video</b> on their phones to see and hear each other, so the table works across cities too. Share this address: <b>${esc(link)}</b></p></div>`;
 }
 function nextHTML(st,small){

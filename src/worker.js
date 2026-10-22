@@ -237,6 +237,7 @@ export class Table extends DurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ pid, role, creator, sid, video: false });
+    if (creator && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // the table is here now
     this.broadcast();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -255,7 +256,8 @@ export class Table extends DurableObject {
       }
       return;
     }
-    const isHost = role === "table" || att.creator || (st.players.length && st.players[0].id === pid);
+    // the table device runs the game; the first player only stands in when no table device is connected
+    const isHost = role === "table" || att.creator || (!this.tablePresent() && st.players.length && st.players[0].id === pid);
     let changed = false, err = "";
     const i = pidx(st, pid), me = i >= 0 ? st.players[i] : null;
     const between = st.phase === "lobby" || st.phase === "over";
@@ -263,15 +265,16 @@ export class Table extends DurableObject {
       case "hello": this.send(ws); return;
       case "join": {
         if (!pid) break;
-        if (!between && st.phase !== "ante") { err = "A game is in progress; join when it finishes."; break; }
         const name = String(m.name || "Player").trim().slice(0, 18) || "Player";
         if (me) { me.name = name; changed = true; break; }
         if (st.players.length >= 8) { err = "The table is full."; break; }
-        st.players.push({ id: pid, name, balance: START_BAL, bets: {}, placed: false, hand: [], startBal: START_BAL, auto: !!m.auto });
+        // joining mid-game: you're seated now and dealt in at the next game
+        st.players.push({ id: pid, name, balance: START_BAL, bets: {}, placed: false, hand: [], startBal: START_BAL, auto: !!m.auto, in: false });
         if (st.phase === "ante") { if (st.dealAt) st.dealAt = Math.max(st.dealAt, Date.now() + JOIN_GRACE_MS); updateDealAt(st); }
         changed = true; break;
       }
-      case "leave": if (between && me) { st.players.splice(i, 1); st.first = 0; changed = true; } break;
+      case "leave": if (me && (between || st.phase === "ante" || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.leader > i) st.leader--; st.run.forEach((x) => { if (x.who > i) x.who--; }); changed = true; } break;
+      case "switchgame": if (isHost && between && m.to === "uno") { st.goto = { to: "uno", at: Date.now(), bots: st.players.filter((p) => p.bot).length }; changed = true; } break;
       case "addbot": {
         if (!isHost || !between || st.players.length >= 8) break;
         const used = new Set(st.players.map((p) => p.name)); const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${st.players.length + 1}`;
@@ -337,6 +340,7 @@ export class Table extends DurableObject {
 
   async webSocketClose(ws) { try { ws.close(); } catch {} this.broadcast(); }
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
+  tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) { if (ws.readyState === 1) this.send(ws); } }
 
   async alarm() {
@@ -386,7 +390,7 @@ export class Table extends DurableObject {
   // Each socket gets only what it may see: its own hand, everyone else's card count.
   send(ws) {
     const { pid, role, sid, creator } = ws.deserializeAttachment() || {};
-    const st = this.S, d = deadlines(st);
+    const st = this.S, d = deadlines(st); const tablePresent = this.tablePresent();
     const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined, swapAns: undefined, botAt: undefined,
@@ -397,7 +401,7 @@ export class Table extends DurableObject {
         cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined,
       })),
       canDeal: canDeal(st), claimMs: st.claimMs || CLAIM_MS, ledger: st.ledger || {}, you: pid, sid, peers,
-      host: role === "table" || !!creator || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
+      host: role === "table" || !!creator || (!tablePresent && st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       // claim deadline is deliberately not sent; the others are public anyway
       swapBy: d.swapBy || 0, nextBy: d.nextBy || 0,
       // only the leader's own phone learns how long they have (and whether their lead is forced)

@@ -151,6 +151,10 @@ body.tbl .tile{width:150px;height:112px}
 body.hasvid .app{padding-top:128px}
 body.hasvid.tbl .app{padding-top:136px}
 body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
+.lobbyc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:58%;text-align:center;font-family:"Fredoka",sans-serif}
+.lobbyc .n{font-size:2rem;color:var(--gold);line-height:1}.lobbyc .l{font-size:.8rem;color:var(--dim)}
+.lobbyc .lt{font-size:1.3rem;font-weight:600;margin:.8rem 0 .4rem}
+.lobbyc ol{text-align:left;margin:0 auto;padding-left:1.3rem;font-family:-apple-system,"Segoe UI",sans-serif;font-size:.9rem;color:var(--dim);max-width:260px}.lobbyc li{margin:.25rem 0}.lobbyc b{color:var(--fg)}
 .foot{margin-top:1.4rem;text-align:center;font-size:.85rem;color:var(--dim)}
 .foot button{margin:3px}
 </style>
@@ -164,7 +168,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.0 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.1 · 22 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -203,6 +207,7 @@ function sortHand(h){ const order=c=>(c.c==='W'?9:COLS.indexOf(c.c))*100+(/^\d$/
 function connect(){
   if(!room||!mode) return;
   if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
+  set('uno-last',mode);
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/uws/${room}?pid=${encodeURIComponent(pid)}&role=${mode}`);
   connEl.textContent='connecting…';
   ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
@@ -376,7 +381,7 @@ const sfx={
 
 /* ---------- rendering ---------- */
 function render(){
-  if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
+  if(!room||!mode){ location.replace('/?home=1'); return; } // the Game Night home page has the game picker
   if(!S){ app.innerHTML=`<div class="center dim" style="padding:3rem 0">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(isTbl()?' table':'');
   let html=mode==='table'?tableHTML(S):mode==='both'?tableHTML(S)+`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your hand on this device</div>${handMain(S)}</div>`:handHTML(S);
@@ -412,7 +417,7 @@ function roundHTML(st){
     ${st.phase==='play'||st.phase==='over'?`<div class="halo" style="--hc:${col}"></div><div class="dirlbl" id="dirlbl"></div><div class="pile">${pileHTML(st)}</div>
     <div class="deck">${backHTML()}<div class="n">${st.deckCount} left</div></div>
     <div class="potchip"><div class="n">$${st.pot}</div><div class="l">in the pot</div></div>
-    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="potchip" style="top:50%"><div class="n">$${st.stake}</div><div class="l">stake each</div></div>`}
+    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc"><div class="n">$${st.stake}</div><div class="l">stake each</div><div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div><ol><li>Scan the code with a phone camera to join</li><li>Short of players? <b>Add a bot</b></li><li>Pick the rules, then <b>Deal</b></li></ol></div>`}
     ${seatsHTML(st)}</div>`;
 }
 function tableHTML(st){
@@ -420,7 +425,7 @@ function tableHTML(st){
   let side='';
   if(st.phase==='lobby'){
     side=`<div class="panel center"><div class="small dim">Table code</div><div class="codebig">${esc(room)}</div><div style="margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div></div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px">🔗 Share join link</button></div>
-    ${host?`<div class="row"><button class="ghost" id="addbot">Add a bot</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button>`:''}`;
+    ${host?`<div class="row"><button class="ghost" id="addbot">Add a bot</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button>${st.players.length<2?'<p class="center small dim">Need at least 2 players: add a bot or have someone scan the code.</p>':''}`:''}`;
   } else if(st.phase==='play'){
     const p=st.players[st.turn];
     side=`<div class="panel center"><div class="small dim">Now playing</div><h2>${esc(p?p.name:'')}</h2><p class="small dim">${esc(st.note||'')}</p></div>
@@ -530,7 +535,7 @@ function bind(){
   on('#joinroom',()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } room=c; mode='hand'; set('uno-room',room); set('uno-mode',mode); S=null; render(); connect(); });
   on('#switch',()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='hand'?'table':mode==='both'?'table':'hand'; set('uno-mode',mode); S=null; render(); connect(); });
   on('#both',()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode='both'; set('uno-mode',mode); S=null; render(); connect(); });
-  on('#leaveRoom',()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('uno-mode',''); render(); });
+  on('#leaveRoom',()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('uno-mode',''); location.href='/?home=1'; });
   on('#sfx',()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); sfx.card(); render(); });
   on('#winsnd',()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); render(); });
   on('#sharelink',async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Ultium UNO, table '+room,url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } });
@@ -578,6 +583,7 @@ function bind(){
   on('#savecustom',()=>{ send({t:'settings',customs:customDraft||S.customs}); customDraft=null; });
 }
 if(qs.get('room')&&qs.get('mode')){ set('uno-room',room); set('uno-mode',mode); }
+if(['table','both'].includes(qs.get('setup'))){ room=newCode(); mode=qs.get('setup'); set('uno-room',room); set('uno-mode',mode); history.replaceState(null,'','/uno.html'); }
 render(); renderVideo(); if(room&&mode) connect();
 })();
 </script>

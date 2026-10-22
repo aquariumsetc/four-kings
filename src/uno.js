@@ -10,7 +10,8 @@ const START_BAL = 1000;
 const NEXT_MS = 20000;   // game over: next game after this (if auto-next)
 const NUDGE_MS = 15000;  // idle player: phone nudges this long before auto-move
 const MAX_PLAYS = 800;   // safety net: a game this long finishes itself (fewest cards wins)
-const RULES = { multi: true, stack: true, playPicked: true, steal: false, pass: false, mirror: false, drawUntil: false, official: false, callUno: false, useCustoms: true };
+// new tables start on the Party preset (see PRESETS below)
+const RULES = { multi: true, stack: true, playPicked: true, steal: true, pass: true, mirror: false, drawUntil: false, official: false, callUno: false, useCustoms: true };
 // one-tap rule sets. "official" follows the printed rules: draw one and only that card may be played,
 // no stacking, +4 only without a card of the current colour, and call UNO or get caught for 2.
 const PRESETS = {

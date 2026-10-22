@@ -231,12 +231,12 @@ export class Table extends DurableObject {
     if (req.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
     const url = new URL(req.url);
     const pid = (url.searchParams.get("pid") || "").slice(0, 40);
-    const role = url.searchParams.get("role") === "table" ? "table" : "hand";
+    const want = url.searchParams.get("role"), role = want === "table" ? "table" : "hand", creator = want === "table" || want === "both"; // the device that set up the table runs it
     const sid = crypto.randomUUID().slice(0, 8);
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ pid, role, sid, video: false });
+    server.serializeAttachment({ pid, role, creator, sid, video: false });
     this.broadcast();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -255,7 +255,7 @@ export class Table extends DurableObject {
       }
       return;
     }
-    const isHost = role === "table" || (st.players.length && st.players[0].id === pid);
+    const isHost = role === "table" || att.creator || (st.players.length && st.players[0].id === pid);
     let changed = false, err = "";
     const i = pidx(st, pid), me = i >= 0 ? st.players[i] : null;
     const between = st.phase === "lobby" || st.phase === "over";
@@ -385,7 +385,7 @@ export class Table extends DurableObject {
 
   // Each socket gets only what it may see: its own hand, everyone else's card count.
   send(ws) {
-    const { pid, role, sid } = ws.deserializeAttachment() || {};
+    const { pid, role, sid, creator } = ws.deserializeAttachment() || {};
     const st = this.S, d = deadlines(st);
     const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
@@ -397,7 +397,7 @@ export class Table extends DurableObject {
         cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined,
       })),
       canDeal: canDeal(st), claimMs: st.claimMs || CLAIM_MS, ledger: st.ledger || {}, you: pid, sid, peers,
-      host: role === "table" || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
+      host: role === "table" || !!creator || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       // claim deadline is deliberately not sent; the others are public anyway
       swapBy: d.swapBy || 0, nextBy: d.nextBy || 0,
       // only the leader's own phone learns how long they have (and whether their lead is forced)

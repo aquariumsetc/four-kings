@@ -227,9 +227,9 @@ export class UnoTable extends DurableObject {
   async fetch(req) {
     if (req.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
     const url = new URL(req.url);
-    const pid = (url.searchParams.get("pid") || "").slice(0, 40), role = url.searchParams.get("role") === "table" ? "table" : "hand";
+    const pid = (url.searchParams.get("pid") || "").slice(0, 40), want = url.searchParams.get("role"), role = want === "table" ? "table" : "hand", creator = want === "table" || want === "both"; // the device that set up the table runs it
     const pair = new WebSocketPair(); const [client, server] = Object.values(pair);
-    this.ctx.acceptWebSocket(server); server.serializeAttachment({ pid, role, sid: crypto.randomUUID().slice(0, 8), video: false });
+    this.ctx.acceptWebSocket(server); server.serializeAttachment({ pid, role, creator, sid: crypto.randomUUID().slice(0, 8), video: false });
     this.broadcast();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -243,7 +243,7 @@ export class UnoTable extends DurableObject {
       return;
     }
     const st = this.S, i = pidx(st, pid), me = i >= 0 ? st.players[i] : null;
-    const isHost = role === "table" || (st.players.length && st.players[0].id === pid);
+    const isHost = role === "table" || att.creator || (st.players.length && st.players[0].id === pid);
     const between = st.phase === "lobby" || st.phase === "over";
     let changed = true, err = "";
     switch (m.t) {
@@ -319,12 +319,12 @@ export class UnoTable extends DurableObject {
     this.broadcast();
   }
   send(ws) {
-    const { pid, role, sid } = ws.deserializeAttachment() || {}, st = this.S;
+    const { pid, role, sid, creator } = ws.deserializeAttachment() || {}, st = this.S;
     const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, deck: undefined, deckCount: st.deck.length, pile: st.pile.slice(-8), wakeAt: undefined, pickedSoFar: undefined,
       players: st.players.map((p) => ({ id: p.id, name: p.name, bot: !!p.bot, balance: p.balance, in: !!p.in, left: !!p.left, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
-      you: pid, sid, peers, host: role === "table" || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
+      you: pid, sid, peers, host: role === "table" || !!creator || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       turnBy: st.phase === "play" && st.turnMs && !st.players[st.turn]?.bot ? st.turnAt + st.turnMs : 0,
       canPlay: role === "hand" && st.phase === "play" && st.players[st.turn]?.id === pid ? st.players[st.turn].hand.filter((c) => playable(st, c)).map((c) => c.id) : [],
     };

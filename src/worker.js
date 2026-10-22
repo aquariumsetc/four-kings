@@ -331,6 +331,7 @@ export class Table extends DurableObject {
         if ([5000, 30000, 300000].includes(Number(m.claimMs))) { st.claimMs = Number(m.claimMs); changed = true; }
         if (["race", "turn"].includes(m.swapMode) && st.phase !== "swap") { st.swapMode = m.swapMode; changed = true; }
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); changed = true; }
+        if (["table", "phones"].includes(m.layout)) { st.layout = m.layout; changed = true; }
         break;
       }
     }

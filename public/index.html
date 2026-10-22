@@ -152,7 +152,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.2 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.3 · 22 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -486,7 +486,7 @@ function startHTML(){
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
   ${rejoin?`<div class="panel"><div class="small muted" style="margin-bottom:6px">Pick up where you left off</div>${rejoin}</div>`:''}
   <div class="games">
-    <div class="game fk"><div class="art">${k('K<br>♠',0,-12)}${k('K<br>♥',1,0)}${k('Q<br>♦',1,12)}</div>
+    <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
       <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
       <button class="big" id="newtable">Set up a table</button><button class="big ghost" id="newboth">Table + my hand on this device</button></div>
     <div class="game uno"><div class="art">${u('#e2453c','7',-12)}${u('conic-gradient(#e2453c 0 25%,#f5c02e 0 50%,#2fa866 0 75%,#2c7be5 0)','+4',0)}${u('#2c7be5','⇄',12)}</div>

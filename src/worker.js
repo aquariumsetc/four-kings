@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+export { UnoTable } from "./uno.js";
 
 // ---------- game rules (server-side, authoritative) ----------
 const SUITS = ["S", "H", "D", "C"];
@@ -427,6 +428,8 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === "/ice") return iceServers(env);
+    const u = url.pathname.match(/^\/uws\/([A-Za-z0-9]{3,8})$/);
+    if (u) return env.UNO.get(env.UNO.idFromName(u[1].toUpperCase())).fetch(req);
     const m = url.pathname.match(/^\/ws\/([A-Za-z0-9]{3,8})$/);
     if (m) {
       const id = env.TABLE.idFromName(m[1].toUpperCase());

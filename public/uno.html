@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1b1e3a">
 <title>Ultium UNO</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -84,7 +87,18 @@ input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fredoka",sa
 .arrow{font-size:1.6rem;line-height:1;display:inline-block}
 .hand{display:flex;flex-direction:column;gap:8px;margin:.8rem 0}
 .hrow{display:flex;flex-wrap:wrap;gap:6px}
-.hand button.cb{padding:0;background:none;border-radius:9px;transition:transform .15s}
+.hand button.cb{padding:0;background:none;border-radius:9px;transition:transform .15s;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.hand button.cb.holding .card{animation:hold .45s linear forwards}
+@keyframes hold{to{box-shadow:0 0 0 4px var(--gold),0 0 22px rgba(255,209,102,.8),inset 0 0 0 3px rgba(255,255,255,.9),inset 0 0 0 5px var(--c);transform:translateY(-14px) scale(1.06)}}
+.actions .glow{background:var(--gold);color:#2b2200;animation:pulse 1s ease-in-out infinite alternate}
+.unobtn{display:block;width:100%;margin:.5rem 0;padding:.9rem;font-family:"Fredoka",sans-serif;font-size:1.4rem;background:var(--R);color:#fff;border-radius:16px;animation:pulse 1s ease-in-out infinite alternate}
+.unobtn.called{background:rgba(255,255,255,.12);animation:none;font-size:1rem}
+.catchbtn{display:block;width:100%;margin:.5rem 0;padding:.8rem;font-family:"Fredoka",sans-serif;font-size:1.2rem;background:var(--gold);color:#2b2200;border-radius:16px}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 4px}
+.presets button{padding:.6rem .3rem;line-height:1.15}.presets button small{display:block;font-weight:400;font-size:.7rem;opacity:.8}
+.presets button.on{background:var(--gold);color:#2b2200}
+details.more summary{cursor:pointer;padding:6px 0;color:var(--dim)}
+.howto .step{display:flex;gap:12px;align-items:flex-start;margin:10px 0}.howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--gold);color:#2b2200;font-weight:700;display:flex;align-items:center;justify-content:center}
 .hand button.cb.sel{transform:translateY(-12px)}
 .hand button.cb.sel .card{box-shadow:0 0 0 3px var(--gold),0 8px 18px rgba(0,0,0,.4),inset 0 0 0 3px rgba(255,255,255,.9),inset 0 0 0 5px var(--c)}
 .hand button.cb.no .card{filter:saturate(.35) brightness(.7)}
@@ -150,11 +164,14 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
+const VERSION='v2.0 · 22 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
 const WNAME={wild:'Wild',w4:'Wild +4',steal:'Steal',pass:'Pass left',mirror:'Copy hand',cust:'Custom'};
-const RULES=[['multi','Play several identical cards at once'],['stack','Stack +2s and +4s onto the next player'],['playPicked','After picking up, you can play one of the cards you picked up (not a draw card)'],['steal','Add 2 “Steal a hand” wild cards'],['pass','Add 2 “Everyone pass left” wild cards'],['mirror','Add 2 “Copy my hand” wild cards: the next player picks up as many cards as you hold'],['drawUntil','Keep drawing until you can play']];
+const RULES=[['multi','Play several identical cards at once'],['stack','Stack +2s and +4s onto the next player'],['playPicked','After picking up, you can play one of the cards you picked up (not a draw card)'],['steal','Add 2 “Steal a hand” wild cards'],['pass','Add 2 “Everyone pass left” wild cards'],['mirror','Add 2 “Copy my hand” wild cards: the next player picks up as many cards as you hold'],['drawUntil','Keep drawing until you can play'],['official','Official draw rules: after drawing you may only play the card you drew, and a +4 only when you have no card of the current colour'],['callUno','Call UNO! on your second-last card, or anyone can catch you and you pick up 2'],['useCustoms','Use the custom wild cards below']];
+const PRESETS={official:{multi:false,stack:false,playPicked:false,steal:false,pass:false,mirror:false,drawUntil:false,official:true,callUno:true,useCustoms:false},party:{multi:true,stack:true,playPicked:true,steal:true,pass:true,mirror:false,drawUntil:false,official:false,callUno:false,useCustoms:true},chaos:{multi:true,stack:true,playPicked:true,steal:true,pass:true,mirror:true,drawUntil:false,official:false,callUno:false,useCustoms:true}};
+const presetOf=r=>Object.keys(PRESETS).find(k=>Object.keys(PRESETS[k]).every(x=>!!r[x]===PRESETS[k][x]))||'';
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}}, set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
 let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
@@ -162,7 +179,7 @@ const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('uno-mode')||'';
 let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
-let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null;
+let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, holdT=null, held=false;
 const app=document.getElementById('app'), ovlEl=document.getElementById('ovl'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
 const pidx=(st,id)=>st.players.findIndex(p=>p.id===id);
@@ -188,7 +205,7 @@ function connect(){
   if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/uws/${room}?pid=${encodeURIComponent(pid)}&role=${mode}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2600); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
@@ -198,10 +215,16 @@ function connect(){
 const send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }, sendMsg=send;
 function onState(st,old){
   skew=st.serverNow-Date.now();
+  // the table moved everyone to another game: follow it (same code, same name)
+  if(st.goto&&st.goto.to==='fk'&&st.goto.at>+(qs.get('from')||0)){ const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; location.replace('/?room='+room+'&mode='+mode+'&from='+st.goto.at+bots); return; }
+  if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; send({t:'join',name:nick}); }
+  else if(!st.players.some(p=>p.id===pid)) autoTried=true;
+  if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
+  if(mode!=='table'&&!get('uno-howto')&&!overlay){ overlay={k:'howto'}; set('uno-howto','1'); }
   const me=st.players.find(p=>p.id===pid);
   if(me&&me.hand) sel=sel.filter(id=>me.hand.some(c=>c.id===id));
   if(!old||old.turn!==st.turn||old.phase!==st.phase) sel=[];
-  if(st.phase!=='play'&&overlay&&overlay.k!=='custom') overlay=null;
+  if(st.phase!=='play'&&overlay&&overlay.k!=='howto') overlay=null;
   if(animDir===null) animDir=st.dir;
   if(st.event&&st.event.at!==lastEvent){ const first=!lastEvent; lastEvent=st.event.at; if(!first) react(st,old); else animDir=st.dir; }
   else if(!st.event||st.event.t!=='play'||!st.event.revs) animDir=st.dir;
@@ -226,7 +249,9 @@ function react(st,old){
     if(['skip','rev','d2','w4','wild','steal','pass','mirror','cust'].includes(e.v)) sfx.chime(false);
     if(e.one!==undefined&&!['rev','skip','d2','w4','wild','steal','pass','mirror','cust'].includes(e.v)) banner('One card!', `${nm(e.one)} has one card left`,'#fff','#1b1e3a');
     if(isTbl()) say(speechFor(st,e));
-  } else if(e.t==='pickup'){ banner(`+${e.n}`, `${nm(e.who)} picked up ${e.n}`,'#fff','#1b1e3a'); if(isTbl()) say(`${nm(e.who)} picked up ${e.n}`); }
+  } else if(e.t==='uno'){ banner('UNO!', `${nm(e.who)} called it`,'var(--R)','#fff'); sfx.chime(false); if(isTbl()) say(nm(e.who)+' says UNO!'); }
+  else if(e.t==='caught'){ banner('Caught!', `${nm(e.by)} caught ${nm(e.who)} not calling UNO: +${e.n}`,'var(--gold)','#2b2200'); sfx.deal(); if(isTbl()) say(nm(e.who)+' got caught! Pick up two.'); }
+  else if(e.t==='pickup'){ banner(`+${e.n}`, `${nm(e.who)} picked up ${e.n}`,'#fff','#1b1e3a'); if(isTbl()) say(`${nm(e.who)} picked up ${e.n}`); }
   else if(e.t==='win'){
     const names=e.who.map(nm).join(' & ');
     banner(`${names} win${e.who.length>1?'':'s'}!`, `$${e.won} from the pot${e.who.length>1?' each':''} · ${e.why}`,'linear-gradient(160deg,#fff4c2,#ffd166)','#2b2200','long',true);
@@ -329,6 +354,10 @@ let actx=null, audioStale=false;
 const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function ac(){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(actx&&actx.state==='closed') actx=null; actx=actx||new AC(); if(actx.state!=='running') actx.resume().catch(()=>{}); return actx; }
 function unlockAudio(){ try{ if(audioStale&&actx){ try{actx.close();}catch(e){} actx=null; } audioStale=false; const a=ac(); if(!a) return; const b=a.createBuffer(1,1,22050), s=a.createBufferSource(); s.buffer=b; s.connect(a.destination); s.start(0); if('speechSynthesis' in window) speechSynthesis.resume(); }catch(e){} }
+let wake=null;
+async function keepAwake(){ try{ if(room&&mode&&'wakeLock' in navigator&&!document.hidden&&(!wake||wake.released)) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) keepAwake(); });
+['touchend','click'].forEach(ev=>document.addEventListener(ev,keepAwake,{passive:true}));
 const soundBlocked=()=>(sfxOn||winOn)&&room&&mode&&(!actx||actx.state!=='running'||audioStale);
 document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; } else if(actx) actx.resume().catch(()=>{}); });
 window.addEventListener('pageshow',e=>{ if(e.persisted&&IOS) audioStale=true; });
@@ -352,7 +381,7 @@ function render(){
   app.className='app'+(isTbl()?' table':'');
   let html=mode==='table'?tableHTML(S):mode==='both'?tableHTML(S)+`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your hand on this device</div>${handMain(S)}</div>`:handHTML(S);
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
-  html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <a href="/" style="color:var(--dim)">Four Kings</a></div>`;
+  html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
   app.innerHTML=html;
   ovlEl.innerHTML=overlay?overlayHTML(overlay):'';
   bind(); drawRing(); tick();
@@ -362,7 +391,7 @@ function startHTML(){
   return `<div style="padding-top:1.6rem"><h1>Ultium UNO</h1><p class="dim">Match colour or number, stack the draws, flip the direction, and get rid of every card. One device is the table in the middle; everyone else holds their cards on their phone.</p>
   <div class="panel"><h3>Set up the table</h3><button class="big" id="newtable">This device is the table</button><button class="big ghost" id="newboth">This device is the table and my hand</button></div>
   <div class="panel"><h3>Join with a code</h3><input class="code" id="code" placeholder="CODE" maxlength="6" value="${esc(room)}" autocapitalize="characters" autocomplete="off"><button class="big ghost" id="joinroom">Join as a player</button></div>
-  <p class="small dim center"><a href="/" style="color:var(--dim)">Play Four Kings instead</a></p></div>`;
+  <p class="small dim center"><a href="/" style="color:var(--dim)">Play Four Kings instead</a></p><p class="small dim center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function seatsHTML(st){
   const n=st.players.length;
@@ -413,27 +442,33 @@ function scoresHTML(st){
 function settingsHTML(st){
   const pick=(attr,val,cur,label)=>`<button class="ghost small ${cur?'on':''}" data-${attr}="${val}">${label}</button>`;
   const cd=customDraft||st.customs;
+  const pr=presetOf(st.rules), pb=(k,t,sub)=>`<button class="ghost ${pr===k?'on':''}" data-preset="${k}">${t}<small>${sub}</small></button>`;
   return `<div class="panel settings"><h3>Rules for the next game</h3>
+  <div class="presets">${pb('official','Official','the printed rules')}${pb('party','Party','stack, steal, pass')}${pb('chaos','Chaos','everything on')}</div>
+  <div class="small dim">${pr?'':'Custom rules: tap a preset to reset.'}</div>
   <div class="srow"><span>Stake per player</span><span>${[10,20,50,100].map(v=>pick('stake',v,st.stake===v,'$'+v)).join(' ')}</span></div>
   <div class="srow"><span>Turn timer</span><span>${[[30000,'30 s'],[60000,'60 s'],[0,'Off']].map(([v,l])=>pick('turnms',v,st.turnMs===v,l)).join(' ')}</span></div>
   <div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext,'By itself')} ${pick('autonext','0',!st.autoNext,'When someone taps')}</span></div>
+  <details class="more"><summary>Customise rules and custom cards</summary>
   ${RULES.map(([k,l])=>`<label class="tog"><input type="checkbox" data-rule="${k}" ${st.rules[k]?'checked':''}><span>${l}</span></label>`).join('')}
   <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><div class="small">Custom wild cards: type a rule and 2 cards with it go in the deck. When one is played, the rule shows on the table for everyone to do.</div>
   ${[0,1,2,3].map(k=>`<input data-custom="${k}" maxlength="60" placeholder="${['e.g. Tell a joke','e.g. Take a shot','e.g. Everyone stands up','e.g. Swap seats'][k]}" value="${esc(cd[k]||'')}" style="margin-top:6px">`).join('')}
-  <button class="ghost small" id="savecustom" style="margin-top:8px" ${customDraft?'':'disabled'}>Save custom cards</button></div></div>`;
+  <button class="ghost small" id="savecustom" style="margin-top:8px" ${customDraft?'':'disabled'}>Save custom cards</button></div></details>
+  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to Four Kings</button></span></div></div>`;
 }
 function handHTML(st){ return handMain(st)+(st.phase!=='play'?scoresHTML(st):''); }
 function handMain(st){
   const i=pidx(st,pid), p=i>=0?st.players[i]:null;
   if(!p){
-    if(st.phase==='play') return `<div class="center dim" style="padding:2rem 0">A game is in progress at table ${esc(room)}. You can join when it finishes.</div>`;
+    if(nick&&!autoTried) return `<div class="center dim" style="padding:2rem 0">Joining as ${esc(nick)}…</div>`;
     return `<h2 style="margin-top:1rem">Join table ${esc(room)}</h2><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18" style="margin-top:8px"><button class="big" id="join">Join game</button>${st.players.length?`<p class="small dim">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
   }
-  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2><p class="dim">Stake is $${st.stake}. Waiting for the table to deal.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> <button class="ghost" id="addbot">Add a bot</button> `:''}<button class="ghost" id="leave">Leave the table</button>${st.host?settingsHTML(st):''}</div>`;
+  const notYou=`<button class="ghost small" id="notyou">Not ${esc(p.name)}?</button>`;
+  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2>${notYou}<p class="dim">Stake is $${st.stake}. Waiting for the table to deal.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> <button class="ghost" id="addbot">Add a bot</button> `:''}<button class="ghost" id="leave">Leave the table</button>${st.host?settingsHTML(st):''}</div>`;
   if(st.phase==='over'){ const w=st.winner, won=w&&w.idx.includes(i);
     return `<div class="center" style="padding:1.2rem 0"><h2>${won?'You win!':w?w.idx.map(k=>esc(st.players[k].name)).join(' & ')+' won':'Game over'}</h2>${w?`<p class="dim">$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}${p.balance<st.stake?`<button class="ghost" id="rebuy">Out of money: rebuy $1000</button>`:''}${mode==='both'?'':nextHTML(st)}</div>`; }
   // play
-  if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake?' Rebuy between games to get back in.':''}</div>`;
+  if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.queued?`<h2 style="color:var(--fg)">You're in, ${esc(p.name)}!</h2>You'll be dealt in when the next game starts.<br>${notYou}`:p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake&&!p.queued?' Rebuy between games to get back in.':''}</div>`;
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
   const rows={}; hand.forEach(c=>{ (rows[c.c]=rows[c.c]||[]).push(c); });
   const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${mine&&!can.has(c.id)&&!sel.length?'no':''} ${st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
@@ -444,11 +479,14 @@ function handMain(st){
     deck=`<div class="center" style="margin:.6rem 0"><button class="cb deckbtn" id="drawdeck" aria-label="Pick up a card">${backHTML('lg')}</button><div class="disp" style="font-size:1.2rem;margin-top:6px">${st.picking?`Tap the deck: ${st.drawStack} to go`:`Tap the deck to pick up ${tot}`}</div><div class="small dim">${st.picking?`${done} of ${tot} picked up`:can.size?'…or stack a draw card on it.':''}</div></div>`;
   }
   if(mine){
-    acts=`<div class="actions"><button class="play" id="play" ${okPlay?'':'disabled'}>${sel.length>1?`Play ${sel.length} cards`:'Play'}</button>${st.drawStack?`<button class="ghost" id="draw">Pick up 1 (${st.drawStack} left)</button>`:st.drew?`<button class="ghost" id="pass">Pass</button>`:`<button class="ghost" id="draw">Draw</button>`}</div>`;
+    const stuck=!can.size; // nothing playable: make the next step obvious
+    acts=`<div class="actions"><button class="play" id="play" ${okPlay?'':'disabled'}>${sel.length>1?`Play ${sel.length} cards`:'Play'}</button>${st.drawStack?`<button class="ghost ${stuck?'glow':''}" id="draw">Pick up 1 (${st.drawStack} left)</button>`:st.drew?`<button class="ghost ${stuck?'glow':''}" id="pass">Pass</button>`:`<button class="ghost ${stuck?'glow':''}" id="draw">Draw</button>`}</div>`;
   }
   const nudge=mine&&st.turnBy?`<p class="nudge small" data-showbelow="15" data-for="${local(st.turnBy)}">Your turn! Auto draw-and-pass in <span data-until="${local(st.turnBy)}"></span> s</p>`:'';
   const hint=st.picked?'Play one of the cards you just picked up, or pass.':st.picking?'Keep tapping the deck.':st.drawStack?(can.size?`Stack a draw card, or tap the deck to pick up ${st.drawStack}.`:`Tap the deck to pick up ${st.drawStack}, one card at a time.`):st.drew?'Play a card or pass.':null;
-  return `${statusHTML(st,i)}${nudge}${deck}${handH}${mine?`<p class="small dim center">${hint!==null?hint:st.rules.multi?'Tap a card (or several identical ones), then Play.':'Tap a card, then Play.'}</p>`:''}${acts}
+  const called=(st.unoCalled||{})[pid], unoB=st.rules.callUno&&hand.length<=2&&(mine||st.catchable===i)?`<button class="unobtn ${called?'called':''}" id="calluno">${called?'UNO! called ✓':'Call UNO!'}</button>`:'';
+  const catchB=st.catchable>=0&&st.catchable!==i&&st.players[st.catchable]?`<button class="catchbtn" id="catchuno">Catch ${esc(st.players[st.catchable].name)}! They didn't call UNO</button>`:'';
+  return `${statusHTML(st,i)}${nudge}${catchB}${deck}${handH}${unoB}${mine?`<p class="small dim center">${hint!==null?hint:(!can.size?'Nothing you can play: draw a card.':st.rules.multi?'Hold a card to play it. Tap to pick several identical cards, then Play.':'Hold a card to play it, or tap it then Play.')}</p>`:''}${acts}
     <p class="center" style="margin-top:1.4rem"><button class="ghost small" id="quit">Leave this game</button></p>`;
 }
 function statusHTML(st,i){
@@ -457,6 +495,12 @@ function statusHTML(st,i){
   <div class="small dim" style="display:flex;gap:10px;flex-wrap:wrap;margin:-2px 4px 0">${st.players.filter(p=>p.in&&p.id!==pid).map(p=>`<span style="${st.players[st.turn]===p?'color:var(--gold)':''}">${esc(p.name)} ${p.cards===1?'<b style="color:var(--R)">1!</b>':p.cards}</span>`).join('')}</div>`;
 }
 function overlayHTML(o){
+  if(o.k==='howto'){ const st=(n,t)=>`<div class="step"><div class="n">${n}</div><div>${t}</div></div>`; return `<div class="ovl"><div class="sheet howto"><h2>How to play</h2>
+    ${st(1,'Match the top card by <b>colour</b> or <b>number</b>, or play a wild. Your playable cards are bright, the rest are dimmed.')}
+    ${st(2,'<b>Hold a card</b> to play it. To play several identical cards, tap each one, then press <b>Play</b>.')}
+    ${st(3,'Nothing to play? Tap <b>Draw</b>. Facing a +2 or +4, tap the deck once for each card.')}
+    ${st(4,'First to get rid of every card wins the pot. Watch the table for skips, reverses and wild rules.')}
+    <button class="big" id="cancelovl">Let's play</button></div></div>`; }
   if(o.k==='colour') return `<div class="ovl"><div class="sheet"><h2>Choose a colour</h2><div class="cols">${COLS.map(c=>`<button class="${c}" data-pickcol="${c}">${CNAME[c]}</button>`).join('')}</div><button class="ghost big" id="cancelovl">Cancel</button></div></div>`;
   if(o.k==='target'){ const others=S.players.filter(p=>p.in&&p.id!==pid); return `<div class="ovl"><div class="sheet"><h2>Swap hands with…</h2><div class="tlist">${others.map(p=>`<button data-target="${p.id}"><span>${esc(p.name)}</span><span>${p.cards} card${p.cards===1?'':'s'}</span></button>`).join('')}</div><button class="ghost big" id="cancelovl">Cancel</button></div></div>`; }
   if(o.k==='quit') return `<div class="ovl"><div class="sheet"><h2>Leave this game?</h2><p class="dim">Your cards go back into the deck and your $${S.stake} stake stays in the pot. You'll be dealt in again next game.</p><div class="row" style="margin-top:12px"><button class="ghost" id="cancelovl">Keep playing</button><button id="confirmquit">Leave game</button></div></div></div>`;
@@ -506,12 +550,27 @@ function bind(){
   on('#pass',()=>{ sel=[]; send({t:'pass'}); });
   document.querySelectorAll('[data-pickcol]').forEach(b=>b.onclick=()=>tryPlay(b.dataset.pickcol));
   document.querySelectorAll('[data-target]').forEach(b=>b.onclick=()=>tryPlay(overlay&&overlay.colour,b.dataset.target));
+  document.querySelectorAll('[data-card]').forEach(b=>{
+    // hold a card to play it (with any identical cards already picked); a quick tap selects
+    const stop=()=>{ clearTimeout(holdT); b.classList.remove('holding'); };
+    b.onpointerdown=()=>{ held=false; const id=+b.dataset.card; if(!(S.canPlay||[]).includes(id)&&!sel.includes(id)) return; b.classList.add('holding');
+      holdT=setTimeout(()=>{ held=true; b.classList.remove('holding'); const me=S.players.find(p=>p.id===pid), c=me.hand.find(x=>x.id===id);
+        if(!(sel.includes(id)&&sel.every(x=>same(me.hand.find(y=>y.id===x),c)))) sel=[id];
+        try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} tryPlay(); },450); };
+    b.onpointerup=stop; b.onpointerleave=stop; b.onpointercancel=stop; b.oncontextmenu=e=>e.preventDefault();
+  });
   document.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{
+    if(held){ held=false; return; }
     const id=+b.dataset.card, me=S.players.find(p=>p.id===pid), c=me.hand.find(x=>x.id===id); sfx.tap();
     if(sel.includes(id)) sel=sel.filter(x=>x!==id);
     else { const f=sel.length?me.hand.find(x=>x.id===sel[0]):null; sel=f&&S.rules.multi&&same(f,c)?sel.concat(id):[id]; }
     render(); });
   document.querySelectorAll('[data-stake]').forEach(b=>b.onclick=()=>send({t:'settings',stake:+b.dataset.stake}));
+  document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>send({t:'settings',preset:b.dataset.preset}));
+  on('#calluno',()=>{ send({t:'uno'}); sfx.tap(); }); on('#catchuno',()=>send({t:'catch'}));
+  on('#notyou',()=>{ set('fk-nick',''); nick=''; autoTried=true; send({t:'leave'}); });
+  on('#howto',()=>{ overlay={k:'howto'}; render(); });
+  on('#switchgame',()=>{ if(confirm('Switch everyone at this table to Four Kings? Phones follow automatically.')) send({t:'switchgame',to:'fk'}); });
   document.querySelectorAll('[data-turnms]').forEach(b=>b.onclick=()=>send({t:'settings',turnMs:+b.dataset.turnms}));
   document.querySelectorAll('[data-autonext]').forEach(b=>b.onclick=()=>send({t:'settings',autoNext:b.dataset.autonext==='1'}));
   document.querySelectorAll('[data-rule]').forEach(b=>b.onchange=()=>send({t:'settings',rule:b.dataset.rule,on:b.checked}));

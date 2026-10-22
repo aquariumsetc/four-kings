@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#153f2a">
-<title>Four Kings</title>
+<title>4 Kings</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icon.png">
 <link rel="icon" href="/icon.png">
@@ -152,7 +152,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.1 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.2 · 22 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -259,7 +259,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) keepAwak
 function showHowto(){
   if(document.getElementById('howto')) return; const st=(n,t)=>`<div class="step"><div class="n">${n}</div><div>${t}</div></div>`;
   const d=document.createElement('div'); d.id='howto';
-  d.innerHTML=`<div class="sheet"><h2>How to play Four Kings</h2>
+  d.innerHTML=`<div class="sheet"><h2>How to play 4 Kings</h2>
     ${st(1,'Bet on one or two <b>kings</b>. The same again goes in the centre. Last game\u2019s bet is kept for you.')}
     ${st(2,'The leader plays their lowest card of a suit. Whoever holds the <b>next card up</b> taps it in their hand, one card at a time.')}
     ${st(3,'Play a <b>queen</b> to win that king\u2019s money. When a run stops, the next lead is the other colour.')}
@@ -479,7 +479,7 @@ function startHTML(){
   // Game Night home: both games side by side, plus one-tap rejoin of the last table
   const fr=get('fk-room'), fl=get('fk-last'), ur=get('uno-room'), ul=get('uno-last');
   const as=m=>m==='table'?'as the table':m==='both'?'as table + hand':'with your cards';
-  const rejoin=(fr&&fl?`<button class="ghost rj" id="rejoinfk">Four Kings · <b>${esc(fr)}</b> <span>${as(fl)}</span></button>`:'')+(ur&&ul?`<button class="ghost rj" id="rejoinuno">Ultium UNO · <b>${esc(ur)}</b> <span>${as(ul)}</span></button>`:'');
+  const rejoin=(fr&&fl?`<button class="ghost rj" id="rejoinfk">4 Kings · <b>${esc(fr)}</b> <span>${as(fl)}</span></button>`:'')+(ur&&ul?`<button class="ghost rj" id="rejoinuno">Ultium UNO · <b>${esc(ur)}</b> <span>${as(ul)}</span></button>`:'');
   const k=(t,red,rot)=>`<span class="mini ${red?'red':''}" style="transform:rotate(${rot}deg)">${t}</span>`;
   const u=(bg,t,rot,fg)=>`<span class="mini u" style="background:${bg};color:${fg||'#fff'};transform:rotate(${rot}deg)">${t}</span>`;
   return `<div class="home">
@@ -487,7 +487,7 @@ function startHTML(){
   ${rejoin?`<div class="panel"><div class="small muted" style="margin-bottom:6px">Pick up where you left off</div>${rejoin}</div>`:''}
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-12)}${k('K<br>♥',1,0)}${k('Q<br>♦',1,12)}</div>
-      <h2>Four Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
+      <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
       <button class="big" id="newtable">Set up a table</button><button class="big ghost" id="newboth">Table + my hand on this device</button></div>
     <div class="game uno"><div class="art">${u('#e2453c','7',-12)}${u('conic-gradient(#e2453c 0 25%,#f5c02e 0 50%,#2fa866 0 75%,#2c7be5 0)','+4',0)}${u('#2c7be5','⇄',12)}</div>
       <h2>Ultium UNO</h2><p>Match colours and numbers, stack the draws, flip the direction. Play the official rules or full house chaos.</p><div class="small muted">2–10 players · bots can fill in</div>
@@ -495,7 +495,7 @@ function startHTML(){
   </div>
   <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
     <input class="code" id="code" placeholder="CODE" maxlength="6" value="" autocapitalize="characters" autocomplete="off">
-    <div class="row" style="margin-top:8px"><button class="ghost" id="joinroom">Join Four Kings</button><button class="ghost" id="joinuno">Join Ultium UNO</button></div></div>
+    <div class="row" style="margin-top:8px"><button class="ghost" id="joinroom">Join 4 Kings</button><button class="ghost" id="joinuno">Join Ultium UNO</button></div></div>
   <p class="small muted center"><b>Set up a table</b> on the screen everyone will look at (an iPad is ideal). No spare screen? Use <b>Table + my hand</b> on your phone.</p>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
@@ -627,7 +627,7 @@ function bind(){
   if(q('#rejoinfk')) q('#rejoinfk').onclick=()=>{ room=get('fk-room'); mode=get('fk-last'); set('fk-mode',mode); history.replaceState(null,'','/'); S=null; render(); connect(); };
   if(q('#rejoinuno')) q('#rejoinuno').onclick=()=>{ location.href='/uno.html?room='+get('uno-room')+'&mode='+get('uno-last'); };
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('fk-mode',''); render(); renderVideo(); };
-  if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Four Kings, table '+room,text:'Join my Four Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
+  if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'4 Kings, table '+room,text:'Join my 4 Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
   app.querySelectorAll('[data-timer]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',claimMs:+b.dataset.timer}));
   if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});

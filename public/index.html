@@ -65,6 +65,9 @@ input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fraunces",G
 button.cardbtn{padding:0;background:none;border-radius:5px}
 .tgrid{display:grid;grid-template-columns:1fr 300px;gap:14px;align-items:start}
 @media (max-width:760px){.tgrid{grid-template-columns:1fr}}
+/* table + your cards on one screen: cards right under the table, side panel after (phones) or alongside (wide) */
+.tgrid.withhand{grid-template-areas:"round side" "hand side"}.tgrid.withhand>.tl-round{grid-area:round}.tgrid.withhand>.tl-side{grid-area:side}.tgrid.withhand>.tl-hand{grid-area:hand}
+@media (max-width:760px){.tgrid.withhand{grid-template-areas:"round" "hand" "side"}}
 .pile{position:relative;height:280px;background:rgba(0,0,0,.18);border-radius:20px;margin:12px 0;overflow:hidden}
 .pile .card{position:absolute;left:50%;top:50%;margin:-58px 0 0 -42px}
 .pile .card.who::after{content:attr(data-who);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font:600 .72rem -apple-system,"Segoe UI",sans-serif;color:var(--fg);background:rgba(0,0,0,.45);padding:2px 6px;border-radius:6px;white-space:nowrap}
@@ -98,6 +101,7 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .art{height:86px;display:flex;justify-content:center;align-items:center;gap:0}
 .mini{display:inline-flex;align-items:center;justify-content:center;text-align:center;width:46px;height:66px;margin:0 -6px;border-radius:8px;background:var(--ivory);color:var(--ink);font:700 1.05rem/1.05 Georgia,serif;box-shadow:0 4px 10px rgba(0,0,0,.35)}
 .mini.red{color:var(--red)}.mini.u{font-family:-apple-system,sans-serif;font-size:1.25rem;box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,255,255,.85)}
+.ways{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:.88rem;line-height:1.35}@media (max-width:640px){.ways{grid-template-columns:1fr}}
 .rj{display:block;width:100%;text-align:left;margin-top:6px}.rj span{opacity:.7;font-size:.85rem}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
 .minirun{display:flex;gap:22px;align-items:center;justify-content:center;padding:10px 6px 24px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:96px}
@@ -152,7 +156,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.3 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.4 · 22 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -170,7 +174,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
-let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let wantLayout=''; let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -214,6 +218,7 @@ function onState(st,old){
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
+  if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
   if(mode!=='table'&&!get('fk-howto')){ set('fk-howto','1'); setTimeout(showHowto,300); }
   skew=st.serverNow-Date.now();
   const m=me(st); if(m&&!m.bot&&m.auto!==autoOn) sendMsg({t:'autoplay',on:autoOn});
@@ -440,6 +445,7 @@ function settingsHTML(st){
   const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min']], on='background:var(--ivory);color:var(--ink);';
   const pick=(attr,val,cur,label)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}">${label}</button>`;
   return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>
+  <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   <div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
   <div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>
@@ -457,8 +463,9 @@ function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
-  app.className='app'+(isTbl()?' table':'');
-  app.innerHTML=(mode==='table'?tableHTML(S):mode==='both'?tableHTML(S)+`<div class="panel" style="margin-top:14px;border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your hand on this device</div>${handMain(S)}</div>`:handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
+  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':''); // own-devices game: players get the wide table layout too
+  const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
+  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();
@@ -488,15 +495,15 @@ function startHTML(){
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
       <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
-      <button class="big" id="newtable">Set up a table</button><button class="big ghost" id="newboth">Table + my hand on this device</button></div>
+      <button class="big" id="newtable">Play with an iPad table</button><button class="big ghost" id="newphones">Play on our own devices</button></div>
     <div class="game uno"><div class="art">${u('#e2453c','7',-12)}${u('conic-gradient(#e2453c 0 25%,#f5c02e 0 50%,#2fa866 0 75%,#2c7be5 0)','+4',0)}${u('#2c7be5','⇄',12)}</div>
       <h2>Ultium UNO</h2><p>Match colours and numbers, stack the draws, flip the direction. Play the official rules or full house chaos.</p><div class="small muted">2–10 players · bots can fill in</div>
-      <button class="big" id="unotable">Set up a table</button><button class="big ghost" id="unoboth">Table + my hand on this device</button></div>
+      <button class="big" id="unotable">Play with an iPad table</button><button class="big ghost" id="unophones">Play on our own devices</button></div>
   </div>
   <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
     <input class="code" id="code" placeholder="CODE" maxlength="6" value="" autocapitalize="characters" autocomplete="off">
     <div class="row" style="margin-top:8px"><button class="ghost" id="joinroom">Join 4 Kings</button><button class="ghost" id="joinuno">Join Ultium UNO</button></div></div>
-  <p class="small muted center"><b>Set up a table</b> on the screen everyone will look at (an iPad is ideal). No spare screen? Use <b>Table + my hand</b> on your phone.</p>
+  <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Join video</b> to see each other.</div></div>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function nextHTML(st,small){
@@ -504,7 +511,7 @@ function nextHTML(st,small){
   return `${st.nextBy?`<p class="center small muted" style="margin:.6rem 0 0">Next game in <span data-until="${local(st.nextBy)}">${Math.ceil((st.nextBy-st.serverNow)/1000)}</span> s</p>`:''}${btn}`;
 }
 /* --- table (iPad) --- */
-function tableHTML(st){
+function tableHTML(st,handPanel){
   let main=''; const host=st.host;
   const link=location.origin+location.pathname+'?room='+room+'&mode=hand';
   if(st.phase==='lobby'){
@@ -534,7 +541,7 @@ function tableHTML(st){
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
     ${nextHTML(st)}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>${settingsHTML(st)}`:''}`;
   }
-  return `<div class="tgrid"><div>${kingsHTML(st)}${main}</div><div>${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div></div>`;
+  return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }
 function pileHTML(st,live){
   if(!st.run.length) return `<div class="wait" style="padding-top:110px">${st.game?'Table is clear':''}</div>`;
@@ -622,7 +629,9 @@ function bind(){
   if(q('#joinroom')) q('#joinroom').onclick=()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } room=c; mode='hand'; set('fk-room',room); set('fk-mode',mode); S=null; render(); connect(); };
   if(q('#switch')) q('#switch').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='hand'?'table':mode==='both'?'table':'hand'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
   if(q('#unotable')) q('#unotable').onclick=()=>{ location.href='/uno.html?setup=table'; };
-  if(q('#unoboth')) q('#unoboth').onclick=()=>{ location.href='/uno.html?setup=both'; };
+  if(q('#unophones')) q('#unophones').onclick=()=>{ location.href='/uno.html?setup=phones'; };
+  if(q('#newphones')) q('#newphones').onclick=()=>{ room=newCode(); mode='both'; wantLayout='phones'; set('fk-room',room); set('fk-mode',mode); say(' '); S=null; render(); connect(); };
+  app.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',layout:b.dataset.layout}));
   if(q('#joinuno')) q('#joinuno').onclick=()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } location.href='/uno.html?room='+c+'&mode=hand'; };
   if(q('#rejoinfk')) q('#rejoinfk').onclick=()=>{ room=get('fk-room'); mode=get('fk-last'); set('fk-mode',mode); history.replaceState(null,'','/'); S=null; render(); connect(); };
   if(q('#rejoinuno')) q('#rejoinuno').onclick=()=>{ location.href='/uno.html?room='+get('uno-room')+'&mode='+get('uno-last'); };

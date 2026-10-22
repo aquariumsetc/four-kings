@@ -9,6 +9,14 @@ directory = "./public"
 name = "TABLE"
 class_name = "Table"
 
+[[durable_objects.bindings]]
+name = "UNO"
+class_name = "UnoTable"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Table"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["UnoTable"]

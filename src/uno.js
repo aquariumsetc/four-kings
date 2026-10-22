@@ -10,7 +10,14 @@ const START_BAL = 1000;
 const NEXT_MS = 20000;   // game over: next game after this (if auto-next)
 const NUDGE_MS = 15000;  // idle player: phone nudges this long before auto-move
 const MAX_PLAYS = 800;   // safety net: a game this long finishes itself (fewest cards wins)
-const RULES = { multi: true, stack: true, playPicked: true, steal: false, pass: false, mirror: false, drawUntil: false };
+const RULES = { multi: true, stack: true, playPicked: true, steal: false, pass: false, mirror: false, drawUntil: false, official: false, callUno: false, useCustoms: true };
+// one-tap rule sets. "official" follows the printed rules: draw one and only that card may be played,
+// no stacking, +4 only without a card of the current colour, and call UNO or get caught for 2.
+const PRESETS = {
+  official: { multi: false, stack: false, playPicked: false, steal: false, pass: false, mirror: false, drawUntil: false, official: true, callUno: true, useCustoms: false },
+  party: { multi: true, stack: true, playPicked: true, steal: true, pass: true, mirror: false, drawUntil: false, official: false, callUno: false, useCustoms: true },
+  chaos: { multi: true, stack: true, playPicked: true, steal: true, pass: true, mirror: true, drawUntil: false, official: false, callUno: false, useCustoms: true },
+};
 const BOT_NAMES = ["Robo Rita", "Dealer Dan", "Lucky Lou", "Queenie", "Ace Alvarez", "Blackjack Bea", "Shuffle Sam"];
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
@@ -33,7 +40,7 @@ function buildDeck(st) {
   if (st.rules.steal) { add("W", "steal"); add("W", "steal"); }
   if (st.rules.pass) { add("W", "pass"); add("W", "pass"); }
   if (st.rules.mirror) { add("W", "mirror"); add("W", "mirror"); }
-  st.customs.forEach((txt, i) => { if (txt && txt.trim()) { add("W", "cust", i); add("W", "cust", i); } });
+  if (st.rules.useCustoms !== false) st.customs.forEach((txt, i) => { if (txt && txt.trim()) { add("W", "cust", i); add("W", "cust", i); } });
   return shuffle(d);
 }
 const isWild = (c) => WILDS.includes(c.v);
@@ -54,6 +61,10 @@ function playable(st, c) {
     if (!st.rules.stack) return false;
     return c.v === "w4" || (c.v === "d2" && t && t.v === "d2");
   }
+  // official rules: after drawing, only the card you drew may be played
+  if (st.rules.official && st.drew && st.drawnId && c.id !== st.drawnId) return false;
+  // official rules: a +4 only when you hold nothing of the current colour
+  if (st.rules.official && c.v === "w4") { const p = st.players[st.turn]; if (p && p.hand.some((x) => x.c === st.colour)) return false; }
   if (isWild(c)) return true;
   return c.c === st.colour || (t && c.v === t.v);
 }
@@ -68,13 +79,19 @@ function drawCards(st, i, n) {
   }
   return got;
 }
-function setTurn(st, i) { st.turn = i; st.drew = false; st.picking = false; st.picked = null; st.pickTotal = 0; st.turnAt = Date.now(); }
+// deck empty and nobody has played for three full rounds: the game can't go anywhere, so the fewest cards wins
+function stalled(st, i) {
+  st.noPlay = (st.noPlay || 0) + 1;
+  if (!st.deck.length && st.pile.length <= 1 && st.noPlay >= 3 * ins(st).length) { endGame(st, fewest(st), "fewest cards: no cards left to draw and nobody could play"); return true; }
+  return false;
+}
+function setTurn(st, i) { st.turn = i; st.drew = false; st.drawnId = 0; st.picking = false; st.picked = null; st.pickTotal = 0; st.turnAt = Date.now(); }
 
 function startGame(st) {
-  st.game++; st.plays = 0; st.phase = "play"; st.pile = []; st.dir = 1; st.drawStack = 0; st.picking = false; st.picked = null; st.winner = null; st.event = null; st.overAt = 0;
+  st.game++; st.plays = 0; st.noPlay = 0; st.unoCalled = {}; st.catchable = -1; st.phase = "play"; st.pile = []; st.dir = 1; st.drawStack = 0; st.picking = false; st.picked = null; st.winner = null; st.event = null; st.overAt = 0;
   const sitting = [];
   st.players.forEach((p) => {
-    p.hand = []; p.left = false; p.startBal = p.balance;
+    p.hand = []; p.left = false; p.queued = false; p.startBal = p.balance;
     if (p.bot && p.balance < st.stake) { p.balance += START_BAL; p.rebuys = (p.rebuys || 0) + 1; p.startBal = p.balance; }
     p.in = p.balance >= st.stake; if (!p.in) { sitting.push(p.name); return; }
     p.balance -= st.stake; st.pot += st.stake;
@@ -117,6 +134,7 @@ function play(st, i, ids, opts = {}) {
   if (cards.length > 1 && (!st.rules.multi || !cards.every((c) => same(c, cards[0])))) return "You can only play several cards if they're identical.";
   if (st.picked && !ids.every((id) => st.picked.includes(id))) return "Play one of the cards you just picked up.";
   const c0 = cards[0];
+  if (st.catchable >= 0 && st.catchable !== i) st.catchable = -1; // the next play closes the window to catch someone
   if (!playable(st, c0)) return st.drawStack ? `Stack a matching draw card or take the ${st.drawStack}.` : "That card doesn't match.";
   if (isWild(c0) && !COLS.includes(opts.colour)) return "Choose a colour.";
   const needsTarget = c0.v === "steal";
@@ -160,8 +178,13 @@ function play(st, i, ids, opts = {}) {
   for (let s = 0; s < skips; s++) nxt = step(st, nxt);
   // two players: skips and reverses give the same player another turn
   if (ins(st).length === 2 && (c0.v === "rev" || c0.v === "skip")) nxt = i;
+  st.noPlay = 0;
   setTurn(st, nxt);
-  if (p.hand.length === 1) st.event.one = i;
+  if (p.hand.length === 1) {
+    st.event.one = i;
+    if (st.rules.callUno && !(st.unoCalled || {})[p.id]) st.catchable = i; // forgot to call UNO: anyone can catch them
+  }
+  if (st.unoCalled) delete st.unoCalled[p.id];
   if (++st.plays >= MAX_PLAYS) endGame(st, fewest(st), "fewest cards: the game hit 800 plays");
   return "";
 }
@@ -185,13 +208,27 @@ function draw(st, i) {
     setTurn(st, step(st, i)); return "";
   }
   if (st.drew) return "You've drawn already: play a card or pass.";
+  if (st.catchable >= 0 && st.catchable !== i) st.catchable = -1;
   let got = drawCards(st, i, 1);
   if (st.rules.drawUntil) { let guard = 0; while (got.length && !playable(st, got[got.length - 1]) && guard++ < 60) { const more = drawCards(st, i, 1); if (!more.length) break; got = got.concat(more); } }
-  st.drew = true; st.note = `${p.name} drew ${got.length > 1 ? got.length + " cards" : "a card"}.`;
-  if (!p.hand.some((c) => playable(st, c))) { setTurn(st, step(st, i)); st.note += " No play, so the turn passes."; }
+  st.drew = true; st.drawnId = got.length ? got[got.length - 1].id : 0; st.note = `${p.name} drew ${got.length > 1 ? got.length + " cards" : "a card"}.`;
+  if (!p.hand.some((c) => playable(st, c))) { if (stalled(st, i)) return ""; setTurn(st, step(st, i)); st.note += " No play, so the turn passes."; }
   return "";
 }
-function pass(st, i) { if (st.phase !== "play" || st.turn !== i || !st.drew || st.picking) return "Draw first."; st.note = `${st.players[i].name} passes.`; setTurn(st, step(st, i)); return ""; }
+function pass(st, i) { if (st.phase !== "play" || st.turn !== i || !st.drew || st.picking) return "Draw first."; st.note = `${st.players[i].name} passes.`; if (stalled(st, i)) return ""; setTurn(st, step(st, i)); return ""; }
+// UNO calls: say it on your second-last card (or before anyone catches you on your last)
+function callUno(st, i) {
+  const p = st.players[i]; if (st.phase !== "play" || !p.in || p.hand.length > 2) return "Call UNO when you're down to two cards.";
+  st.unoCalled = st.unoCalled || {}; st.unoCalled[p.id] = true;
+  if (st.catchable === i) st.catchable = -1;
+  st.event = { t: "uno", who: i, at: Date.now() }; return "";
+}
+function catchUno(st, i) {
+  const c = st.catchable; if (st.phase !== "play" || c < 0 || c === i) return "Nobody to catch.";
+  const got = drawCards(st, c, 2); st.catchable = -1;
+  st.note = `${st.players[i].name} caught ${st.players[c].name} not calling UNO! +${got.length}.`;
+  st.event = { t: "caught", who: c, by: i, n: got.length, at: Date.now() }; return "";
+}
 // leave mid-game: cards go back in the deck, the stake stays in the pot
 function leaveGame(st, i) {
   const p = st.players[i]; if (!p.in) return;
@@ -205,6 +242,10 @@ function leaveGame(st, i) {
 // ---------- bots ----------
 function botMove(st, i) {
   const p = st.players[i];
+  if (st.rules.callUno) {
+    if (st.catchable >= 0 && st.catchable !== i && Math.random() < 0.7) catchUno(st, i);
+    if (p.hand.length === 2 && Math.random() < 0.85) { st.unoCalled = st.unoCalled || {}; st.unoCalled[p.id] = true; }
+  }
   const opts = p.hand.filter((c) => playable(st, c));
   if (!opts.length) { if (st.drew) pass(st, i); else draw(st, i); return; }
   const score = (c) => (isWild(c) ? 0 : 10) + (c.c === st.colour ? 3 : 0) + (ACTION.includes(c.v) ? 2 : 0);
@@ -230,6 +271,7 @@ export class UnoTable extends DurableObject {
     const pid = (url.searchParams.get("pid") || "").slice(0, 40), want = url.searchParams.get("role"), role = want === "table" ? "table" : "hand", creator = want === "table" || want === "both"; // the device that set up the table runs it
     const pair = new WebSocketPair(); const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server); server.serializeAttachment({ pid, role, creator, sid: crypto.randomUUID().slice(0, 8), video: false });
+    if (creator && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // the table is here now
     this.broadcast();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -243,7 +285,8 @@ export class UnoTable extends DurableObject {
       return;
     }
     const st = this.S, i = pidx(st, pid), me = i >= 0 ? st.players[i] : null;
-    const isHost = role === "table" || att.creator || (st.players.length && st.players[0].id === pid);
+    // the table device runs the game; the first player only stands in when no table device is connected
+    const isHost = role === "table" || att.creator || (!this.tablePresent() && st.players.length && st.players[0].id === pid);
     const between = st.phase === "lobby" || st.phase === "over";
     let changed = true, err = "";
     switch (m.t) {
@@ -252,11 +295,14 @@ export class UnoTable extends DurableObject {
         if (!pid) return;
         const name = String(m.name || "Player").trim().slice(0, 18) || "Player";
         if (me) { me.name = name; break; }
-        if (!between) { err = "A game is in progress; join when it finishes."; changed = false; break; }
         if (st.players.length >= 10) { err = "The table is full."; changed = false; break; }
-        st.players.push({ id: pid, name, balance: START_BAL, hand: [], in: false }); break;
+        // joining mid-game: you're seated now and dealt in at the next game
+        st.players.push({ id: pid, name, balance: START_BAL, hand: [], in: false, queued: st.phase === "play" }); break;
       }
-      case "leave": if (between && me) { st.players.splice(i, 1); st.first = 0; } else changed = false; break;
+      case "leave": if (me && (between || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.turn > i) st.turn--; } else changed = false; break;
+      case "uno": if (me) err = callUno(st, i); if (err) changed = false; break;
+      case "catch": if (me) err = catchUno(st, i); if (err) changed = false; break;
+      case "switchgame": if (isHost && between && ["fk"].includes(m.to)) { st.goto = { to: m.to, at: Date.now(), bots: st.players.filter((p) => p.bot).length }; } else changed = false; break;
       case "quit": if (st.phase === "play" && me && me.in) leaveGame(st, i); else changed = false; break;
       case "addbot": {
         if (!isHost || !between || st.players.length >= 10) { changed = false; break; }
@@ -281,6 +327,7 @@ export class UnoTable extends DurableObject {
         if ([30000, 60000, 0].includes(m.turnMs)) st.turnMs = m.turnMs;
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); }
         if (m.rule && m.rule in RULES && st.phase !== "play") st.rules[m.rule] = !!m.on;
+        if (m.preset && PRESETS[m.preset] && st.phase !== "play") st.rules = { ...PRESETS[m.preset] };
         if (Array.isArray(m.customs) && st.phase !== "play") st.customs = [0, 1, 2, 3].map((k) => String(m.customs[k] || "").slice(0, 60));
         break;
       }
@@ -291,6 +338,7 @@ export class UnoTable extends DurableObject {
   }
   async webSocketClose(ws) { try { ws.close(); } catch {} this.broadcast(); }
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
+  tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) if (ws.readyState === 1) this.send(ws); }
 
   // timers: bots, idle humans, auto-next
@@ -319,16 +367,16 @@ export class UnoTable extends DurableObject {
     this.broadcast();
   }
   send(ws) {
-    const { pid, role, sid, creator } = ws.deserializeAttachment() || {}, st = this.S;
+    const { pid, role, sid, creator } = ws.deserializeAttachment() || {}, st = this.S; const tablePresent = this.tablePresent();
     const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, deck: undefined, deckCount: st.deck.length, pile: st.pile.slice(-8), wakeAt: undefined, pickedSoFar: undefined,
-      players: st.players.map((p) => ({ id: p.id, name: p.name, bot: !!p.bot, balance: p.balance, in: !!p.in, left: !!p.left, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
-      you: pid, sid, peers, host: role === "table" || !!creator || (st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
+      players: st.players.map((p) => ({ id: p.id, name: p.name, bot: !!p.bot, balance: p.balance, in: !!p.in, left: !!p.left, queued: !!p.queued, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
+      you: pid, sid, peers, host: role === "table" || !!creator || (!tablePresent && st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       turnBy: st.phase === "play" && st.turnMs && !st.players[st.turn]?.bot ? st.turnAt + st.turnMs : 0,
       canPlay: role === "hand" && st.phase === "play" && st.players[st.turn]?.id === pid ? st.players[st.turn].hand.filter((c) => playable(st, c)).map((c) => c.id) : [],
     };
     try { ws.send(JSON.stringify({ t: "state", s: view })); } catch {}
   }
 }
-export { fresh, buildDeck, playable, play, draw, pass, startGame, finishNow, leaveGame, botMove, step, NUDGE_MS };
+export { fresh, buildDeck, playable, play, draw, pass, startGame, finishNow, leaveGame, botMove, step, callUno, catchUno, PRESETS, NUDGE_MS };

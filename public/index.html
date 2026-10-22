@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#153f2a">
 <title>Four Kings</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -103,6 +106,9 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .leadcall{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;line-height:1.1;text-align:center;margin:.4rem 0}
 .leadcall .col{display:inline-block;padding:.05em .35em;border-radius:8px;background:var(--ivory);color:var(--ink);text-transform:uppercase;letter-spacing:.06em}
 .leadcall .col.red{color:var(--red)}
+#howto{position:fixed;inset:0;z-index:60;background:rgba(10,20,14,.75);display:flex;align-items:center;justify-content:center;padding:20px}
+#howto .sheet{background:var(--felt-deep);border-radius:20px;padding:1.2rem;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+#howto .step{display:flex;gap:12px;margin:10px 0}#howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brass);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center}
 #banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:50}
 #banner:empty{display:none}
 .fanfare{background:linear-gradient(160deg,#fff4c2,#e9c54a);color:#2a2410;border-radius:22px;padding:1.2rem 1.6rem;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 6px rgba(201,162,39,.35);max-width:88vw;animation:pop .5s cubic-bezier(.2,1.4,.4,1),fade .6s 3.6s forwards}
@@ -135,6 +141,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
+const VERSION='v2.0 · 22 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -152,7 +159,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('fk-mode')||'';
-let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -181,7 +188,7 @@ function connect(){
   const proto=location.protocol==='https:'?'wss':'ws';
   ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${mode}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2500); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
@@ -191,6 +198,12 @@ function connect(){
 }
 function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function onState(st,old){
+  // the table moved everyone to Ultium UNO: follow it (same code, same name)
+  if(st.goto&&st.goto.to==='uno'&&st.goto.at>+(qs.get('from')||0)){ const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; location.replace('/uno.html?room='+room+'&mode='+mode+'&from='+st.goto.at+bots); return; }
+  if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn}); }
+  else if(!st.players.some(p=>p.id===pid)) autoTried=true;
+  if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
+  if(mode!=='table'&&!get('fk-howto')){ set('fk-howto','1'); setTimeout(showHowto,300); }
   skew=st.serverNow-Date.now();
   const m=me(st); if(m&&!m.bot&&m.auto!==autoOn) sendMsg({t:'autoplay',on:autoOn});
   if(st.phase==='claim'&&(!old||old.phase!=='claim'||old.run.length!==st.run.length||old.runSuit!==st.runSuit)) claimSeen=Date.now();
@@ -227,6 +240,21 @@ function unlockAudio(){
     if((musicOn||music.want)&&!music.on&&room&&mode){ music.want=false; musicStart(); }
     if('speechSynthesis' in window) speechSynthesis.resume();
   }catch(e){}
+}
+let wake=null;
+async function keepAwake(){ try{ if(room&&mode&&'wakeLock' in navigator&&!document.hidden&&(!wake||wake.released)) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) keepAwake(); });
+['touchend','click'].forEach(ev=>document.addEventListener(ev,keepAwake,{passive:true}));
+function showHowto(){
+  if(document.getElementById('howto')) return; const st=(n,t)=>`<div class="step"><div class="n">${n}</div><div>${t}</div></div>`;
+  const d=document.createElement('div'); d.id='howto';
+  d.innerHTML=`<div class="sheet"><h2>How to play Four Kings</h2>
+    ${st(1,'Bet on one or two <b>kings</b>. The same again goes in the centre. Last game\u2019s bet is kept for you.')}
+    ${st(2,'The leader plays their lowest card of a suit. Whoever holds the <b>next card up</b> taps it in their hand, one card at a time.')}
+    ${st(3,'Play a <b>queen</b> to win that king\u2019s money. When a run stops, the next lead is the other colour.')}
+    ${st(4,'First to play every card takes the <b>centre</b>. Turn on <b>beginner hints</b> at the bottom for extra help.')}
+    <button class="big" id="howtook">Let\u2019s play</button></div>`;
+  document.body.appendChild(d); d.querySelector('#howtook').onclick=()=>d.remove();
 }
 function soundBlocked(){ return (sfxOn||winOn||musicOn)&&room&&mode&&(!actx||actx.state!=='running'||audioStale); }
 document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; } else if(actx) actx.resume().catch(()=>{}); });
@@ -404,6 +432,7 @@ function settingsHTML(st){
   <div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
   <div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>
+  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to Ultium UNO</button></span></div>
   <div class="muted" style="margin-top:4px">${swapRace(st)?'Fastest finger: everyone sees their cards at once and the first to tap Swap gets the spare.':'In turn: starting left of the dealer, each player in order may take the spare. The first seat moves round each game.'}</div></div>`;
 }
 function boardHTML(st,host){
@@ -418,7 +447,7 @@ function render(){
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(isTbl()?' table':'');
-  app.innerHTML=(mode==='table'?tableHTML(S):mode==='both'?tableHTML(S)+`<div class="panel" style="margin-top:14px;border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your hand on this device</div>${handMain(S)}</div>`:handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button>`:''}</p>`;
+  app.innerHTML=(mode==='table'?tableHTML(S):mode==='both'?tableHTML(S)+`<div class="panel" style="margin-top:14px;border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your hand on this device</div>${handMain(S)}</div>`:handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();
@@ -441,7 +470,7 @@ function startHTML(){
   <div class="panel"><h3>Set up the table</h3><p class="small muted">Starts a new table with a code the players type in.</p><button class="big" id="newtable">This device is the table</button><button class="big ghost" id="newboth">This device is the table and my hand</button><p class="small muted" style="margin:.4rem 0 0">Use the second one when there is no iPad: the shared table shows on top and your own cards underneath.</p></div>
   <div class="panel"><h3>Join as a player</h3><input class="code" id="code" placeholder="CODE" maxlength="6" value="${esc(room)}" autocapitalize="characters" autocomplete="off"><button class="big ghost" id="joinroom">This is my hand</button></div>
   <div class="panel"><h3>Ultium UNO</h3><p class="small muted">Match colours and numbers, stack the draws, swap hands. Same phones-as-cards setup.</p><a href="/uno.html" style="text-decoration:none"><button class="big ghost" tabindex="-1">Play Ultium UNO</button></a></div>
-  <p class="small muted">No sign-in needed. Short of players? The table can add bots. Players can tap <b>Join video</b> on their phones to see and hear each other, so the table works across cities too. Share this address: <b>${esc(link)}</b></p></div>`;
+  <p class="small muted">No sign-in needed. Short of players? The table can add bots. Players can tap <b>Join video</b> on their phones to see and hear each other, so the table works across cities too. Share this address: <b>${esc(link)}</b></p><p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function nextHTML(st,small){
   const btn=`<button class="${small?'':'big'}" id="nextgame">${st.nextBy?'Next game now':'Start game '+(st.game+1)}</button>`;
@@ -491,11 +520,11 @@ function handMain(st){
   const i=pidx(st,pid); const p=i>=0?st.players[i]:null; const hand=p&&p.hand?p.hand:[];
   let main='';
   if(!p){
-    if(st.phase==='lobby'||st.phase==='over'||st.phase==='ante') main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
-    else main=`<div class="wait">A game is in progress at table ${esc(room)}. You can join when it finishes.</div>`;
+    if(nick&&!autoTried) main=`<div class="wait">Joining as ${esc(nick)}…</div>`;
+    else main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
     return main;
   }
-  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${st.host?settingsHTML(st):`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`}</div>`; }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${st.host?settingsHTML(st):`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
     main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${p.balance}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
   }
@@ -513,7 +542,7 @@ function handMain(st){
       ${st.host&&st.canDeal?`<button class="big ghost" id="deal">Deal the cards now</button>`:''}`;
   }
   else if(['swap','play','claim'].includes(st.phase)&&!p.in){
-    main=`${miniRun(st)}<div class="wait"><h2>You're sitting this game out</h2><p class="muted">${p.broke?'You ran out of money. You can rebuy before the next game.':'You didn\'t bet in time. You\'re back in next game.'}</p></div>`;
+    main=`${miniRun(st)}<div class="wait">${p.broke?'<h2>You\'re sitting this game out</h2><p class="muted">You ran out of money. You can rebuy before the next game.</p>':`<h2>You're in, ${esc(p.name)}!</h2><p class="muted">You'll be dealt in when the next game starts.</p>`}</div>`;
   }
   else if(st.phase==='swap'){
     const left=`<span data-until="${local(st.swapBy)}">${Math.ceil((st.swapBy-st.serverNow)/1000)}</span> s`;
@@ -588,6 +617,9 @@ function bind(){
   if(q('#rebuy')) q('#rebuy').onclick=()=>{ q('#rebuy').disabled=true; sendMsg({t:'rebuy'}); };
   app.querySelectorAll('[data-swapmode]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',swapMode:b.dataset.swapmode}));
   app.querySelectorAll('[data-autonext]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',autoNext:b.dataset.autonext==='1'}));
+  if(q('#switchgame')) q('#switchgame').onclick=()=>{ if(confirm('Switch everyone at this table to Ultium UNO? Phones follow automatically.')) sendMsg({t:'switchgame',to:'uno'}); };
+  if(q('#notyou')) q('#notyou').onclick=()=>{ set('fk-nick',''); nick=''; autoTried=true; sendMsg({t:'leave'}); };
+  if(q('#howtobtn')) q('#howtobtn').onclick=showHowto;
   if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };
   if(q('#sfx')) q('#sfx').onclick=()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); if(sfxOn) sfx.card(); render(); };
   if(q('#musicbtn')) q('#musicbtn').onclick=()=>{ musicOn=!musicOn; set('fk-music',musicOn?'1':'0'); try{ musicOn?musicStart():musicStop(); }catch(e){} render(); };

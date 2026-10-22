@@ -125,12 +125,25 @@ input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fredoka",sa
 .qr{background:#fff;padding:10px;border-radius:14px;line-height:0;display:inline-block}
 #sndhint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:40;background:rgba(0,0,0,.75);color:#fff;font-size:.85rem;padding:.45rem .9rem;border-radius:999px;pointer-events:none}
 .conn{position:fixed;right:10px;top:calc(8px + env(safe-area-inset-top,0px));font-size:.72rem;opacity:.55}
+#vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(20,22,44,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto}
+#vid:empty{display:none}
+.tile{position:relative;flex:none;width:78px;height:104px;border-radius:12px;overflow:hidden;background:#111;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+body.tbl .tile{width:150px;height:112px}
+.tile video{width:100%;height:100%;object-fit:cover;display:block}
+.tile.me video{transform:scaleX(-1)}
+.tile .nm{position:absolute;left:0;right:0;bottom:0;font-size:.68rem;padding:2px 5px;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vctl{flex:none;display:flex;flex-direction:column;gap:5px;margin-left:auto}
+.vctl button{padding:.45rem .7rem;font-size:.82rem;border-radius:10px}
+body.hasvid .app{padding-top:128px}
+body.hasvid.tbl .app{padding-top:136px}
+body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 .foot{margin-top:1.4rem;text-align:center;font-size:.85rem;color:var(--dim)}
 .foot button{margin:3px}
 </style>
 </head>
 <body>
 <div class="app" id="app"></div>
+<div id="vid"></div>
 <div id="ovl"></div>
 <div id="banner"></div>
 <div class="conn" id="conn"></div>
@@ -175,13 +188,14 @@ function connect(){
   if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/uws/${room}?pid=${encodeURIComponent(pid)}&role=${mode==='both'?'hand':mode}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; ws.send(JSON.stringify({t:'hello'})); };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2600); return; }
-    if(m.t==='state'){ const old=S; S=m.s; onState(S,old); render(); } };
+    if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
+    if(m.t==='state'){ const old=S; S=m.s; onState(S,old); render(); syncPeers(); } };
   ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
 }
-const send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); };
+const send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }, sendMsg=send;
 function onState(st,old){
   skew=st.serverNow-Date.now();
   const me=st.players.find(p=>p.id===pid);
@@ -239,6 +253,76 @@ function nextBanner(){
   setTimeout(nextBanner,(x.cls||'').includes('long')?4600:bannerQ.length?1400:3000);
 }
 function say(t){ try{ if(!t||!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.05; speechSynthesis.speak(u);}catch(e){} }
+
+/* ---------- video: WebRTC mesh between everyone at this table ---------- */
+const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false};
+const vidEl=document.getElementById('vid');
+async function loadIce(){ if(rtc.iceLoaded) return; try{ const r=await fetch('/ice'); if(r.ok){ rtc.ice=await r.json(); } }catch(e){} rtc.iceLoaded=true; }
+async function startVideo(){
+  if(rtc.on||rtc.joining) return;
+  rtc.joining=true; // while the camera starts, hold any connection requests that arrive (answered below)
+  try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
+  catch(e){ rtc.joining=false; rtc.queue=[]; viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
+  rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
+  rtc.on=true; await loadIce();
+  Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();
+  rtc.joining=false; const held=rtc.queue; rtc.queue=[]; held.forEach(([f,d])=>onRtc(f,d)); renderVideo();
+}
+function stopVideo(){ if(!rtc.on) return; rtc.on=false; rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
+function toggleMic(){ rtc.mic=!rtc.mic; if(rtc.stream) rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic); renderVideo(); }
+function iParticipate(){ return rtc.on||isTbl(); }
+function wantPeer(p){ return p.sid!==S.sid && (p.video||p.role==='table') && (p.video||rtc.on); }
+function syncPeers(){
+  if(!S||!S.sid) return;
+  const want=new Set(iParticipate()?S.peers.filter(wantPeer).map(p=>p.sid):[]);
+  Object.keys(rtc.peers).forEach(sid=>{ if(!want.has(sid)) closePeer(sid); });
+  want.forEach(sid=>{ if(!rtc.peers[sid]) makePeer(sid); });
+  renderVideo();
+}
+function makePeer(sid){
+  const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:S.sid>sid,stream:null,making:false,ignore:false,cands:[]}; rtc.peers[sid]=p;
+  // only a device that is sending video opens the connection; a watch-only table just answers
+  if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
+  // two cameras: only one side opens the connection, so the two never collide
+  pc.onnegotiationneeded=async()=>{ const other=S&&S.peers.find(x=>x.sid===sid); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; await pc.setLocalDescription(); sendMsg({t:'rtc',to:sid,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
+  pc.onicecandidate=({candidate})=>{ if(candidate) sendMsg({t:'rtc',to:sid,data:{candidate}}); };
+  pc.ontrack=ev=>{ p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };
+  pc.onconnectionstatechange=()=>{ if(pc.connectionState==='failed'){ closePeer(sid); setTimeout(syncPeers,1500); } renderVideo(); };
+  return p;
+}
+function closePeer(sid){ const p=rtc.peers[sid]; if(!p) return; try{p.pc.close();}catch(e){} delete rtc.peers[sid]; }
+async function onRtc(from,data){
+  if(rtc.joining){ rtc.queue.push([from,data]); return; }
+  if(!S||!S.peers.some(x=>x.sid===from)) return;
+  let p=rtc.peers[from]; if(!p){ if(!iParticipate()) return; await loadIce(); p=makePeer(from); }
+  const pc=p.pc;
+  try{
+    if(data.description){
+      const collision=data.description.type==='offer'&&(p.making||pc.signalingState!=='stable');
+      p.ignore=!p.polite&&collision; if(p.ignore) return;
+      await pc.setRemoteDescription(data.description);
+      for(const c of p.cands.splice(0)){ try{ await pc.addIceCandidate(c); }catch(e){} }
+      if(data.description.type==='offer'){ await pc.setLocalDescription(); sendMsg({t:'rtc',to:from,data:{description:pc.localDescription}}); }
+    } else if(data.candidate){ if(!pc.remoteDescription){ p.cands.push(data.candidate); return; } try{ await pc.addIceCandidate(data.candidate); }catch(e){ if(!p.ignore) console.warn(e); } }
+  }catch(e){ console.warn(e); }
+}
+function renderVideo(){
+  const tiles=[]; document.body.classList.toggle('tbl',isTbl());
+  if(rtc.on) tiles.push({key:'me',stream:rtc.stream,name:'You',me:true});
+  for(const sid in rtc.peers){ const peer=S&&S.peers.find(x=>x.sid===sid); if(peer&&peer.video&&rtc.peers[sid].stream) tiles.push({key:sid,stream:rtc.peers[sid].stream,name:peer.name}); }
+  const keep=new Set(tiles.map(t=>t.key));
+  [...vidEl.querySelectorAll('.tile')].forEach(el=>{ if(!keep.has(el.dataset.key)) el.remove(); });
+  tiles.forEach(t=>{ let el=vidEl.querySelector(`.tile[data-key="${t.key}"]`);
+    if(!el){ el=document.createElement('div'); el.className='tile'+(t.me?' me':''); el.dataset.key=t.key; const v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.setAttribute('playsinline',''); v.muted=!!t.me; el.appendChild(v); const n=document.createElement('div'); n.className='nm'; el.appendChild(n); vidEl.insertBefore(el,vidEl.querySelector('.vctl')); }
+    const v=el.querySelector('video'); if(v.srcObject!==t.stream){ v.srcObject=t.stream; v.play().catch(()=>{}); } el.querySelector('.nm').textContent=t.name; });
+  let ctl=vidEl.querySelector('.vctl');
+  const showCtl=mode!=='table'&&room&&S;
+  if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
+    ctl.innerHTML=rtc.on?`<button class="ghost" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Mic off'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`;
+    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic;
+  } else if(ctl) ctl.remove();
+  document.body.classList.toggle('hasvid',vidEl.children.length>0);
+}
 
 /* ---------- sound (synthesised; resumes after the phone locks) ---------- */
 let actx=null, audioStale=false;
@@ -400,9 +484,9 @@ function bind(){
   const go=(m)=>{ room=newCode(); mode=m; set('uno-room',room); set('uno-mode',mode); S=null; render(); connect(); };
   on('#newtable',()=>go('table')); on('#newboth',()=>go('both'));
   on('#joinroom',()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } room=c; mode='hand'; set('uno-room',room); set('uno-mode',mode); S=null; render(); connect(); });
-  on('#switch',()=>{ mode=mode==='hand'?'table':mode==='both'?'table':'hand'; set('uno-mode',mode); S=null; render(); connect(); });
-  on('#both',()=>{ mode='both'; set('uno-mode',mode); S=null; render(); connect(); });
-  on('#leaveRoom',()=>{ if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('uno-mode',''); render(); });
+  on('#switch',()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='hand'?'table':mode==='both'?'table':'hand'; set('uno-mode',mode); S=null; render(); connect(); });
+  on('#both',()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode='both'; set('uno-mode',mode); S=null; render(); connect(); });
+  on('#leaveRoom',()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('uno-mode',''); render(); });
   on('#sfx',()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); sfx.card(); render(); });
   on('#winsnd',()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); render(); });
   on('#sharelink',async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Ultium UNO, table '+room,url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } });
@@ -435,7 +519,7 @@ function bind(){
   on('#savecustom',()=>{ send({t:'settings',customs:customDraft||S.customs}); customDraft=null; });
 }
 if(qs.get('room')&&qs.get('mode')){ set('uno-room',room); set('uno-mode',mode); }
-render(); if(room&&mode) connect();
+render(); renderVideo(); if(room&&mode) connect();
 })();
 </script>
 </body>

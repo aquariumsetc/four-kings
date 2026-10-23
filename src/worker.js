@@ -125,6 +125,8 @@ function playFrom(st, who, r) {
   if (c.r === 12) { endRun(st, who, note); return; }
   st.nextRank = r + 1; st.leader = who; st.phase = "claim"; st.calledAt = Date.now(); st.note = note;
 }
+// back to "waiting for players" after a game: nothing is dealt, money on the kings and in the centre stays put
+function toLobby(st) { if (st.phase !== "over") return; st.phase = "lobby"; st.run = []; st.note = ""; st.winner = null; st.dead = []; st.spare = []; st.swapAns = {}; st.dealAt = 0; st.overAt = 0; st.players.forEach((p) => { p.hand = []; p.in = false; p.placed = false; p.carried = false; }); }
 function endGame(st) { st.phase = "over"; st.overAt = Date.now(); st.first = (st.first + 1) % st.players.length; recordGame(st); }
 function endRun(st, who, note) { st.leader = who; st.colour = RED[st.runSuit] ? "black" : "red"; st.note = note; st.phase = "play"; st.turnAt = Date.now(); settleLeader(st); }
 // The leader must lead the required colour. With none, the lead passes to the next player;
@@ -274,7 +276,9 @@ export class Table extends DurableObject {
         changed = true; break;
       }
       case "leave": if (me && (between || st.phase === "ante" || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.leader > i) st.leader--; st.run.forEach((x) => { if (x.who > i) x.who--; }); changed = true; } break;
-      case "switchgame": if (isHost && between && m.to === "uno") { st.goto = { to: "uno", at: Date.now(), bots: st.players.filter((p) => p.bot).length, layout: st.layout || "table" }; st.lounge = false; changed = true; } break;
+      case "switchgame": if (isHost && between && m.to === "uno") { st.goto = { to: "uno", at: Date.now(), bots: st.players.filter((p) => p.bot).length, layout: st.layout || "table" }; st.lounge = false; toLobby(st); changed = true; } break;
+      // Game Night room: the host brings everyone back to the video lounge between games (balances and the scoreboard are kept, bots are let go)
+      case "toroom": if (isHost && between) { toLobby(st); st.players = st.players.filter((p) => !p.bot); st.first = 0; st.lounge = true; st.layout = "phones"; delete st.goto; changed = true; } break;
       case "addbot": {
         if (!isHost || !between || st.players.length >= 8) break;
         const used = new Set(st.players.map((p) => p.name)); const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${st.players.length + 1}`;

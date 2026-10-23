@@ -171,7 +171,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.4 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.5 · 22 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -185,7 +185,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('uno-mode')||'';
-let wantLayout=''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
+let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
 let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, holdT=null, held=false;
 const app=document.getElementById('app'), ovlEl=document.getElementById('ovl'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
@@ -229,6 +229,8 @@ function onState(st,old){
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(wantLayout&&st.host){ send({t:'settings',layout:wantLayout}); wantLayout=''; }
+  // video was on before (e.g. in the Game Night room): switch it back on
+  if(!autoVidTried&&get('gn-video')==='1'&&mode!=='table'&&!rtc.on){ autoVidTried=true; setTimeout(()=>{ if(!rtc.on) startVideo(); },400); }
   if(mode!=='table'&&!get('uno-howto')&&!overlay){ overlay={k:'howto'}; set('uno-howto','1'); }
   const me=st.players.find(p=>p.id===pid);
   if(me&&me.hand) sel=sel.filter(id=>me.hand.some(c=>c.id===id));
@@ -298,11 +300,11 @@ async function startVideo(){
   try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
   catch(e){ rtc.joining=false; rtc.queue=[]; viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
   rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
-  rtc.on=true; await loadIce();
+  rtc.on=true; set('gn-video','1'); await loadIce();
   Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();
   rtc.joining=false; const held=rtc.queue; rtc.queue=[]; held.forEach(([f,d])=>onRtc(f,d)); renderVideo();
 }
-function stopVideo(){ if(!rtc.on) return; rtc.on=false; rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
+function stopVideo(){ if(!rtc.on) return; rtc.on=false; set('gn-video','0'); rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
 function toggleMic(){ rtc.mic=!rtc.mic; if(rtc.stream) rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic); renderVideo(); }
 function iParticipate(){ return rtc.on||isTbl(); }
 function wantPeer(p){ return p.sid!==S.sid && (p.video||p.role==='table') && (p.video||rtc.on); }

@@ -158,7 +158,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.5 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.6 · 23 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -176,7 +176,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
-let wantLayout='', wantLounge=false, autoVidTried=false; let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -224,7 +224,9 @@ function onState(st,old){
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
-  if(wantLounge&&st.lounge) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'settings',lounge:true}); // keep asking until the server confirms it's a room
+  if(wantLounge&&st.lounge) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'toroom'}); // keep asking until the server confirms it's a room
+  // the host took everyone back to the Game Night room: this page becomes the room (no reload, video stays up)
+  if(st.lounge&&(mode==='hand'||mode==='both')){ if(st.host) set('fk-lhost',room); mode='lounge'; set('fk-mode',mode); }
   // video was on before (e.g. in the Game Night room): switch it back on
   if(!autoVidTried&&get('gn-video')==='1'&&mode!=='table'&&!rtc.on){ autoVidTried=true; setTimeout(()=>{ if(!rtc.on) startVideo(); },400); }
   if(mode!=='table'&&mode!=='lounge'&&!get('fk-howto')){ set('fk-howto','1'); setTimeout(showHowto,300); }
@@ -457,7 +459,7 @@ function settingsHTML(st){
   <div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
   <div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>
-  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to Ultium UNO</button></span></div>
+  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to Ultium UNO</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the Game Night room</button>`:''}</span></div>
   <div class="muted" style="margin-top:4px">${swapRace(st)?'Fastest finger: everyone sees their cards at once and the first to tap Swap gets the spare.':'In turn: starting left of the dealer, each player in order may take the spare. The first seat moves round each game.'}</div></div>`;
 }
 function boardHTML(st,host){
@@ -470,7 +472,7 @@ function boardHTML(st,host){
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
-  if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); bind(); renderVideo(); return; }
+  if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); document.getElementById('banner').innerHTML=''; bind(); renderVideo(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':''); // own-devices game: players get the wide table layout too
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
@@ -567,7 +569,7 @@ function tableHTML(st,handPanel){
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
-    ${nextHTML(st)}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>${settingsHTML(st)}`:''}`;
+    ${nextHTML(st)}${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>${settingsHTML(st)}`:''}`;
   }
   return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }
@@ -690,6 +692,7 @@ function bind(){
   app.querySelectorAll('[data-swapmode]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',swapMode:b.dataset.swapmode}));
   app.querySelectorAll('[data-autonext]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',autoNext:b.dataset.autonext==='1'}));
   if(q('#switchgame')) q('#switchgame').onclick=()=>{ if(confirm('Switch everyone at this table to Ultium UNO? Phones follow automatically.')) sendMsg({t:'switchgame',to:'uno'}); };
+  document.querySelectorAll('#toroom').forEach(b=>b.onclick=()=>{ if(confirm('Take everyone back to the Game Night room? Money and the scoreboard are kept; bots leave.')) { set('fk-lhost',room); sendMsg({t:'toroom'}); } });
   if(q('#notyou')) q('#notyou').onclick=()=>{ set('fk-nick',''); nick=''; autoTried=true; sendMsg({t:'leave'}); };
   if(q('#howtobtn')) q('#howtobtn').onclick=showHowto;
   if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };

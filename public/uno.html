@@ -171,7 +171,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.5 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.6 · 23 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -224,7 +224,7 @@ const send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }, sendMsg
 function onState(st,old){
   skew=st.serverNow-Date.now();
   // the table moved everyone to another game: follow it (same code, same name)
-  if(st.goto&&st.goto.to==='fk'&&st.goto.at>+(qs.get('from')||0)){ const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; location.replace('/?room='+room+'&mode='+mode+'&from='+st.goto.at+bots); return; }
+  if(st.goto&&st.goto.to==='fk'&&st.goto.at>+(qs.get('from')||0)){ const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; const toRoom=!!st.goto.lounge&&mode!=='table'; if(toRoom&&st.host) set('fk-lhost',room); location.replace('/?room='+room+'&mode='+(toRoom?'lounge':mode)+'&from='+st.goto.at+bots+(toRoom&&st.host?'&lounge=1':'')); return; }
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; send({t:'join',name:nick}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
@@ -440,7 +440,7 @@ function tableHTML(st,handPanel){
   } else if(st.phase==='over'){
     const w=st.winner;
     side=`<div class="panel center"><h2>${w?w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins'):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div>${nextHTML(st)}
-    ${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
+    ${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
   }
   side+=scoresHTML(st)+(host&&st.phase!=='play'?settingsHTML(st):'')+(host?`<button class="ghost small" id="reset" style="width:100%;margin-top:6px">Clear the table</button>`:'');
   return `<div class="tlayout${handPanel?' withhand':''}"><div class="tl-round">${roundHTML(st)}</div><div class="tl-side">${side}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
@@ -467,7 +467,7 @@ function settingsHTML(st){
   <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><div class="small">Custom wild cards: type a rule and 2 cards with it go in the deck. When one is played, the rule shows on the table for everyone to do.</div>
   ${[0,1,2,3].map(k=>`<input data-custom="${k}" maxlength="60" placeholder="${['e.g. Tell a joke','e.g. Take a shot','e.g. Everyone stands up','e.g. Swap seats'][k]}" value="${esc(cd[k]||'')}" style="margin-top:6px">`).join('')}
   <button class="ghost small" id="savecustom" style="margin-top:8px" ${customDraft?'':'disabled'}>Save custom cards</button></div></details>
-  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to 4 Kings</button></span></div></div>`;
+  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to 4 Kings</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the Game Night room</button>`:''}</span></div></div>`;
 }
 function handHTML(st){ return handMain(st)+(st.phase!=='play'?scoresHTML(st):''); }
 function handMain(st){
@@ -585,6 +585,7 @@ function bind(){
   on('#notyou',()=>{ set('fk-nick',''); nick=''; autoTried=true; send({t:'leave'}); });
   on('#howto',()=>{ overlay={k:'howto'}; render(); });
   on('#switchgame',()=>{ if(confirm('Switch everyone at this table to 4 Kings? Phones follow automatically.')) send({t:'switchgame',to:'fk'}); });
+  document.querySelectorAll('#toroom').forEach(b=>b.onclick=()=>{ if(confirm('Take everyone back to the Game Night room? Money and the scoreboard are kept; bots leave.')) send({t:'switchgame',to:'fk',room:true}); });
   document.querySelectorAll('[data-turnms]').forEach(b=>b.onclick=()=>send({t:'settings',turnMs:+b.dataset.turnms}));
   document.querySelectorAll('[data-autonext]').forEach(b=>b.onclick=()=>send({t:'settings',autoNext:b.dataset.autonext==='1'}));
   document.querySelectorAll('[data-rule]').forEach(b=>b.onchange=()=>send({t:'settings',rule:b.dataset.rule,on:b.checked}));

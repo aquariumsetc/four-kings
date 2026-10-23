@@ -274,7 +274,7 @@ export class Table extends DurableObject {
         changed = true; break;
       }
       case "leave": if (me && (between || st.phase === "ante" || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.leader > i) st.leader--; st.run.forEach((x) => { if (x.who > i) x.who--; }); changed = true; } break;
-      case "switchgame": if (isHost && between && m.to === "uno") { st.goto = { to: "uno", at: Date.now(), bots: st.players.filter((p) => p.bot).length }; changed = true; } break;
+      case "switchgame": if (isHost && between && m.to === "uno") { st.goto = { to: "uno", at: Date.now(), bots: st.players.filter((p) => p.bot).length, layout: st.layout || "table" }; st.lounge = false; changed = true; } break;
       case "addbot": {
         if (!isHost || !between || st.players.length >= 8) break;
         const used = new Set(st.players.map((p) => p.name)); const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${st.players.length + 1}`;
@@ -332,6 +332,7 @@ export class Table extends DurableObject {
         if (["race", "turn"].includes(m.swapMode) && st.phase !== "swap") { st.swapMode = m.swapMode; changed = true; }
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); changed = true; }
         if (["table", "phones"].includes(m.layout)) { st.layout = m.layout; changed = true; }
+        if (typeof m.lounge === "boolean" && st.phase === "lobby") { st.lounge = m.lounge; changed = true; } // Game Night room: video chat before a game is picked
         break;
       }
     }

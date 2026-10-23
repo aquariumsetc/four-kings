@@ -88,6 +88,8 @@ function stalled(st, i) {
 }
 function setTurn(st, i) { st.turn = i; st.drew = false; st.drawnId = 0; st.picking = false; st.picked = null; st.pickTotal = 0; st.turnAt = Date.now(); }
 
+// back to "waiting for players" after a game: nothing dealt, stakes already paid out
+function toLobby(st) { if (st.phase !== "over") return; st.phase = "lobby"; st.pile = []; st.deck = []; st.colour = null; st.drawStack = 0; st.picking = false; st.picked = null; st.winner = null; st.event = null; st.note = ""; st.overAt = 0; st.turnAt = 0; st.players.forEach((p) => { p.hand = []; p.in = false; p.queued = false; }); }
 function startGame(st) {
   st.game++; st.plays = 0; st.noPlay = 0; st.unoCalled = {}; st.catchable = -1; st.phase = "play"; st.pile = []; st.dir = 1; st.drawStack = 0; st.picking = false; st.picked = null; st.winner = null; st.event = null; st.overAt = 0;
   const sitting = [];
@@ -303,7 +305,8 @@ export class UnoTable extends DurableObject {
       case "leave": if (me && (between || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.turn > i) st.turn--; } else changed = false; break;
       case "uno": if (me) err = callUno(st, i); if (err) changed = false; break;
       case "catch": if (me) err = catchUno(st, i); if (err) changed = false; break;
-      case "switchgame": if (isHost && between && ["fk"].includes(m.to)) { st.goto = { to: m.to, at: Date.now(), bots: st.players.filter((p) => p.bot).length }; } else changed = false; break;
+      // m.room: back to the Game Night room (video lounge) instead of straight into the other game
+      case "switchgame": if (isHost && between && ["fk"].includes(m.to)) { toLobby(st); st.goto = { to: m.to, at: Date.now(), bots: m.room ? 0 : st.players.filter((p) => p.bot).length, lounge: !!m.room }; } else changed = false; break;
       case "quit": if (st.phase === "play" && me && me.in) leaveGame(st, i); else changed = false; break;
       case "addbot": {
         if (!isHost || !between || st.players.length >= 10) { changed = false; break; }

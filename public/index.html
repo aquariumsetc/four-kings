@@ -101,6 +101,8 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .art{height:86px;display:flex;justify-content:center;align-items:center;gap:0}
 .mini{display:inline-flex;align-items:center;justify-content:center;text-align:center;width:46px;height:66px;margin:0 -6px;border-radius:8px;background:var(--ivory);color:var(--ink);font:700 1.05rem/1.05 Georgia,serif;box-shadow:0 4px 10px rgba(0,0,0,.35)}
 .mini.red{color:var(--red)}.mini.u{font-family:-apple-system,sans-serif;font-size:1.25rem;box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,255,255,.85)}
+.lounge{display:flex;gap:14px;align-items:center;justify-content:space-between}.lounge .big{width:auto;flex:none;margin:0;padding:.8rem 1.4rem}@media (max-width:640px){.lounge{flex-direction:column;align-items:stretch}.lounge .big{width:100%}}
+.lp{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)}
 .ways{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:.88rem;line-height:1.35}@media (max-width:640px){.ways{grid-template-columns:1fr}}
 .rj{display:block;width:100%;text-align:left;margin-top:6px}.rj span{opacity:.7;font-size:.85rem}
 .conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
@@ -156,7 +158,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.4 · 22 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.5 · 22 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -174,7 +176,7 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
-let wantLayout=''; let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let wantLayout='', wantLounge=false, autoVidTried=false; let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -201,7 +203,8 @@ function connect(){
   if(!room||!mode) return;
   if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
   const proto=location.protocol==='https:'?'wss':'ws'; set('fk-last',mode);
-  ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${mode}`);
+  const role=mode==='lounge'?(get('fk-lhost')===room?'both':'hand'):mode;
+  ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${role}`);
   connEl.textContent='connecting…';
   ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
@@ -214,12 +217,17 @@ function connect(){
 function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function onState(st,old){
   // the table moved everyone to Ultium UNO: follow it (same code, same name)
-  if(st.goto&&st.goto.to==='uno'&&st.goto.at>+(qs.get('from')||0)){ const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; location.replace('/uno.html?room='+room+'&mode='+mode+'&from='+st.goto.at+bots); return; }
+  if(st.goto&&st.goto.to==='uno'&&st.goto.at>+(qs.get('from')||0)){ const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; const m2=mode==='lounge'?(st.host?'both':'hand'):mode; const lay=st.host&&st.goto.layout==='phones'?'&layout=phones':''; location.replace('/uno.html?room='+room+'&mode='+m2+'&from='+st.goto.at+bots+lay); return; }
+  // the room picked 4 Kings: everyone's straight into the table on their own device
+  if(mode==='lounge'&&!st.lounge&&!wantLounge){ mode=st.host?'both':'hand'; set('fk-mode',mode); }
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
-  if(mode!=='table'&&!get('fk-howto')){ set('fk-howto','1'); setTimeout(showHowto,300); }
+  if(wantLounge&&st.lounge) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'settings',lounge:true}); // keep asking until the server confirms it's a room
+  // video was on before (e.g. in the Game Night room): switch it back on
+  if(!autoVidTried&&get('gn-video')==='1'&&mode!=='table'&&!rtc.on){ autoVidTried=true; setTimeout(()=>{ if(!rtc.on) startVideo(); },400); }
+  if(mode!=='table'&&mode!=='lounge'&&!get('fk-howto')){ set('fk-howto','1'); setTimeout(showHowto,300); }
   skew=st.serverNow-Date.now();
   const m=me(st); if(m&&!m.bot&&m.auto!==autoOn) sendMsg({t:'autoplay',on:autoOn});
   if(st.phase==='claim'&&(!old||old.phase!=='claim'||old.run.length!==st.run.length||old.runSuit!==st.runSuit)) claimSeen=Date.now();
@@ -352,11 +360,11 @@ async function startVideo(){
   try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
   catch(e){ rtc.joining=false; rtc.queue=[]; viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
   rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
-  rtc.on=true; await loadIce();
+  rtc.on=true; set('gn-video','1'); await loadIce();
   Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();
   rtc.joining=false; const held=rtc.queue; rtc.queue=[]; held.forEach(([f,d])=>onRtc(f,d)); renderVideo();
 }
-function stopVideo(){ if(!rtc.on) return; rtc.on=false; rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
+function stopVideo(){ if(!rtc.on) return; rtc.on=false; set('gn-video','0'); rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
 function toggleMic(){ rtc.mic=!rtc.mic; if(rtc.stream) rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic); renderVideo(); }
 function iParticipate(){ return rtc.on||isTbl(); }
 function wantPeer(p){ return p.sid!==S.sid && (p.video||p.role==='table') && (p.video||rtc.on); }
@@ -462,6 +470,7 @@ function boardHTML(st,host){
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
+  if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); bind(); renderVideo(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':''); // own-devices game: players get the wide table layout too
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
@@ -482,6 +491,24 @@ function tickAll(){
 setInterval(tickAll,250);
 function fmtSec(n){ return n>=60?Math.floor(n/60)+':'+String(n%60).padStart(2,'0'):String(n); }
 function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left!==lastLeft){ lastLeft=left; if(left>=1&&left<=3) sfx.beep(left===1); } if(left>0) timer=setTimeout(tickCount,250); }
+function loungeHTML(st){
+  // Game Night room: everyone on video first, then the host picks a game and the room moves into it
+  const me=st.players.find(p=>p.id===pid), host=st.host, hostP=st.players[0], onVid=new Set((st.peers||[]).filter(p=>p.video).map(p=>p.name));
+  const link=location.origin+'/?room='+room+'&mode=lounge';
+  const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
+  return `<div class="home">
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted">Room <b>${esc(room)}</b>. Tap <b>Join video</b> at the top to see and hear everyone, chat about what to play, then the host picks a game and everyone moves into it together.</p></div></div>
+  ${me?'':`<div class="panel"><h3>Your name</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><button class="big" id="join">Join the room</button></div>`}
+  <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}
+    <button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px;width:100%">🔗 Invite people</button><div class="small muted center" style="margin-top:4px">Send the link; it opens straight into this room.</div></div>
+  ${host?`<div class="games">
+    <div class="game fk"><h2>4 Kings</h2><p class="small">Bet on the kings, play the cards in order, grab the queens.</p><button class="big" id="lgofk">Play 4 Kings</button></div>
+    <div class="game uno"><h2>Ultium UNO</h2><p class="small">Match colours and numbers, stack the draws, flip the direction.</p><button class="big" id="lgouno">Play Ultium UNO</button></div>
+  </div><p class="small muted center">Everyone plays on their own device and stays on video. Bots can fill empty seats once you're in the game.</p>`
+  :`<div class="panel center"><p class="muted">Waiting for ${esc(hostP?hostP.name:'the host')} to pick a game…</p></div>`}
+  <p class="center"><button class="ghost small" id="leaveRoom">Leave the room</button></p>
+  <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+}
 function startHTML(){
   // Game Night home: both games side by side, plus one-tap rejoin of the last table
   const fr=get('fk-room'), fl=get('fk-last'), ur=get('uno-room'), ul=get('uno-last');
@@ -492,6 +519,7 @@ function startHTML(){
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
   ${rejoin?`<div class="panel"><div class="small muted" style="margin-bottom:6px">Pick up where you left off</div>${rejoin}</div>`:''}
+  <div class="panel lounge"><div><h3 style="margin:0">📹 Start a Game Night room</h3><div class="small muted">Get everyone on video first, chat about what to play, then pick a game together.</div></div><button class="big" id="newlounge">Start a room</button></div>
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
       <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
@@ -629,6 +657,9 @@ function bind(){
   if(q('#joinroom')) q('#joinroom').onclick=()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } room=c; mode='hand'; set('fk-room',room); set('fk-mode',mode); S=null; render(); connect(); };
   if(q('#switch')) q('#switch').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='hand'?'table':mode==='both'?'table':'hand'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
   if(q('#unotable')) q('#unotable').onclick=()=>{ location.href='/uno.html?setup=table'; };
+  if(q('#newlounge')) q('#newlounge').onclick=()=>{ room=newCode(); mode='lounge'; wantLounge=true; set('fk-lhost',room); set('fk-room',room); set('fk-mode',mode); history.replaceState(null,'','/'); S=null; render(); connect(); };
+  if(q('#lgofk')) q('#lgofk').onclick=()=>sendMsg({t:'settings',layout:'phones',lounge:false});
+  if(q('#lgouno')) q('#lgouno').onclick=()=>{ sendMsg({t:'settings',layout:'phones'}); sendMsg({t:'switchgame',to:'uno'}); };
   if(q('#unophones')) q('#unophones').onclick=()=>{ location.href='/uno.html?setup=phones'; };
   if(q('#newphones')) q('#newphones').onclick=()=>{ room=newCode(); mode='both'; wantLayout='phones'; set('fk-room',room); set('fk-mode',mode); say(' '); S=null; render(); connect(); };
   app.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',layout:b.dataset.layout}));

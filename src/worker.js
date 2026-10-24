@@ -239,7 +239,7 @@ export class Table extends DurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ pid, role, creator, sid, video: false });
-    if (creator && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // the table is here now
+    if (role === "table" && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // an iPad table device clears a stale goto; a reconnecting room host must NOT wipe the active game
     this.broadcast();
     return new Response(null, { status: 101, webSocket: client });
   }

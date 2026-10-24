@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#153f2a">
+<title>4 Kings</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --felt:#1f5a3a; --felt-deep:#153f2a; --felt-light:#2a7049;
+  --ivory:#fbf7ec; --ink:#1b1a17; --red:#b8232a; --brass:#c9a227; --brass-deep:#8c6d12;
+  --bg:var(--felt); --fg:#fbf7ec; --panel:rgba(0,0,0,.28);
+  --btn:var(--ivory); --btn-fg:var(--ink); --btn-2:rgba(251,247,236,.14);
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){ :root{ --felt:#163f2a; --felt-deep:#0f2b1d; --bg:#163f2a; color-scheme:dark; } }
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg) radial-gradient(ellipse at 50% 20%,var(--felt-light) 0%,var(--felt) 45%,var(--felt-deep) 100%);color:var(--fg);font:16px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--felt-deep)}
+h1,h2,h3,.serif{font-family:"Fraunces",Georgia,serif;font-weight:500;letter-spacing:-.01em;margin:0}
+h1{font-size:2.4rem;line-height:1.05} h2{font-size:1.6rem;line-height:1.15} h3{font-size:1.15rem}
+p{margin:.4rem 0}
+.app{max-width:560px;margin:0 auto;padding:12px 14px 40px}
+.app.table{max-width:1100px}
+button{font:inherit;border:0;border-radius:12px;padding:.8rem 1.1rem;cursor:pointer;background:var(--btn);color:var(--btn-fg);font-weight:600}
+button.ghost{background:var(--btn-2);color:var(--fg);font-weight:500}
+button.big{width:100%;padding:1rem;font-size:1.1rem;margin-top:.6rem}
+button.huge{width:100%;padding:1.6rem;font-size:1.5rem;margin-top:.8rem;background:var(--brass);color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+input{font:inherit;padding:.7rem .8rem;border-radius:10px;border:1px solid rgba(0,0,0,.25);background:var(--ivory);color:var(--ink);width:100%}
+input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fraunces",Georgia,serif;font-size:1.6rem;text-align:center}
+.muted{opacity:.78}.small{font-size:.86rem}
+.row{display:flex;gap:.6rem;align-items:center}.row>*{flex:1}
+.notice{background:rgba(201,162,39,.16);border:1px solid rgba(201,162,39,.5);border-radius:12px;padding:.7rem .9rem;margin:.6rem 0}
+.panel{background:var(--panel);border-radius:14px;padding:.7rem .9rem;margin:.6rem 0}
+.kings{display:grid;grid-template-columns:repeat(4,1fr) 1.3fr;gap:6px;background:var(--panel);border-radius:16px;padding:10px 8px 8px;align-items:end}
+.spot{text-align:center}
+.spot .k{display:block;width:100%;aspect-ratio:5/7;max-width:70px;margin:0 auto;border-radius:6px;background:var(--ivory);color:var(--ink);font-family:"Fraunces",Georgia,serif;font-size:1.4rem;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.spot .k.red{color:var(--red)}
+.coins{margin-top:4px;font-size:.95rem;font-weight:600;color:var(--brass)}
+.pot{text-align:center;border-left:1px solid rgba(251,247,236,.18);padding-left:6px}
+.pot .n{font-family:"Fraunces",Georgia,serif;font-size:2.2rem;line-height:1;color:var(--brass)}.pot .l{font-size:.78rem;opacity:.8}
+/* compact kings on phones */
+.app:not(.table) .kings{padding:6px 8px 5px;gap:4px;border-radius:12px}
+.app:not(.table) .spot .k{max-width:30px;font-size:.78rem;border-radius:4px;gap:0;aspect-ratio:5/7}
+.app:not(.table) .coins{margin-top:2px;font-size:.78rem}
+.app:not(.table) .pot .n{font-size:1.3rem}.app:not(.table) .pot .l{font-size:.68rem}
+.card{width:38px;height:52px;border-radius:5px;background:var(--ivory);color:var(--ink);font-family:"Fraunces",Georgia,serif;font-size:1.05rem;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 0 rgba(0,0,0,.4);position:relative}
+.card.red{color:var(--red)}.card.q{background:linear-gradient(160deg,#fff8dc,var(--ivory))}
+.card small{font-size:.7rem;font-weight:500}
+.card.lead{outline:3px solid var(--brass);outline-offset:1px}
+.card.lg{width:84px;height:116px;font-size:2.2rem;border-radius:9px;box-shadow:0 4px 10px rgba(0,0,0,.4)}.card.lg small{font-size:1.4rem}
+.hand{display:flex;flex-direction:column;gap:6px;margin:.8rem 0}
+.suitrow{display:flex;align-items:center;gap:4px;min-height:52px}
+.suitrow .tag{width:22px;font-family:"Fraunces",Georgia,serif;font-size:1.3rem;text-align:center}.suitrow .tag.red{color:#ff9d99}
+.cards{display:flex;gap:4px;flex-wrap:wrap}
+button.cardbtn{padding:0;background:none;border-radius:5px}
+.tgrid{display:grid;grid-template-columns:1fr 300px;gap:14px;align-items:start}
+@media (max-width:760px){.tgrid{grid-template-columns:1fr}}
+/* table + your cards on one screen: cards right under the table, side panel after (phones) or alongside (wide) */
+.tgrid.withhand{grid-template-areas:"round side" "hand side"}.tgrid.withhand>.tl-round{grid-area:round}.tgrid.withhand>.tl-side{grid-area:side}.tgrid.withhand>.tl-hand{grid-area:hand}
+@media (max-width:760px){.tgrid.withhand{grid-template-areas:"round" "hand" "side"}}
+.pile{position:relative;height:280px;background:rgba(0,0,0,.18);border-radius:20px;margin:12px 0;overflow:hidden}
+.pile .card{position:absolute;left:50%;top:50%;margin:-58px 0 0 -42px}
+.pile .card.who::after{content:attr(data-who);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font:600 .72rem -apple-system,"Segoe UI",sans-serif;color:var(--fg);background:rgba(0,0,0,.45);padding:2px 6px;border-radius:6px;white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){.pile .card.new{animation:land .45s cubic-bezier(.2,.9,.3,1.2)}@keyframes land{from{transform:translate(0,-320px) rotate(-30deg) scale(1.3);opacity:0}}}
+.call{text-align:center;font-family:"Fraunces",Georgia,serif;font-size:1.9rem;margin:.4rem 0}
+.count{font-size:3.2rem;color:var(--brass);font-family:"Fraunces",Georgia,serif;text-align:center;line-height:1}
+.scores table{width:100%;border-collapse:collapse}.scores td{padding:5px 0;border-top:1px solid rgba(251,247,236,.12)}
+.scores td:last-child{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.scores tr.lead td:first-child::before{content:"★ ";color:var(--brass)}
+.scores tr.on td:first-child{color:var(--brass)}
+.kbtns{display:flex;gap:6px}.kbtns button{flex:1;padding:.7rem 0;font-family:"Fraunces",Georgia,serif;font-size:1.5rem;font-weight:700;background:var(--btn-2);color:var(--fg)}
+.kbtns button.red{color:#ff9d99}.kbtns button.on{background:var(--ivory);color:var(--ink)}.kbtns button.on.red{color:var(--red)}
+.center{text-align:center}
+.wait{text-align:center;padding:2rem 0;opacity:.85}
+.tick{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--brass);margin-right:6px}
+.codebig{font-family:"Fraunces",Georgia,serif;font-size:3rem;letter-spacing:.25em;color:var(--brass);text-align:center;line-height:1}
+.qrwrap{display:flex;gap:18px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.qr{background:#fbf7ec;padding:10px;border-radius:12px;line-height:0}
+.qr img,.qr canvas{display:block}
+.settings .srow{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-top:1px solid rgba(251,247,236,.1)}
+.settings button{padding:.35rem .6rem}
+.nudge{animation:pulse 1s ease-in-out infinite alternate}@keyframes pulse{to{transform:scale(1.04);color:var(--brass)}}
+#sndhint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:40;background:rgba(0,0,0,.72);color:#fff;font-size:.85rem;padding:.45rem .9rem;border-radius:999px;pointer-events:none}
+.home{max-width:820px;margin:0 auto;padding-top:1.2rem}
+.hhead{display:flex;gap:16px;align-items:center;margin-bottom:.6rem}.hhead img{border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.35);flex:none}
+.games{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:.8rem 0}@media (max-width:640px){.games{grid-template-columns:1fr}}
+.game{border-radius:20px;padding:1rem 1.1rem 1.1rem;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.game.fk{background:radial-gradient(circle at 30% 0%,#2a7049,#153f2a)}
+.game.uno{background:radial-gradient(circle at 30% 0%,#2f3570,#1b1e3a)}
+.game h2{margin-top:.4rem}.game p{margin:.3rem 0}
+.art{height:86px;display:flex;justify-content:center;align-items:center;gap:0}
+.mini{display:inline-flex;align-items:center;justify-content:center;text-align:center;width:46px;height:66px;margin:0 -6px;border-radius:8px;background:var(--ivory);color:var(--ink);font:700 1.05rem/1.05 Georgia,serif;box-shadow:0 4px 10px rgba(0,0,0,.35)}
+.mini.red{color:var(--red)}.mini.u{font-family:-apple-system,sans-serif;font-size:1.25rem;box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,255,255,.85)}
+.lounge{display:flex;gap:14px;align-items:center;justify-content:space-between}.lounge .big{width:auto;flex:none;margin:0;padding:.8rem 1.4rem}@media (max-width:640px){.lounge{flex-direction:column;align-items:stretch}.lounge .big{width:100%}}
+.lp{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.ways{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:.88rem;line-height:1.35}@media (max-width:640px){.ways{grid-template-columns:1fr}}
+.rj{display:block;width:100%;text-align:left;margin-top:6px}.rj span{opacity:.7;font-size:.85rem}
+.conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
+.minirun{display:flex;gap:22px;align-items:center;justify-content:center;padding:10px 6px 24px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:96px}
+.fan{position:relative;height:80px;flex:1;max-width:260px}
+.fan .card{position:absolute;top:50%;width:40px;height:56px;margin-top:-28px;font-size:1.55rem;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.fan .card small{font-size:1.1rem}
+.fan .card.last{outline:2px solid var(--brass);outline-offset:1px}
+.minirun .card.ghost{width:44px;height:60px;font-size:1.5rem}.minirun .card.ghost small{font-size:1.05rem}
+.minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
+.card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
+.card.ghost.red{color:#ff9d99}
+.dealin{font-family:"Fraunces",Georgia,serif;font-size:1.4rem;color:var(--brass);text-align:center}
+.won{display:inline-flex;align-items:center;gap:8px;background:rgba(201,162,39,.18);border:1px solid rgba(201,162,39,.55);border-radius:14px;padding:6px 12px;margin:.3rem auto;font-size:1.05rem}
+.won .card{width:34px;height:46px;font-size:1rem;flex:none}.won .card small{font-size:.65rem}
+.won .amt{font-family:"Fraunces",Georgia,serif;font-size:1.5rem;color:var(--brass);line-height:1}
+.app.table .won{font-size:1.3rem;padding:8px 16px}.app.table .won .card{width:46px;height:62px;font-size:1.3rem}.app.table .won .amt{font-size:2rem}
+.leadcall{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;line-height:1.1;text-align:center;margin:.4rem 0}
+.leadcall .col{display:inline-block;padding:.05em .35em;border-radius:8px;background:var(--ivory);color:var(--ink);text-transform:uppercase;letter-spacing:.06em}
+.leadcall .col.red{color:var(--red)}
+#howto{position:fixed;inset:0;z-index:60;background:rgba(10,20,14,.75);display:flex;align-items:center;justify-content:center;padding:20px}
+#howto .sheet{background:var(--felt-deep);border-radius:20px;padding:1.2rem;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+#howto .step{display:flex;gap:12px;margin:10px 0}#howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brass);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center}
+#banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:50}
+#banner:empty{display:none}
+.fanfare{background:linear-gradient(160deg,#fff4c2,#e9c54a);color:#2a2410;border-radius:22px;padding:1.2rem 1.6rem;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 6px rgba(201,162,39,.35);max-width:88vw;animation:pop .5s cubic-bezier(.2,1.4,.4,1),fade .6s 3.6s forwards}
+.fanfare h2{font-size:1.9rem;color:#2a2410}.fanfare .big{font-family:"Fraunces",Georgia,serif;font-size:3rem;line-height:1;margin:.2rem 0}
+.fanfare .sub{font-size:.95rem;opacity:.8}
+.fanfare .card{display:inline-flex;width:56px;height:78px;font-size:1.6rem;margin:.3rem 0;box-shadow:0 4px 12px rgba(0,0,0,.3)}.fanfare .card small{font-size:1rem}
+@keyframes pop{from{transform:scale(.4) rotate(-6deg);opacity:0}}
+@keyframes fade{to{opacity:0;transform:scale(.9)}}
+.spark{position:absolute;font-size:1.6rem;animation:spark 1.4s ease-out forwards}
+@keyframes spark{from{transform:translate(0,0) scale(.4);opacity:1}to{transform:translate(var(--dx),var(--dy)) scale(1.3);opacity:0}}
+#vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto;min-height:0}
+#vid:empty{display:none}
+.tile{position:relative;flex:none;width:78px;height:104px;border-radius:10px;overflow:hidden;background:#111;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.app.table ~ #vid .tile, body.tbl .tile{width:150px;height:112px}
+.tile video{width:100%;height:100%;object-fit:cover;display:block}
+.tile.me video{transform:scaleX(-1)}
+.tile .nm{position:absolute;left:0;right:0;bottom:0;font-size:.68rem;padding:2px 5px;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .mic{position:absolute;top:4px;right:4px;font-size:.7rem;background:rgba(0,0,0,.5);border-radius:6px;padding:1px 4px}
+.vctl{flex:none;display:flex;flex-direction:column;gap:5px;margin-left:auto}
+.vctl button{padding:.45rem .7rem;font-size:.82rem;border-radius:9px}
+body.hasvid .app{padding-top:128px}
+body.hasvid.tbl .app{padding-top:136px}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div id="vid"></div>
+<div id="banner"></div>
+<div class="conn" id="conn"></div>
+<div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
+<script>
+(function(){
+const VERSION='v2.7 · 24 Oct 2026'; // shown at the bottom of every screen
+const SUITS=['S','H','D','C'];
+const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
+const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
+const RED={S:false,H:true,D:true,C:false};
+const RN={1:'A',11:'J',12:'Q'};
+const WORD={1:'ace',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'jack',12:'queen'};
+const rname=r=>RN[r]||String(r);
+const cs=c=>rname(c.r)+SYM[c.s];
+const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const CLAIM_MS=5000;
+const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
+const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+
+let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
+const qs=new URLSearchParams(location.search);
+const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game Night shell: the shell owns the camera + video bar, so this frame runs video-free and never navigates away
+function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
+let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
+let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
+const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
+const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
+const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const app=document.getElementById('app'), connEl=document.getElementById('conn');
+const isTbl=()=>mode==='table'||mode==='both';
+
+/* ---------- helpers ---------- */
+const pidx=(st,id)=>st.players.findIndex(p=>p.id===id);
+const pname=(st,i)=>st.players[i]?st.players[i].name:'?';
+const me=st=>st&&st.players.find(p=>p.id===pid&&mode!=='table');
+const local=t=>t?t-skew:0; // server deadline → this device's clock
+const swapRace=st=>st.swapMode!=='turn';
+function leadOptions(st,i){
+  const h=st.players[i].hand||[], want=st.colour; const suitsOf=col=>SUITS.filter(s=>(col==='red')===RED[s]);
+  const suits=want?suitsOf(want):SUITS; const avail=suits.filter(s=>h.some(c=>c.s===s));
+  return {opts:avail.map(s=>({s,low:h.filter(c=>c.s===s).sort((a,b)=>a.r-b.r)[0]}))};
+}
+function tailLen(st){ const w=st.run[st.run.length-1].who; let n=0; for(let i=st.run.length-1;i>=0&&st.run[i].who===w;i--) n++; return n; }
+function newCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
+
+/* ---------- connection ---------- */
+function connect(){
+  if(!room||!mode) return;
+  if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
+  const proto=location.protocol==='https:'?'wss':'ws'; set('fk-last',mode);
+  const role=mode==='lounge'?(get('fk-lhost')===room?'both':'hand'):mode;
+  ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${role}`);
+  connEl.textContent='connecting…';
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(!framed&&rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(!framed&&isTbl()) loadIce(); };
+  ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
+    if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2500); return; }
+    if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
+    if(m.t==='state'){ prev=S; S=m.s; onState(S,prev); render(); syncPeers(); } };
+  ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
+  ws.onerror=()=>{ try{ws.close();}catch(e){} };
+}
+function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+function onState(st,old){
+  // the table moved everyone to Ultium UNO: follow it (same code, same name)
+  if(st.goto&&st.goto.to==='uno'&&st.goto.at>+(qs.get('from')||0)){ if(framed) return; const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; const m2=mode==='lounge'?(st.host?'both':'hand'):mode; const lay=st.host&&st.goto.layout==='phones'?'&layout=phones':''; location.replace('/uno.html?room='+room+'&mode='+m2+'&from='+st.goto.at+bots+lay); return; }
+  // the room picked 4 Kings: everyone's straight into the table on their own device
+  if(mode==='lounge'&&!st.lounge&&!wantLounge){ mode=st.host?'both':'hand'; set('fk-mode',mode); }
+  if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn}); }
+  else if(!st.players.some(p=>p.id===pid)) autoTried=true;
+  if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
+  if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
+  if(wantLounge&&st.lounge) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'toroom'}); // keep asking until the server confirms it's a room
+  // the host took everyone back to the Game Night room: this page becomes the room (no reload, video stays up)
+  if(!framed&&st.lounge&&(mode==='hand'||mode==='both')){ if(st.host) set('fk-lhost',room); mode='lounge'; set('fk-mode',mode); }
+  // video was on before (e.g. in the Game Night room): switch it back on
+  if(!framed&&!autoVidTried&&get('gn-video')==='1'&&mode!=='table'&&!rtc.on){ autoVidTried=true; setTimeout(()=>{ if(!rtc.on) startVideo(); },400); }
+  if(mode!=='table'&&mode!=='lounge'&&!get('fk-howto')){ set('fk-howto','1'); setTimeout(showHowto,300); }
+  skew=st.serverNow-Date.now();
+  const m=me(st); if(m&&!m.bot&&m.auto!==autoOn) sendMsg({t:'autoplay',on:autoOn});
+  if(st.phase==='claim'&&(!old||old.phase!=='claim'||old.run.length!==st.run.length||old.runSuit!==st.runSuit)) claimSeen=Date.now();
+  if(mode!=='table'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:10};
+  if(st.phase==='ante'&&st.dealAt&&(!old||old.dealAt!==st.dealAt)) dealSeen=Date.now()+(st.dealAt-st.serverNow);
+  if(st.event&&st.event.at!==lastEvent){ if(old) showBanner(st); lastEvent=st.event.at; }
+  try{ soundsFor(st,old); }catch(e){}
+  announce(st,old);
+}
+function showBanner(st){
+  const e=st.event, b=document.getElementById('banner'); const name=pname(st,e.who), me=st.players[e.who]&&st.players[e.who].id===pid&&mode!=='table';
+  const sparks=Array.from({length:14},(_,i)=>{ const a=i/14*Math.PI*2, d=120+Math.random()*120; return `<span class="spark" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;animation-delay:${Math.random()*.3}s">${['✨','⭐','💰','🎉'][i%4]}</span>`; }).join('');
+  const body=e.t==='queen'
+    ?`<h2>${me?'You':esc(name)} took the King of ${NAME[e.suit]}!</h2>${cardHTML({s:e.suit,r:12})}<div class="big">+$${e.won}</div><div class="sub">played the Queen of ${NAME[e.suit]}</div>`
+    :`<h2>${me?'You are':esc(name)+' is'} out of cards!</h2><div class="big">+$${e.won}</div><div class="sub">takes the centre</div>`;
+  b.innerHTML=`<div class="fanfare" style="position:relative">${sparks}${body}</div>`;
+  if(winOn){ try{ chime(e.t==='out'); coins(e.t==='out'?28:14, .35); }catch(x){} }
+  if(bannerTimer) clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>{ b.innerHTML=''; },4300);
+}
+
+/* ---------- sounds (all synthesised, nothing to download) ---------- */
+let actx=null, audioStale=false;
+const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function ac(){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(actx&&actx.state==='closed') actx=null; actx=actx||new AC(); if(actx.state!=='running') actx.resume().catch(()=>{}); return actx; }
+// iOS pauses page audio when the phone locks or the app goes to the background, and only lets it
+// start again from a tap. After a lock some iOS versions leave the old audio engine silent, so the
+// first tap after coming back builds a fresh one.
+function unlockAudio(){
+  try{
+    if(audioStale&&actx){ const hadMusic=music.on; musicHalt(); try{ actx.close(); }catch(e){} actx=null; if(hadMusic) music.want=true; }
+    audioStale=false;
+    const a=ac(); if(!a) return;
+    const b=a.createBuffer(1,1,22050), src=a.createBufferSource(); src.buffer=b; src.connect(a.destination); src.start(0);
+    if((musicOn||music.want)&&!music.on&&room&&mode){ music.want=false; musicStart(); }
+    if('speechSynthesis' in window) speechSynthesis.resume();
+  }catch(e){}
+}
+let wake=null;
+async function keepAwake(){ try{ if(room&&mode&&'wakeLock' in navigator&&!document.hidden&&(!wake||wake.released)) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) keepAwake(); });
+['touchend','click'].forEach(ev=>document.addEventListener(ev,keepAwake,{passive:true}));
+function showHowto(){
+  if(document.getElementById('howto')) return; const st=(n,t)=>`<div class="step"><div class="n">${n}</div><div>${t}</div></div>`;
+  const d=document.createElement('div'); d.id='howto';
+  d.innerHTML=`<div class="sheet"><h2>How to play 4 Kings</h2>
+    ${st(1,'Bet on one or two <b>kings</b>. The same again goes in the centre. Last game\u2019s bet is kept for you.')}
+    ${st(2,'The leader plays their lowest card of a suit. Whoever holds the <b>next card up</b> taps it in their hand, one card at a time.')}
+    ${st(3,'Play a <b>queen</b> to win that king\u2019s money. When a run stops, the next lead is the other colour.')}
+    ${st(4,'First to play every card takes the <b>centre</b>. Turn on <b>beginner hints</b> at the bottom for extra help.')}
+    <button class="big" id="howtook">Let\u2019s play</button></div>`;
+  document.body.appendChild(d); d.querySelector('#howtook').onclick=()=>d.remove();
+}
+function soundBlocked(){ return (sfxOn||winOn||musicOn)&&room&&mode&&(!actx||actx.state!=='running'||audioStale); }
+document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; } else if(actx) actx.resume().catch(()=>{}); });
+window.addEventListener('pageshow',e=>{ if(e.persisted&&IOS) audioStale=true; });
+function tone(f,t0,dur,vol,type){ const a=ac(); if(!a) return; const o=a.createOscillator(), g=a.createGain(); o.type=type||'triangle'; o.frequency.value=f; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(vol,t0+.015); g.gain.exponentialRampToValueAtTime(.001,t0+dur); o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur+.05); }
+function noise(t0,dur,vol,hp){ const a=ac(); if(!a) return; const n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0); for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n); const src=a.createBufferSource(); src.buffer=buf; const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp||1200; const g=a.createGain(); g.gain.value=vol; src.connect(f).connect(g).connect(a.destination); src.start(t0); }
+function chime(big){ const a=ac(); if(!a) return; const t=a.currentTime; const notes=big?[523,659,784,1047,1319]:[659,880,1175]; notes.forEach((f,i)=>tone(f,t+i*.12,.5,.22)); }
+function coins(n,vol){ const a=ac(); if(!a) return; const t=a.currentTime+.15; for(let i=0;i<n;i++){ const at=t+i*.045+Math.random()*.03, f=2400+Math.random()*2600; tone(f,at,.12,vol*(.5+Math.random()*.5),'sine'); tone(f*1.5,at,.06,vol*.25,'square'); } }
+const sfx={
+  card(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; noise(t,.07,.5,900); tone(180,t+.01,.06,.12,'sine'); },
+  deal(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; for(let i=0;i<10;i++) noise(t+i*.055,.04,.35,1500); },
+  stop(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; tone(140,t,.25,.3,'sine'); noise(t,.12,.25,300); },
+  lead(){ if(!sfxOn) return; const a=ac(); if(!a) return; const t=a.currentTime; tone(880,t,.12,.18,'sine'); tone(1175,t+.14,.18,.18,'sine'); },
+  tap(){ if(!sfxOn) return; const a=ac(); if(!a) return; tone(1400,a.currentTime,.05,.1,'square'); },
+  beep(last){ if(!sfxOn) return; const a=ac(); if(!a) return; tone(last?1320:990,a.currentTime,last?.18:.09,.14,'square'); },
+  bet(){ if(!sfxOn) return; const a=ac(); if(!a) return; coins(3,.2); }
+};
+function soundsFor(st,old){
+  if(!old) return;
+  const runGrew=st.run.length>old.run.length&&(st.phase==='claim'||st.phase==='play'||st.phase==='over');
+  if(runGrew) sfx.card();
+  if(st.phase==='swap'&&old.phase==='ante') sfx.deal();
+  if(st.phase==='play'&&old.phase==='claim'&&st.run.length===old.run.length) sfx.stop();
+  if(st.phase==='play'&&(old.phase!=='play'||old.leader!==st.leader)&&mode!=='table'&&st.players[st.leader]&&st.players[st.leader].id===pid) sfx.lead();
+  if(st.phase==='ante'&&old.phase==='ante'&&st.players.filter(p=>p.placed).length>old.players.filter(p=>p.placed).length&&!(mode!=='table'&&st.players.some(p=>p.id===pid&&p.placed&&!old.players.find(o=>o.id===pid&&o.placed)))) sfx.bet();
+}
+
+/* ---------- background music: an original lo-fi loop, generated on the device ---------- */
+const music={on:false,timer:null,step:0,next:0,master:null,delay:null};
+const CHORDS=[[57,60,64,67],[62,65,69,72],[55,59,62,65],[60,64,67,71]]; // Am7 Dm7 G7 Cmaj7 (MIDI)
+const PENTA=[69,72,74,76,79,81,84];
+const mhz=m=>440*Math.pow(2,(m-69)/12);
+function musicStart(){
+  const a=ac(); if(!a||music.on) return; music.on=true;
+  const g=a.createGain(); g.gain.value=0; g.connect(a.destination); g.gain.linearRampToValueAtTime(.55,a.currentTime+2); music.master=g;
+  const d=a.createDelay(1); d.delayTime.value=.36; const fb=a.createGain(); fb.gain.value=.32; const df=a.createBiquadFilter(); df.type='lowpass'; df.frequency.value=1800; d.connect(df).connect(fb).connect(d); d.connect(g); music.delay=d;
+  // vinyl crackle bed
+  const n=a.sampleRate*2, buf=a.createBuffer(1,n,a.sampleRate), ch=buf.getChannelData(0); for(let i=0;i<n;i++) ch[i]=Math.random()<.004?(Math.random()*2-1)*.6:(Math.random()*2-1)*.02;
+  const src=a.createBufferSource(); src.buffer=buf; src.loop=true; const cf=a.createBiquadFilter(); cf.type='bandpass'; cf.frequency.value=3000; const cg=a.createGain(); cg.gain.value=.25; src.connect(cf).connect(cg).connect(g); src.start(); music.crackle=src;
+  music.step=0; music.next=a.currentTime+.1; music.timer=setInterval(musicTick,90); musicTick();
+}
+function musicHalt(){ if(!music.on) return; music.on=false; clearInterval(music.timer); try{ music.crackle&&music.crackle.stop(); }catch(e){} music.master=null; }
+function musicStop(){ if(!music.on) return; music.on=false; clearInterval(music.timer); const a=ac(); if(music.master){ const g=music.master; g.gain.linearRampToValueAtTime(0,a.currentTime+1.2); setTimeout(()=>{ try{ g.disconnect(); music.crackle.stop(); }catch(e){} },1400); } }
+function musicTick(){
+  const a=ac(); if(!a||!music.on) return; const bpm=82, sixteenth=60/bpm/4;
+  while(music.next<a.currentTime+.35){
+    const s=music.step, bar=Math.floor(s/16), inBar=s%16, swing=(inBar%2)?sixteenth*.18:0, t=music.next+swing, g=music.master, chord=CHORDS[bar%4];
+    if(inBar===0){ chord.forEach((m,i)=>{ const o=a.createOscillator(), og=a.createGain(), f=a.createBiquadFilter(); o.type=i%2?'triangle':'sawtooth'; o.frequency.value=mhz(m); o.detune.value=(i-1.5)*6; f.type='lowpass'; f.frequency.value=700; og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(.045,t+.35); og.gain.setValueAtTime(.045,t+sixteenth*13); og.gain.linearRampToValueAtTime(0,t+sixteenth*16); o.connect(f).connect(og).connect(g); o.start(t); o.stop(t+sixteenth*16.2); }); }
+    if(inBar===0||inBar===8||(inBar===11&&bar%2)){ const o=a.createOscillator(), og=a.createGain(); o.type='sine'; o.frequency.value=mhz(chord[0]-24); og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(.22,t+.02); og.gain.exponentialRampToValueAtTime(.001,t+sixteenth*6); o.connect(og).connect(g); o.start(t); o.stop(t+sixteenth*6.5); }
+    if(inBar===0||inBar===8||inBar===10){ const o=a.createOscillator(), og=a.createGain(); o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(45,t+.12); og.gain.setValueAtTime(.5,t); og.gain.exponentialRampToValueAtTime(.001,t+.22); o.connect(og).connect(g); o.start(t); o.stop(t+.25); }
+    if(inBar===4||inBar===12){ const nb=a.createBuffer(1,a.sampleRate*.15,a.sampleRate), c=nb.getChannelData(0); for(let i=0;i<c.length;i++) c[i]=(Math.random()*2-1)*Math.pow(1-i/c.length,2); const ns=a.createBufferSource(); ns.buffer=nb; const nf=a.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=1800; nf.Q.value=.7; const ng=a.createGain(); ng.gain.value=.22; ns.connect(nf).connect(ng).connect(g); ns.start(t); }
+    if(inBar%2===0||Math.random()<.35){ const nb=a.createBuffer(1,a.sampleRate*.04,a.sampleRate), c=nb.getChannelData(0); for(let i=0;i<c.length;i++) c[i]=(Math.random()*2-1)*(1-i/c.length); const ns=a.createBufferSource(); ns.buffer=nb; const nf=a.createBiquadFilter(); nf.type='highpass'; nf.frequency.value=7000; const ng=a.createGain(); ng.gain.value=inBar%4===2?.12:.07; ns.connect(nf).connect(ng).connect(g); ns.start(t); }
+    if(inBar%2===0&&Math.random()<.28){ const m=PENTA[Math.floor(Math.random()*PENTA.length)]; const o=a.createOscillator(), og=a.createGain(); o.type='triangle'; o.frequency.value=mhz(m); og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(.09,t+.03); og.gain.exponentialRampToValueAtTime(.001,t+sixteenth*3); o.connect(og).connect(g); o.connect(og).connect(music.delay); o.start(t); o.stop(t+sixteenth*3.2); }
+    music.step++; music.next+=sixteenth;
+  }
+}
+
+/* ---------- speech (table only) ---------- */
+function say(t){ try{ if(!isTbl()||!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.05; speechSynthesis.speak(u);}catch(e){} }
+function announce(st,old){
+  if(!old||st.v===old.v) return;
+  if(st.phase==='claim'&&st.run.length>(old.phase==='claim'&&old.runSuit===st.runSuit?old.run.length:0)){
+    const n=tailLen(st); const tail=st.run.slice(st.run.length-n);
+    say(tail.map(x=>WORD[x.c.r]+' of '+NAME[x.c.s]).join(', ')+'. Who has the '+WORD[st.nextRank]+'?');
+  } else if(st.phase==='play'&&old.phase!=='play'){ say((st.note?st.note+' ':'')+pname(st,st.leader)+', your lowest '+(st.colour||'card')); }
+  else if(st.phase==='over'&&old.phase!=='over'){ say(st.winner?(st.note?st.note+' ':'')+pname(st,st.winner.idx)+' is out of cards and takes the centre, '+st.winner.won+' dollars.':st.note); }
+  else if(st.phase==='ante'&&old.phase!=='ante'){ say('Place your bets.'); }
+  else if(st.phase==='swap'&&old.phase==='ante'){ say(swapRace(st)?'Cards are dealt. Keep or swap? First to swap gets the spare hand.':'Cards are dealt. '+pname(st,st.swapTurn)+', keep or swap?'); }
+  else if(st.phase==='swap'&&!swapRace(st)&&old.phase==='swap'&&old.swapTurn!==st.swapTurn){ say(pname(st,st.swapTurn)+', keep or swap?'); }
+}
+
+/* ---------- video: WebRTC mesh between everyone at this table ---------- */
+const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false};
+const vidEl=document.getElementById('vid');
+async function loadIce(){ if(rtc.iceLoaded) return; try{ const r=await fetch('/ice'); if(r.ok){ rtc.ice=await r.json(); } }catch(e){} rtc.iceLoaded=true; }
+async function startVideo(){
+  if(framed) return; // the shell owns the camera
+  if(rtc.on||rtc.joining) return;
+  rtc.joining=true; // while the camera starts, hold any connection requests that arrive (answered below)
+  try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
+  catch(e){ rtc.joining=false; rtc.queue=[]; viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
+  rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
+  rtc.on=true; set('gn-video','1'); await loadIce();
+  Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();
+  rtc.joining=false; const held=rtc.queue; rtc.queue=[]; held.forEach(([f,d])=>onRtc(f,d)); renderVideo();
+}
+function stopVideo(){ if(!rtc.on) return; rtc.on=false; set('gn-video','0'); rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
+function toggleMic(){ rtc.mic=!rtc.mic; if(rtc.stream) rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic); renderVideo(); }
+function iParticipate(){ return rtc.on||isTbl(); }
+function wantPeer(p){ return p.sid!==S.sid && (p.video||p.role==='table') && (p.video||rtc.on); }
+function syncPeers(){
+  if(framed) return;
+  if(!S||!S.sid) return;
+  const want=new Set(iParticipate()?S.peers.filter(wantPeer).map(p=>p.sid):[]);
+  Object.keys(rtc.peers).forEach(sid=>{ if(!want.has(sid)) closePeer(sid); });
+  want.forEach(sid=>{ if(!rtc.peers[sid]) makePeer(sid); });
+  renderVideo();
+}
+function makePeer(sid){
+  const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:S.sid>sid,stream:null,making:false,ignore:false,cands:[]}; rtc.peers[sid]=p;
+  // only a device that is sending video opens the connection; a watch-only table just answers
+  if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
+  // two cameras: only one side opens the connection, so the two never collide
+  pc.onnegotiationneeded=async()=>{ const other=S&&S.peers.find(x=>x.sid===sid); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; await pc.setLocalDescription(); sendMsg({t:'rtc',to:sid,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
+  pc.onicecandidate=({candidate})=>{ if(candidate) sendMsg({t:'rtc',to:sid,data:{candidate}}); };
+  pc.ontrack=ev=>{ p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };
+  pc.onconnectionstatechange=()=>{ if(pc.connectionState==='failed'){ closePeer(sid); setTimeout(syncPeers,1500); } renderVideo(); };
+  return p;
+}
+function closePeer(sid){ const p=rtc.peers[sid]; if(!p) return; try{p.pc.close();}catch(e){} delete rtc.peers[sid]; }
+async function onRtc(from,data){
+  if(framed) return;
+  if(rtc.joining){ rtc.queue.push([from,data]); return; }
+  if(!S||!S.peers.some(x=>x.sid===from)) return;
+  let p=rtc.peers[from]; if(!p){ if(!iParticipate()) return; await loadIce(); p=makePeer(from); }
+  const pc=p.pc;
+  try{
+    if(data.description){
+      const collision=data.description.type==='offer'&&(p.making||pc.signalingState!=='stable');
+      p.ignore=!p.polite&&collision; if(p.ignore) return;
+      await pc.setRemoteDescription(data.description);
+      for(const c of p.cands.splice(0)){ try{ await pc.addIceCandidate(c); }catch(e){} }
+      if(data.description.type==='offer'){ await pc.setLocalDescription(); sendMsg({t:'rtc',to:from,data:{description:pc.localDescription}}); }
+    } else if(data.candidate){ if(!pc.remoteDescription){ p.cands.push(data.candidate); return; } try{ await pc.addIceCandidate(data.candidate); }catch(e){ if(!p.ignore) console.warn(e); } }
+  }catch(e){ console.warn(e); }
+}
+function renderVideo(){
+  if(framed) return;
+  const tiles=[]; document.body.classList.toggle('tbl',isTbl());
+  if(rtc.on) tiles.push({key:'me',stream:rtc.stream,name:'You',me:true});
+  for(const sid in rtc.peers){ const peer=S&&S.peers.find(x=>x.sid===sid); if(peer&&peer.video&&rtc.peers[sid].stream) tiles.push({key:sid,stream:rtc.peers[sid].stream,name:peer.name}); }
+  const keep=new Set(tiles.map(t=>t.key));
+  [...vidEl.querySelectorAll('.tile')].forEach(el=>{ if(!keep.has(el.dataset.key)) el.remove(); });
+  tiles.forEach(t=>{ let el=vidEl.querySelector(`.tile[data-key="${t.key}"]`);
+    if(!el){ el=document.createElement('div'); el.className='tile'+(t.me?' me':''); el.dataset.key=t.key; const v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.setAttribute('playsinline',''); v.muted=!!t.me; el.appendChild(v); const n=document.createElement('div'); n.className='nm'; el.appendChild(n); vidEl.insertBefore(el,vidEl.querySelector('.vctl')); }
+    const v=el.querySelector('video'); if(v.srcObject!==t.stream){ v.srcObject=t.stream; v.play().catch(()=>{}); } el.querySelector('.nm').textContent=t.name; });
+  let ctl=vidEl.querySelector('.vctl');
+  const showCtl=mode!=='table'&&room&&S;
+  if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
+    ctl.innerHTML=rtc.on?`<button class="ghost" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Mic off'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`;
+    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic;
+  } else if(ctl) ctl.remove();
+  document.body.classList.toggle('hasvid',vidEl.children.length>0);
+}
+
+/* ---------- rendering ---------- */
+function noteHTML(st,cls){
+  if(!st.note) return '';
+  const e=st.event;
+  if(e&&e.t==='queen'&&st.note.indexOf('played the queen')>=0){
+    const rest=st.note.replace(/^[^.]*played the queen[^.]*\.\s*/,'');
+    return `<div class="center"><div class="won"><b>${esc(pname(st,e.who))}</b> played ${cardHTML({s:e.suit,r:12})}<span class="amt">+$${e.won}</span></div></div>${rest?`<p class="center ${cls||''}">${esc(rest)}</p>`:''}`;
+  }
+  return `<p class="center ${cls||''}">${esc(st.note)}</p>`;
+}
+function cardHTML(c,cls,who){ return `<div class="card ${RED[c.s]?'red':''} ${c.r===12?'q':''} ${cls||''}" ${who?`data-who="${esc(who)}"`:''}><span>${rname(c.r)}</span><small>${SYM[c.s]}</small></div>`; }
+function kingsHTML(st){
+  const ante=st.phase==='ante';
+  const onK=s=>st.kings[s]+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+(p.bets[s]||0),0):0);
+  const pot=st.pot+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+p.bet,0):0);
+  return `<div class="kings">${SUITS.map(s=>`<div class="spot"><span class="k ${RED[s]?'red':''}"><span>K</span><span>${SYM[s]}</span></span><div class="coins">$${onK(s)}</div></div>`).join('')}<div class="pot"><div class="n">$${pot}</div><div class="l">in the centre</div></div></div>`;
+}
+function scoresHTML(st){
+  if(!st.players.length) return '';
+  const order=st.players.map((p,i)=>({p,i})).sort((a,b)=>b.p.balance-a.p.balance); const top=order[0].p.balance;
+  const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:(st.phase==='swap'&&st.swapTurn!=null?st.swapTurn:-1);
+  return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
+  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
+}
+function statusOf(st,p){
+  if(st.phase==='ante') return p.broke?'out of money':p.placed?(p.carried?'same bet':'bet placed'):'betting…';
+  if(['swap','play','claim'].includes(st.phase)){ if(!p.in) return 'sitting out'; if(st.phase==='swap'&&swapRace(st)&&p.kept) return p.cards+' cards · kept'; return p.cards+' cards'; }
+  return '';
+}
+function settingsHTML(st){
+  const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min']], on='background:var(--ivory);color:var(--ink);';
+  const pick=(attr,val,cur,label)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}">${label}</button>`;
+  return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>
+  <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
+  <div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>
+  <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
+  <div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>
+  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to Ultium UNO</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the Game Night room</button>`:''}</span></div>
+  <div class="muted" style="margin-top:4px">${swapRace(st)?'Fastest finger: everyone sees their cards at once and the first to tap Swap gets the spare.':'In turn: starting left of the dealer, each player in order may take the spare. The first seat moves round each game.'}</div></div>`;
+}
+function boardHTML(st,host){
+  const L=st.ledger||{}; const rows=Object.values(L).sort((a,b)=>b.net-a.net||b.wins-a.wins);
+  if(!rows.length) return `<div class="panel small muted">Season scoreboard: no games yet. Only games without bots count.</div>`;
+  return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Season scoreboard</span><span class="muted">bot-free games only</span></div>
+  <table><tr class="small muted"><td>Player</td><td style="text-align:right">Games</td><td style="text-align:right">Wins</td><td style="text-align:right">Queens</td><td style="text-align:right">Net</td></tr>${rows.map((r,i)=>`<tr class="${i===0&&r.net>0?'lead':''}"><td>${esc(r.name)}</td><td style="text-align:right;font-weight:400">${r.games}</td><td style="text-align:right;font-weight:400">${r.wins}</td><td style="text-align:right;font-weight:400">${r.queens}</td><td style="text-align:right;color:${r.net>0?'#d8e8b7':r.net<0?'#f3b3b0':'inherit'}">${r.net>0?'+':''}$${r.net}</td></tr>`).join('')}</table>
+  ${host?`<button class="ghost small" id="clearboard" style="margin-top:6px">Reset scoreboard</button>`:''}</div>`;
+}
+function render(){
+  if(timer){clearTimeout(timer);timer=null;}
+  if(framed&&S&&S.lounge){ app.className='app'; app.innerHTML='<div class="wait">Back to the Game Night room…</div>'; return; } // the shell is about to show the lobby
+  if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
+  if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); document.getElementById('banner').innerHTML=''; bind(); renderVideo(); return; }
+  if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
+  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':''); // own-devices game: players get the wide table layout too
+  const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
+  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">music ${musicOn?'on':'off'}</button>${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
+  bind();
+  const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
+  tickAll();
+  if(S.phase==='claim') tickCount();
+  if(S.phase==='ante'&&S.dealAt) tickDeal();
+}
+function tickDeal(){ const el=document.getElementById('dealin'); if(!el||!S||S.phase!=='ante'||!S.dealAt) return; const left=Math.max(0,Math.ceil((dealSeen-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickDeal,250); }
+function tickAll(){
+  const now=Date.now(); const sh=document.getElementById('sndhint'); if(sh) sh.hidden=!soundBlocked();
+  app.querySelectorAll('[data-until]').forEach(el=>{ const t=+el.dataset.until; if(t) el.textContent=fmtSec(Math.max(0,Math.ceil((t-now)/1000))); });
+  app.querySelectorAll('[data-showbelow]').forEach(el=>{ const left=(+el.dataset.for-now)/1000, show=left<=+el.dataset.showbelow; el.style.display=show?'':'none';
+    if(show&&nudged!==el.dataset.for){ nudged=el.dataset.for; try{ navigator.vibrate&&navigator.vibrate([120,80,120]); }catch(e){} sfx.lead(); } });
+}
+setInterval(tickAll,250);
+function fmtSec(n){ return n>=60?Math.floor(n/60)+':'+String(n%60).padStart(2,'0'):String(n); }
+function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left!==lastLeft){ lastLeft=left; if(left>=1&&left<=3) sfx.beep(left===1); } if(left>0) timer=setTimeout(tickCount,250); }
+function loungeHTML(st){
+  // Game Night room: everyone on video first, then the host picks a game and the room moves into it
+  const me=st.players.find(p=>p.id===pid), host=st.host, hostP=st.players[0], onVid=new Set((st.peers||[]).filter(p=>p.video).map(p=>p.name));
+  const link=location.origin+'/?room='+room+'&mode=lounge';
+  const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
+  return `<div class="home">
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted">Room <b>${esc(room)}</b>. Tap <b>Join video</b> at the top to see and hear everyone, chat about what to play, then the host picks a game and everyone moves into it together.</p></div></div>
+  ${me?'':`<div class="panel"><h3>Your name</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><button class="big" id="join">Join the room</button></div>`}
+  <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}
+    <button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px;width:100%">🔗 Invite people</button><div class="small muted center" style="margin-top:4px">Send the link; it opens straight into this room.</div></div>
+  ${host?`<div class="games">
+    <div class="game fk"><h2>4 Kings</h2><p class="small">Bet on the kings, play the cards in order, grab the queens.</p><button class="big" id="lgofk">Play 4 Kings</button></div>
+    <div class="game uno"><h2>Ultium UNO</h2><p class="small">Match colours and numbers, stack the draws, flip the direction.</p><button class="big" id="lgouno">Play Ultium UNO</button></div>
+  </div><p class="small muted center">Everyone plays on their own device and stays on video. Bots can fill empty seats once you're in the game.</p>`
+  :`<div class="panel center"><p class="muted">Waiting for ${esc(hostP?hostP.name:'the host')} to pick a game…</p></div>`}
+  <p class="center"><button class="ghost small" id="leaveRoom">Leave the room</button></p>
+  <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+}
+function startHTML(){
+  // Game Night home: both games side by side, plus one-tap rejoin of the last table
+  const fr=get('fk-room'), fl=get('fk-last'), ur=get('uno-room'), ul=get('uno-last');
+  const as=m=>m==='table'?'as the table':m==='both'?'as table + hand':'with your cards';
+  const rejoin=(fr&&fl?`<button class="ghost rj" id="rejoinfk">4 Kings · <b>${esc(fr)}</b> <span>${as(fl)}</span></button>`:'')+(ur&&ul?`<button class="ghost rj" id="rejoinuno">Ultium UNO · <b>${esc(ur)}</b> <span>${as(ul)}</span></button>`:'');
+  const k=(t,red,rot)=>`<span class="mini ${red?'red':''}" style="transform:rotate(${rot}deg)">${t}</span>`;
+  const u=(bg,t,rot,fg)=>`<span class="mini u" style="background:${bg};color:${fg||'#fff'};transform:rotate(${rot}deg)">${t}</span>`;
+  return `<div class="home">
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
+  ${rejoin?`<div class="panel"><div class="small muted" style="margin-bottom:6px">Pick up where you left off</div>${rejoin}</div>`:''}
+  <div class="panel lounge"><div><h3 style="margin:0">📹 Start a Game Night room</h3><div class="small muted">Get everyone on video first, chat about what to play, then pick a game together.</div></div><button class="big" id="newlounge">Start a room</button></div>
+  <div class="games">
+    <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
+      <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
+      <button class="big" id="newtable">Play with an iPad table</button><button class="big ghost" id="newphones">Play on our own devices</button></div>
+    <div class="game uno"><div class="art">${u('#e2453c','7',-12)}${u('conic-gradient(#e2453c 0 25%,#f5c02e 0 50%,#2fa866 0 75%,#2c7be5 0)','+4',0)}${u('#2c7be5','⇄',12)}</div>
+      <h2>Ultium UNO</h2><p>Match colours and numbers, stack the draws, flip the direction. Play the official rules or full house chaos.</p><div class="small muted">2–10 players · bots can fill in</div>
+      <button class="big" id="unotable">Play with an iPad table</button><button class="big ghost" id="unophones">Play on our own devices</button></div>
+  </div>
+  <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
+    <input class="code" id="code" placeholder="CODE" maxlength="6" value="" autocapitalize="characters" autocomplete="off">
+    <div class="row" style="margin-top:8px"><button class="ghost" id="joinroom">Join 4 Kings</button><button class="ghost" id="joinuno">Join Ultium UNO</button></div></div>
+  <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Join video</b> to see each other.</div></div>
+  <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+}
+function nextHTML(st,small){
+  const btn=`<button class="${small?'':'big'}" id="nextgame">${st.nextBy?'Next game now':'Start game '+(st.game+1)}</button>`;
+  return `${st.nextBy?`<p class="center small muted" style="margin:.6rem 0 0">Next game in <span data-until="${local(st.nextBy)}">${Math.ceil((st.nextBy-st.serverNow)/1000)}</span> s</p>`:''}${btn}`;
+}
+/* --- table (iPad) --- */
+function tableHTML(st,handPanel){
+  let main=''; const host=st.host;
+  const link=location.origin+location.pathname+'?room='+room+'&mode=hand';
+  if(st.phase==='lobby'){
+    main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div style="max-width:240px;text-align:left"><div class="small muted">Scan with the phone camera to join, or send the link, or type the code on the main page.</div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:8px">🔗 Share join link</button></div></div></div>
+    ${mode==='table'&&window.innerWidth<760?`<div class="notice small">Playing on this phone too? Tap <b>table + my hand</b> at the bottom to get your cards on this screen as well.</div>`:''}<h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
+    ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>${st.players.length<2?'<p class="center small muted">Need at least 2 players: add a bot or have someone scan the code.</p>':''}${settingsHTML(st)}`:''}`;
+  } else if(st.phase==='ante'){
+    const waiting=st.players.filter(p=>!p.placed&&!p.broke), brokeP=st.players.filter(p=>p.broke&&!p.placed);
+    main=`<h2>Place your bets</h2><p class="muted">Pick one or two kings and a stake on your phone. Last game's bet is kept unless you change it.</p>
+    <div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} <span class="muted small">${p.placed?betsText(p.bets)+(p.carried?' · same as last game':''):p.broke?'out of money: can rebuy on their phone':'deciding…'}</span></div>`).join('')}</div>
+    ${st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${waiting.length?` · ${waiting.map(p=>esc(p.name)).join(', ')} will sit out if not ready`:' — last chance to change your bet'}</p>`:`<p class="center small muted">${st.players.filter(p=>p.placed).length<2?'Waiting for at least two players to bet…':''}</p>`}
+    ${host&&st.canDeal?`<button class="big" id="deal">Deal the cards now${waiting.length?` <span class="small" style="font-weight:400">(${waiting.map(p=>esc(p.name)).join(', ')} sit${waiting.length>1?'':'s'} out)</span>`:''}</button>`:''}`;
+  } else if(st.phase==='swap'){
+    if(swapRace(st)){
+      main=`<h2>Keep or swap?</h2><p class="muted">Everyone check your cards. The first to tap <b>Swap</b> gets the spare hand.</p><div class="count" data-until="${local(st.swapBy)}">${Math.ceil((st.swapBy-st.serverNow)/1000)}</div>
+      <div class="panel">${st.players.filter(p=>p.in).map(p=>`<div>${p.kept?'<span class="tick"></span>':'○ '}${esc(p.name)} <span class="muted small">${p.kept?'keeping':'looking…'}</span></div>`).join('')}</div>`;
+    } else {
+      const i=st.swapTurn, inN=st.players.filter(p=>p.in).length;
+      main=`<h2>${esc(pname(st,i))}: keep or swap?</h2><p class="muted">${st.swapIdx+1} of ${inN} asked, in turn. The spare hand goes to the first player who takes it.</p>`;
+    }
+  } else if(st.phase==='play'){
+    main=`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
+  } else if(st.phase==='claim'){
+    main=`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">Who has the ${cs({s:st.runSuit,r:st.nextRank})}?</div><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`;
+  } else if(st.phase==='over'){
+    const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
+    main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
+    ${nextHTML(st)}${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>${settingsHTML(st)}`:''}`;
+  }
+  return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
+}
+function pileHTML(st,live){
+  if(!st.run.length) return `<div class="wait" style="padding-top:110px">${st.game?'Table is clear':''}</div>`;
+  const n=st.run.length, newest=live?tailLen(st):0;
+  return st.run.map((x,i)=>{ const ang=((i*47)%21)-10, dx=(i-(n-1)/2)*26; return `<div style="position:absolute;inset:0;transform:translate(${dx}px,0) rotate(${ang}deg)">${cardHTML(x.c,'lg who'+(i>=n-newest?' new':''),pname(st,x.who))}</div>`; }).join('');
+}
+/* --- hand (phone) --- */
+function handHTML(st){ return kingsHTML(st)+handMain(st)+scoresHTML(st)+((st.phase==='lobby'||st.phase==='over')?boardHTML(st,st.host):''); }
+function handMain(st){
+  const i=pidx(st,pid); const p=i>=0?st.players[i]:null; const hand=p&&p.hand?p.hand:[];
+  let main='';
+  if(!p){
+    if(nick&&!autoTried) main=`<div class="wait">Joining as ${esc(nick)}…</div>`;
+    else main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
+    return main;
+  }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${st.host?settingsHTML(st):`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`}</div>`; }
+  else if(st.phase==='ante'&&p.broke&&!p.placed){
+    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${p.balance}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
+  }
+  else if(st.phase==='ante'){
+    if(p.placed&&!draft.suits.length){ draft.suits=Object.keys(p.bets); draft.total=p.bet; }
+    const max=Math.max(10,Math.floor(p.balance/20)*10); const step=draft.suits.length===2?20:10;
+    if(draft.total>max) draft.total=Math.max(step,Math.floor(max/step)*step); if(draft.total<step) draft.total=step; if(draft.total%step) draft.total=Math.ceil(draft.total/step)*step;
+    const bets=betsOf(draft), each=draft.suits.length?draft.total/draft.suits.length:0, dirty=!p.placed||!sameBets(bets,p.bets);
+    const head=p.placed?(p.carried&&!dirty?'Same bet as last game':'Your bet is in'):'Your bet';
+    main=`<h2>${head}</h2><p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'Tap a king, or two kings to split the stake; the same again goes in the centre.'}</p>
+      <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.suits.includes(s)?'on':''}" data-king="${s}">${SYM[s]}${draft.suits.includes(s)?`<div class="small" style="font-family:-apple-system,sans-serif;font-weight:600">$${each}</div>`:''}</button>`).join('')}</div>
+      <div class="row" style="margin-top:10px"><button class="ghost" data-bet="-${step}" style="flex:0 0 56px">−</button><div class="center"><span class="serif" style="font-size:1.8rem">$${draft.total}</span><div class="small muted">${draft.suits.length?betsText(bets):'on a king'} + $${draft.total} centre</div></div><button class="ghost" data-bet="${step}" style="flex:0 0 56px">+</button></div>
+      <button class="big" id="place" ${draft.suits.length&&dirty&&p.balance>=2*draft.total?'':'disabled'}>${p.placed?(dirty?'Change my bet':'✓ Bet placed'):'Place bet'}</button>
+      ${st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${p.placed?'':' · bet now or you\'ll sit this one out'}</p>`:'<p class="center small muted">Waiting for everyone to bet…</p>'}
+      ${st.host&&st.canDeal?`<button class="big ghost" id="deal">Deal the cards now</button>`:''}`;
+  }
+  else if(['swap','play','claim'].includes(st.phase)&&!p.in){
+    main=`${miniRun(st)}<div class="wait">${p.broke?'<h2>You\'re sitting this game out</h2><p class="muted">You ran out of money. You can rebuy before the next game.</p>':`<h2>You're in, ${esc(p.name)}!</h2><p class="muted">You'll be dealt in when the next game starts.</p>`}</div>`;
+  }
+  else if(st.phase==='swap'){
+    const left=`<span data-until="${local(st.swapBy)}">${Math.ceil((st.swapBy-st.serverNow)/1000)}</span> s`;
+    if(swapRace(st)){
+      if(!p.kept) main=`<h2>Keep or swap?</h2><p class="muted small">First player to tap Swap gets the spare hand (${st.spareCount} cards, face down). ${left} left.</p>${handView(hand)}<div class="row"><button class="ghost" id="keep">Keep these</button><button id="swap">Swap for the spare</button></div>`;
+      else main=`${handView(hand)}<div class="wait">You're keeping your cards. Waiting for the others… ${left}</div>`;
+    } else {
+      const turn=st.swapTurn;
+      if(turn===i) main=`<h2>Keep or swap?</h2><p class="muted small">Your ${hand.length} cards. The spare hand (${st.spareCount} cards) stays face down until someone takes it.${st.swapBy?` <span class="nudgebox" data-showbelow="15" data-for="${local(st.swapBy)}">Keeping automatically in ${left}.</span>`:''}</p>${handView(hand)}<div class="row"><button class="ghost" id="keep">Keep these</button><button id="swap">Swap for the spare</button></div>`;
+      else main=`${handView(hand)}<div class="wait">${esc(pname(st,turn))} is deciding whether to swap…</div>`;
+    }
+  }
+  else if(st.phase==='play'){
+    const note=noteHTML(st,'small');
+    if(st.leader===i){ const {opts}=leadOptions(st,i); const leads={}; opts.forEach(o=>leads[o.s]=o.low.r);
+      const nudge=st.forced?`<p class="center small" style="color:var(--brass)">Only one card you can lead, so it's going down for you…</p>`
+        :st.leadBy?`<p class="center small nudge nudgebox" data-showbelow="15" data-for="${local(st.leadBy)}">Your turn! Auto-play in <span data-until="${local(st.leadBy)}"></span> s</p>`:'';
+      main=`${miniRun(st)}${note}<div class="leadcall">Your lead: ${st.colour?`lowest <span class="col ${st.colour}">${st.colour}</span>`:'lowest card of <span class="col">any suit</span>'}</div><p class="muted small center">${st.colour?`Tap your lowest ${st.colour} card.`:'First lead of the game: tap any of your lowest cards.'}</p>${nudge}${handView(hand,leads)}`; }
+    else main=`${miniRun(st)}${note}<p class="center">${esc(pname(st,st.leader))} to lead their lowest ${st.colour||'card'}.</p>${handView(hand)}`;
+  }
+  else if(st.phase==='claim'){
+    const need={s:st.runSuit,r:st.nextRank}; const have=hand.some(c=>c.s===need.s&&c.r===need.r);
+    const autoNote=p.auto&&have?`<p class="center small" style="color:var(--brass)">⚡ Auto-play is playing it for you…</p>`:'';
+    main=`${miniRun(st,true,need)}${noteHTML(st,'small')}${autoNote}
+      ${hints&&have&&!p.auto?`<button class="huge" id="claim">I've got the ${cs(need)}!</button><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`:`<p class="center">Got it? Tap the card in your hand. <span class="serif" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</span></p>`}
+      ${handView(hand,null,{need,hint:hints})}`;
+  }
+  else if(st.phase==='over'){
+    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} $${st.pot} stays in the centre for next game.</p>`}${p.broke?`<button class="ghost" id="rebuy" style="margin-bottom:8px">Out of money: rebuy $1000</button>`:''}${mode==='both'?'':nextHTML(st,true)}</div>`;
+  }
+  return main;
+}
+function miniRun(st,live,need){
+  if(!st.run.length) return `<div class="minirun"><span class="muted small">Table is clear</span></div>`;
+  const shown=st.run.slice(-5), n=shown.length;
+  const fan=shown.map((x,k)=>{ const ang=(k%2?9:-9); const left=n>1?`calc(${k} * (100% - 40px) / ${n-1})`:'calc(50% - 20px)'; return `<div style="position:absolute;top:0;bottom:0;left:${left};transform:rotate(${ang}deg)">${cardHTML(x.c,k===n-1?'last':'')}</div>`; }).join('');
+  return `<div class="minirun"><div class="fan">${fan}<div class="lbl">last ${n} played</div></div>${need?`<div style="position:relative;flex:none">${cardHTML(need,'ghost')}<div class="lbl">wanted</div></div>`:''}</div>`;
+}
+function handView(h,leads,claim){
+  return `<div class="hand">${SUITS.map(s=>{const cards=h.filter(c=>c.s===s); if(!cards.length) return ''; return `<div class="suitrow"><span class="tag ${RED[s]?'red':''}">${SYM[s]}</span><div class="cards">${cards.map(c=>{
+    if(leads&&leads[s]===c.r) return `<button class="cardbtn" data-lead="${s}">${cardHTML(c,'lead')}</button>`;
+    if(claim){ const match=c.s===claim.need.s&&c.r===claim.need.r; return `<button class="cardbtn" data-claim="${c.s}${c.r}">${cardHTML(c,match&&claim.hint?'lead':'')}</button>`; }
+    return cardHTML(c); }).join('')}</div></div>`;}).join('')}</div>`;
+}
+function bind(){
+  const q=s=>app.querySelector(s);
+  if(q('#newtable')) q('#newtable').onclick=()=>{ room=newCode(); mode='table'; set('fk-room',room); set('fk-mode',mode); say(' '); S=null; render(); connect(); };
+  if(q('#newboth')) q('#newboth').onclick=()=>{ room=newCode(); mode='both'; set('fk-room',room); set('fk-mode',mode); say(' '); S=null; render(); connect(); };
+  if(q('#both')) q('#both').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode='both'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
+  if(q('#joinroom')) q('#joinroom').onclick=()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } room=c; mode='hand'; set('fk-room',room); set('fk-mode',mode); S=null; render(); connect(); };
+  if(q('#switch')) q('#switch').onclick=()=>{ stopVideo(); Object.keys(rtc.peers).forEach(closePeer); mode=mode==='hand'?'table':mode==='both'?'table':'hand'; set('fk-mode',mode); S=null; render(); renderVideo(); connect(); };
+  if(q('#unotable')) q('#unotable').onclick=()=>{ location.href='/uno.html?setup=table'; };
+  if(q('#newlounge')) q('#newlounge').onclick=()=>{ room=newCode(); mode='lounge'; wantLounge=true; set('fk-lhost',room); set('fk-room',room); set('fk-mode',mode); history.replaceState(null,'','/'); S=null; render(); connect(); };
+  if(q('#lgofk')) q('#lgofk').onclick=()=>sendMsg({t:'settings',layout:'phones',lounge:false});
+  if(q('#lgouno')) q('#lgouno').onclick=()=>{ sendMsg({t:'settings',layout:'phones'}); sendMsg({t:'switchgame',to:'uno'}); };
+  if(q('#unophones')) q('#unophones').onclick=()=>{ location.href='/uno.html?setup=phones'; };
+  if(q('#newphones')) q('#newphones').onclick=()=>{ room=newCode(); mode='both'; wantLayout='phones'; set('fk-room',room); set('fk-mode',mode); say(' '); S=null; render(); connect(); };
+  app.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',layout:b.dataset.layout}));
+  if(q('#joinuno')) q('#joinuno').onclick=()=>{ const c=q('#code').value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(c.length<3){ q('#code').focus(); return; } location.href='/uno.html?room='+c+'&mode=hand'; };
+  if(q('#rejoinfk')) q('#rejoinfk').onclick=()=>{ room=get('fk-room'); mode=get('fk-last'); set('fk-mode',mode); history.replaceState(null,'','/'); S=null; render(); connect(); };
+  if(q('#rejoinuno')) q('#rejoinuno').onclick=()=>{ location.href='/uno.html?room='+get('uno-room')+'&mode='+get('uno-last'); };
+  if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>{ if(framed){ tellShell('home'); return; } stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('fk-mode',''); render(); renderVideo(); };
+  if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'4 Kings, table '+room,text:'Join my 4 Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
+  if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
+  app.querySelectorAll('[data-timer]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',claimMs:+b.dataset.timer}));
+  if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});
+  if(q('#clearboard')) q('#clearboard').onclick=()=>{ if(confirm('Reset the season scoreboard?')) sendMsg({t:'clearboard'}); };
+  if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
+  if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});
+  if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,auto:autoOn}); };
+  if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
+  app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<2) draft.suits.push(s); else draft.suits=[draft.suits[1],s]; if(draft.suits.length===2&&draft.total<20) draft.total=20; render(); });
+  app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.total=Math.max(10,draft.total+(+b.dataset.bet)); render(); });
+  if(q('#place')) q('#place').onclick=()=>{ q('#place').disabled=true; if(sfxOn){ try{ coins(6,.35); }catch(e){} } sendMsg({t:'bet',bets:betsOf(draft)}); };
+  if(q('#deal')) q('#deal').onclick=()=>sendMsg({t:'deal'});
+  if(q('#keep')) q('#keep').onclick=()=>{ q('#keep').disabled=q('#swap').disabled=true; sfx.tap(); sendMsg({t:'swap',swap:false}); };
+  if(q('#swap')) q('#swap').onclick=()=>{ q('#keep').disabled=q('#swap').disabled=true; sfx.tap(); sendMsg({t:'swap',swap:true}); };
+  app.querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>{ b.disabled=true; sfx.tap(); sendMsg({t:'lead',suit:b.dataset.lead}); });
+  if(q('#claim')) q('#claim').onclick=()=>{ q('#claim').disabled=true; sendMsg({t:'claim'}); };
+  app.querySelectorAll('[data-claim]').forEach(b=>b.onclick=()=>{ if(!S||S.phase!=='claim') return; const need=S.runSuit+S.nextRank; if(b.dataset.claim===need){ b.disabled=true; sfx.tap(); sendMsg({t:'claim'}); } else { viewMsg='Not that one.'; render(); setTimeout(()=>{ if(viewMsg==='Not that one.'){ viewMsg=''; render(); } },1200); } });
+  if(q('#autoplay')) q('#autoplay').onclick=()=>{ autoOn=!autoOn; set('fk-auto',autoOn?'1':'0'); sendMsg({t:'autoplay',on:autoOn}); render(); };
+  if(q('#rebuy')) q('#rebuy').onclick=()=>{ q('#rebuy').disabled=true; sendMsg({t:'rebuy'}); };
+  app.querySelectorAll('[data-swapmode]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',swapMode:b.dataset.swapmode}));
+  app.querySelectorAll('[data-autonext]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',autoNext:b.dataset.autonext==='1'}));
+  if(q('#switchgame')) q('#switchgame').onclick=()=>{ if(confirm('Switch everyone at this table to Ultium UNO? Phones follow automatically.')) sendMsg({t:'switchgame',to:'uno'}); };
+  document.querySelectorAll('#toroom').forEach(b=>b.onclick=()=>{ if(confirm('Take everyone back to the Game Night room? Money and the scoreboard are kept; bots leave.')) { set('fk-lhost',room); sendMsg({t:'toroom'}); } });
+  if(q('#notyou')) q('#notyou').onclick=()=>{ set('fk-nick',''); nick=''; autoTried=true; sendMsg({t:'leave'}); };
+  if(q('#howtobtn')) q('#howtobtn').onclick=showHowto;
+  if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };
+  if(q('#sfx')) q('#sfx').onclick=()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); if(sfxOn) sfx.card(); render(); };
+  if(q('#musicbtn')) q('#musicbtn').onclick=()=>{ musicOn=!musicOn; set('fk-music',musicOn?'1':'0'); try{ musicOn?musicStart():musicStop(); }catch(e){} render(); };
+  if(q('#winsnd')) q('#winsnd').onclick=()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); if(winOn){ try{ chime(false); coins(10,.3); }catch(e){} } render(); };
+}
+
+['touchend','click','keydown'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true,capture:true}));
+if(qs.get('room')&&qs.get('mode')){ set('fk-room',room); set('fk-mode',mode); }
+if(qs.get('home')) history.replaceState(null,'','/'); // the home-screen icon opens the home page once; a refresh later resumes the table
+render();
+if(room&&mode) connect();
+})();
+</script>
+</body>
+</html>

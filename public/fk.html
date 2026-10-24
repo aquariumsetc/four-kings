@@ -158,7 +158,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.3 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.5 · 24 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -483,7 +483,7 @@ function render(){
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':''); // own-devices game: players get the wide table layout too
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
-  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
+  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();
@@ -587,7 +587,7 @@ function pileHTML(st,live){
 }
 /* --- hand (phone) --- */
 function handHTML(st){ return kingsHTML(st)+handMain(st)+scoresHTML(st)+((st.phase==='lobby'||st.phase==='over')?boardHTML(st,st.host):''); }
-function handMain(st){
+function handMain(st,embedded){
   const i=pidx(st,pid); const p=i>=0?st.players[i]:null; const hand=p&&p.hand?p.hand:[];
   let main='';
   if(!p){
@@ -595,7 +595,7 @@ function handMain(st){
     else main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
     return main;
   }
-  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${st.host?settingsHTML(st):`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`}</div>`; }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`:(embedded?'':settingsHTML(st))}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
     main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${p.balance}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
   }
@@ -610,7 +610,7 @@ function handMain(st){
       <div class="row" style="margin-top:10px"><button class="ghost" data-bet="-${step}" style="flex:0 0 56px">−</button><div class="center"><span class="serif" style="font-size:1.8rem">$${draft.total}</span><div class="small muted">${draft.suits.length?betsText(bets):'on a king'} + $${draft.total} centre</div></div><button class="ghost" data-bet="${step}" style="flex:0 0 56px">+</button></div>
       <button class="big" id="place" ${draft.suits.length&&dirty&&p.balance>=2*draft.total?'':'disabled'}>${p.placed?(dirty?'Change my bet':'✓ Bet placed'):'Place bet'}</button>
       ${st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${p.placed?'':' · bet now or you\'ll sit this one out'}</p>`:'<p class="center small muted">Waiting for everyone to bet…</p>'}
-      ${st.host&&st.canDeal?`<button class="big ghost" id="deal">Deal the cards now</button>`:''}`;
+      ${st.host&&st.canDeal&&!embedded?`<button class="big ghost" id="deal">Deal the cards now</button>`:''}`;
   }
   else if(['swap','play','claim'].includes(st.phase)&&!p.in){
     main=`${miniRun(st)}<div class="wait">${p.broke?'<h2>You\'re sitting this game out</h2><p class="muted">You ran out of money. You can rebuy before the next game.</p>':`<h2>You're in, ${esc(p.name)}!</h2><p class="muted">You'll be dealt in when the next game starts.</p>`}</div>`;
@@ -642,7 +642,7 @@ function handMain(st){
       ${handView(hand,null,{need,hint:hints})}`;
   }
   else if(st.phase==='over'){
-    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} $${st.pot} stays in the centre for next game.</p>`}${p.broke?`<button class="ghost" id="rebuy" style="margin-bottom:8px">Out of money: rebuy $1000</button>`:''}${mode==='both'?'':nextHTML(st,true)}</div>`;
+    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} $${st.pot} stays in the centre for next game.</p>`}${p.broke?`<button class="ghost" id="rebuy" style="margin-bottom:8px">Out of money: rebuy $1000</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st,true)}</div>`;
   }
   return main;
 }

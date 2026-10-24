@@ -139,7 +139,7 @@ body.hasvid .app.stripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
 .hand{display:flex;flex-direction:column;gap:8px;margin:.8rem 0}
 .hrow{display:flex;flex-wrap:wrap;gap:6px}
 .hand button.cb{padding:0;background:none;border-radius:9px;transition:transform .15s;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
-.hand button.cb.holding .card{animation:hold .45s linear forwards}
+.hand button.cb.holding .card{animation:hold .6s linear forwards}
 @keyframes hold{to{box-shadow:0 0 0 4px var(--gold),0 0 22px rgba(255,209,102,.8),inset 0 0 0 3px rgba(255,255,255,.9),inset 0 0 0 5px var(--c);transform:translateY(-14px) scale(1.06)}}
 .actions .glow{background:var(--gold);color:#2b2200;animation:pulse 1s ease-in-out infinite alternate}
 .unobtn{display:block;width:100%;margin:.5rem 0;padding:.9rem;font-family:"Fredoka",sans-serif;font-size:1.4rem;background:var(--R);color:#fff;border-radius:16px;animation:pulse 1s ease-in-out infinite alternate}
@@ -153,6 +153,9 @@ details.more summary{cursor:pointer;padding:6px 0;color:var(--dim)}
 .hand button.cb.sel{transform:translateY(-12px)}
 .hand button.cb.sel .card{box-shadow:0 0 0 3px var(--gold),0 8px 18px rgba(0,0,0,.4),inset 0 0 0 3px rgba(255,255,255,.9),inset 0 0 0 5px var(--c)}
 .hand button.cb.no .card{filter:saturate(.35) brightness(.7)}
+.hand button.cb.addable .card{box-shadow:0 0 0 2px var(--gold),0 6px 14px rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,255,255,.9),inset 0 0 0 5px var(--c);animation:addpulse 1.1s ease-in-out infinite} /* a matching card you can stack onto your selection */
+@keyframes addpulse{50%{box-shadow:0 0 0 3px var(--gold),0 0 16px rgba(255,209,102,.75),inset 0 0 0 3px rgba(255,255,255,.9),inset 0 0 0 5px var(--c)}}
+@media (prefers-reduced-motion:reduce){.hand button.cb.addable .card{animation:none}}
 .hand button.cb.new .card::after{content:'new';position:absolute;top:-8px;right:-6px;background:var(--gold);color:#2b2200;font:600 .6rem -apple-system,sans-serif;padding:1px 5px;border-radius:999px}
 .deckbtn{padding:0;background:none;border-radius:14px}.deckbtn:active .card{transform:translateY(3px) scale(.97)}
 .deckbtn .card{box-shadow:0 0 0 3px var(--gold),0 0 26px rgba(255,209,102,.5),inset 0 0 0 3px rgba(255,255,255,.85)}
@@ -220,7 +223,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.3 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.5 · 24 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -605,9 +608,10 @@ function handMain(st,embedded){
   // play
   if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.queued?`<h2 style="color:var(--fg)">You're in, ${esc(p.name)}!</h2>You'll be dealt in when the next game starts.<br>${notYou}`:p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake&&!p.queued?' Rebuy between games to get back in.':''}</div>`;
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
+  const selCard=sel.length?hand.find(c=>c.id===sel[0]):null;
   const rows={}; hand.forEach(c=>{ (rows[c.c]=rows[c.c]||[]).push(c); });
-  const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
-  const first=sel.length?hand.find(c=>c.id===sel[0]):null, okPlay=mine&&first&&(!unoHints||can.has(first.id));
+  const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${unoHints&&mine&&st.rules.multi&&selCard&&!sel.includes(c.id)&&same(selCard,c)&&can.has(c.id)?'addable':''} ${st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
+  const first=selCard, okPlay=mine&&first&&(!unoHints||can.has(first.id));
   let acts='', deck='';
   if(mine&&st.drawStack){
     const done=st.picking?st.pickTotal-st.drawStack:0, tot=st.picking?st.pickTotal:st.drawStack;
@@ -621,7 +625,13 @@ function handMain(st,embedded){
   const hint=st.picked?'Play one of the cards you just picked up, or pass.':st.picking?'Keep tapping the deck.':st.drawStack?(can.size?`Stack a draw card, or tap the deck to pick up ${st.drawStack}.`:`Tap the deck to pick up ${st.drawStack}, one card at a time.`):st.drew?'Play a card or pass.':null;
   const called=(st.unoCalled||{})[pid], unoB=st.rules.callUno&&hand.length<=2&&(mine||st.catchable===i)?`<button class="unobtn ${called?'called':''}" id="calluno">${called?'UNO! called ✓':'Call UNO!'}</button>`:'';
   const catchB=st.catchable>=0&&st.catchable!==i&&st.players[st.catchable]?`<button class="catchbtn" id="catchuno">Catch ${esc(st.players[st.catchable].name)}! They didn't call UNO</button>`:'';
-  return `${statusHTML(st,i)}${nudge}${catchB}${deck}${handH}${unoB}${mine?`<p class="small dim center">${hint!==null?hint:(unoHints&&!can.size?'Nothing you can play: draw a card.':st.rules.multi?'Hold a card to play it. Tap to pick several identical cards, then Play.':'Hold a card to play it, or tap it then Play.')}</p>`:''}${acts}
+  let playHint;
+  if(hint!==null) playHint=hint;
+  else if(unoHints&&!can.size) playHint='Nothing you can play: draw a card.';
+  else if(sel.length>1) playHint=`Playing ${sel.length} cards — press Play.`;
+  else if(sel.length===1&&unoHints&&st.rules.multi){ const more=hand.filter(c=>!sel.includes(c.id)&&same(c,selCard)&&can.has(c.id)).length; playHint=more?`Tap your other matching ${more===1?'card':'cards'} to play them together, then press Play.`:'Press Play to play it — or tap a different card.'; }
+  else playHint=st.rules.multi?'Tap a card, then press Play. Tap more of the exact same card to play them together. (Or hold a card to play it fast.)':'Tap a card then press Play, or hold it to play.';
+  return `${statusHTML(st,i)}${nudge}${catchB}${deck}${handH}${unoB}${mine?`<p class="small dim center">${playHint}</p>`:''}${acts}
     <p class="center" style="margin-top:1.4rem"><button class="ghost small" id="quit">Leave this game</button></p>`;
 }
 function statusHTML(st,i){
@@ -692,7 +702,7 @@ function bind(){
     b.onpointerdown=()=>{ held=false; const id=+b.dataset.card; const myTurn=S&&S.phase==='play'&&S.players[S.turn]&&S.players[S.turn].id===pid; if(!myTurn) return; if(unoHints&&!(S.canPlay||[]).includes(id)&&!sel.includes(id)) return; b.classList.add('holding');
       holdT=setTimeout(()=>{ held=true; b.classList.remove('holding'); const me=S.players.find(p=>p.id===pid), c=me.hand.find(x=>x.id===id);
         if(!(sel.includes(id)&&sel.every(x=>same(me.hand.find(y=>y.id===x),c)))) sel=[id];
-        try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} tryPlay(); },450); };
+        try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} tryPlay(); },600); };
     b.onpointerup=stop; b.onpointerleave=stop; b.onpointercancel=stop; b.oncontextmenu=e=>e.preventDefault();
   });
   document.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{

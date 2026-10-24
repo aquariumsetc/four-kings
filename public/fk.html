@@ -158,7 +158,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.7.6 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.1 · 24 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -178,7 +178,7 @@ const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game 
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
-let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -222,7 +222,7 @@ function onState(st,old){
   if(st.goto&&st.goto.to==='uno'&&st.goto.at>+(qs.get('from')||0)){ if(framed) return; const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; const m2=mode==='lounge'?(st.host?'both':'hand'):mode; const lay=st.host&&st.goto.layout==='phones'?'&layout=phones':''; location.replace('/uno.html?room='+room+'&mode='+m2+'&from='+st.goto.at+bots+lay); return; }
   // the room picked 4 Kings: everyone's straight into the table on their own device
   if(mode==='lounge'&&!st.lounge&&!wantLounge){ mode=st.host?'both':'hand'; set('fk-mode',mode); }
-  if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn}); }
+  if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
@@ -450,7 +450,7 @@ function scoresHTML(st){
   const order=st.players.map((p,i)=>({p,i})).sort((a,b)=>b.p.balance-a.p.balance); const top=order[0].p.balance;
   const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:(st.phase==='swap'&&st.swapTurn!=null?st.swapTurn:-1);
   return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
-  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
+  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${o.p.emoji?esc(o.p.emoji)+' ':''}${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
 }
 function statusOf(st,p){
   if(st.phase==='ante') return p.broke?'out of money':p.placed?(p.carried?'same bet':'bet placed'):'betting…';
@@ -504,7 +504,7 @@ function loungeHTML(st){
   // Game Night room: everyone on video first, then the host picks a game and the room moves into it
   const me=st.players.find(p=>p.id===pid), host=st.host, hostP=st.players[0], onVid=new Set((st.peers||[]).filter(p=>p.video).map(p=>p.name));
   const link=location.origin+'/?room='+room+'&mode=lounge';
-  const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
+  const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted">Room <b>${esc(room)}</b>. Tap <b>Join video</b> at the top to see and hear everyone, chat about what to play, then the host picks a game and everyone moves into it together.</p></div></div>
   ${me?'':`<div class="panel"><h3>Your name</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><button class="big" id="join">Join the room</button></div>`}
@@ -683,7 +683,7 @@ function bind(){
   if(q('#clearboard')) q('#clearboard').onclick=()=>{ if(confirm('Reset the season scoreboard?')) sendMsg({t:'clearboard'}); };
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
   if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});
-  if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,auto:autoOn}); };
+  if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,auto:autoOn,emoji}); };
   if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
   app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<2) draft.suits.push(s); else draft.suits=[draft.suits[1],s]; if(draft.suits.length===2&&draft.total<20) draft.total=20; render(); });
   app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.total=Math.max(10,draft.total+(+b.dataset.bet)); render(); });

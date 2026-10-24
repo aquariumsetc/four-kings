@@ -156,6 +156,10 @@ body.ingame #app{display:none}
 #gohome{position:fixed;top:env(safe-area-inset-top,0px);left:0;z-index:30;display:none;margin:6px;padding:7px 11px;border-radius:12px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;border:1px solid rgba(255,255,255,.2);font-size:1rem;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.45);cursor:pointer}
 body.inroom #gohome{display:block}
 body.inroom.hasvid #vid{padding-left:58px}
+.vctl .roomchip{background:rgba(201,162,39,.22);border-color:rgba(201,162,39,.6);color:#f0d98c;font-weight:600;white-space:nowrap}
+.emojirow{display:flex;flex-wrap:wrap;gap:7px}
+.emo{width:42px;height:42px;border:0;border-radius:12px;background:rgba(255,255,255,.08);font-size:1.3rem;line-height:1;cursor:pointer;display:grid;place-items:center;color:#fff;font-weight:600}
+.emo.on{background:rgba(255,255,255,.18);box-shadow:0 0 0 2px #ffd166}
 </style>
 </head>
 <body>
@@ -166,7 +170,7 @@ body.inroom.hasvid #vid{padding-left:58px}
 <button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
 <script>
 (function(){
-const VERSION='v2.7.6 · 24 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.1 · 24 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -174,6 +178,8 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let nick=get('fk-nick');
+let emoji=get('fk-emoji')||'';
+const EMOJIS=['🦊','🐯','🐼','🦄','🦁','🐸','🐵','🦉','🐙','🐨','👑','🚀','⚽','🎸','🌈','😎'];
 // Nudge people out of Messenger/WhatsApp's in-app browser (where video is flaky, names aren't remembered, and popups get clipped) into real Safari or the home-screen app.
 let iabDismissed=false;
 const inAppBrowser=/FBAN|FBAV|FB_IAB|Instagram|Messenger|WhatsApp|Line\//i.test(navigator.userAgent||'') || (/iPhone|iPad|iPod/.test(navigator.userAgent||'') && window.navigator.standalone!==true && !/Safari/.test(navigator.userAgent||''));
@@ -276,8 +282,10 @@ function renderVideo(){
   let ctl=vidEl.querySelector('.vctl');
   const showCtl=room&&S;
   if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
-    ctl.innerHTML=rtc.on?`<button class="ghost" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Mic off'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`;
-    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic;
+    const inGame=document.body.classList.contains('ingame'); // show the room code only while a game is on (the lobby already shows it)
+    const roomBtn=inGame?`<button class="ghost roomchip" id="roombtn" title="Tap to invite someone to this room">🔗 Room ${esc(room)}</button>`:'';
+    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Mic off'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`);
+    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room);
   } else if(ctl) ctl.remove();
   document.body.classList.toggle('hasvid',vidEl.children.length>0);
   layoutForVideo();
@@ -317,7 +325,7 @@ function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function onState(st){
   skew=st.serverNow-Date.now();
   // appear in the room's people list once we're in a lounge and have a remembered name
-  if(st.lounge&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick}); }
+  if(st.lounge&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,emoji}); }
   // host chores: bring the room up, or kick off a game picked from the home page
   if(wantLobby){ if(st.lounge) wantLobby=false; else if(st.host) sendMsg({t:'toroom'}); }
   if(wantStart&&st.host){ wantStart.forEach(m=>sendMsg(m)); wantStart=null; }
@@ -340,10 +348,11 @@ function loungeHTML(st){
   // Game Night room: everyone on video first, then the host picks a game and the room moves into it
   const me=st.players.find(p=>p.id===pid), host=st.host, hostP=st.players[0], onVid=new Set((st.peers||[]).filter(p=>p.video).map(p=>p.name));
   const link=location.origin+'/?room='+room+'&mode=lounge';
-  const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
+  const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted">Room <b>${esc(room)}</b>. Tap <b>Join video</b> at the top to see and hear everyone, chat about what to play, then the host picks a game and everyone moves into it together.</p></div></div>
   ${me?'':`<div class="panel"><h3>Your name</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><button class="big" id="join">Join the room</button></div>`}
+  <div class="panel"><div class="small muted" style="margin-bottom:8px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div></div>
   <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}
     <button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px;width:100%">🔗 Invite people</button><div class="small muted center" style="margin-top:4px">Send the link; it opens straight into this room.</div></div>
   ${host?`<div class="games">
@@ -380,6 +389,12 @@ function startHTML(){
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function goHome(){ stopVideo(); if(ws){try{ws.onclose=null;ws.close();}catch(e){}} ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; stage.src='about:blank'; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); }
+// The room's join link + share/copy. Used by the lobby's Invite button and the in-game room-code chip
+// so a latecomer can be sent the code/link while a game is in progress (it opens straight into the room).
+function roomLink(){ return location.origin+'/?room='+room+'&mode=lounge'; }
+async function shareInvite(btn,label){ const link=roomLink(); const base=label||(btn&&btn.textContent)||'';
+  try{ if(navigator.share){ await navigator.share({title:'Game Night room '+room,text:'Join my Game Night room',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(link); if(btn){ btn.textContent='Copied!'; setTimeout(()=>{ if(btn.isConnected&&base) btn.textContent=base; },1800); } }catch(e){ prompt('Copy this link:',link); } }
 function freshRoom(){ curGame=null; inLobby=false; stageGame=null; lastGotoAt=0; autoTried=false; S=null; }
 function clearSaved(){ ['fk-room','fk-last','fk-mode','uno-room','uno-last','uno-mode','fk-lhost'].forEach(k=>set(k,'')); render(); } // forget this device's saved-game shortcuts (does not close the room on the server)
 function startOwn(game){ room=newCode(); set(game==='uno'?'uno-room':'fk-room',room); set('fk-lhost',room); wantGame=game; wantLobby=false; wantStart=game==='uno'?[{t:'settings',layout:'phones'},{t:'switchgame',to:'uno'}]:[{t:'settings',layout:'phones'}]; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
@@ -401,9 +416,10 @@ function bind(){
   if(q('#rejoinuno')) q('#rejoinuno').onclick=()=>rejoin('uno');
   if(q('#lgofk')) q('#lgofk').onclick=()=>{ const m=roomMessageFor('pick-fk'); if(m) sendMsg(m); };
   if(q('#lgouno')) q('#lgouno').onclick=()=>{ const m=roomMessageFor('pick-uno'); if(m) sendMsg(m); };
-  if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick}); };
+  if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); };
+  q('#emojirow') && q('#emojirow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); if(S&&S.players&&S.players.some(p=>p.id===pid)&&nick) sendMsg({t:'join',name:nick,emoji}); render(); });
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>goHome();
-  if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Game Night room '+room,text:'Join my Game Night room',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Invite people'; },1800); };
+  if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Invite people');
 }
 
 /* ---------- a game frame asks the shell to move the whole party ---------- */

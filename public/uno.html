@@ -85,6 +85,37 @@ input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fredoka",sa
 .potchip{position:absolute;left:50%;top:79%;transform:translate(-50%,-50%);text-align:center;font-family:"Fredoka",sans-serif}
 .potchip .n{font-size:1.6rem;color:var(--gold);line-height:1}.potchip .l{font-size:.72rem;color:var(--dim)}
 .dirlbl{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:.8rem;color:var(--dim);white-space:nowrap}
+/* v2.8.1 top turn strip (phones) — a thin strip of players that glides to whoever's turn it is */
+.ustrip{position:fixed;left:0;right:0;top:0;z-index:8;height:108px;padding-top:env(safe-area-inset-top,0px);
+  background:linear-gradient(180deg,rgba(13,15,34,.94),rgba(13,15,34,.74) 70%,transparent);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
+  overflow:visible;clip-path:inset(-60px 0 0 0);display:none} /* clip the sides, let the current halo spill above */
+.ustrip.on{display:block}
+body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalone in-page video: sit below the camera bar */
+.ustrip .utrack{position:absolute;left:0;right:0;top:calc(12px + env(safe-area-inset-top,0px));height:84px}
+.ustrip .uchip{position:absolute;left:50%;top:0;width:72px;margin-left:-36px;text-align:center;will-change:transform,opacity;
+  transition:transform .5s cubic-bezier(.3,.7,.25,1),opacity .5s} /* slow glide — the speed signed off in the mockup */
+.ustrip.noanim .uchip{transition:none}
+.ustrip .uava{width:52px;height:52px;border-radius:50%;margin:0 auto;display:grid;place-items:center;position:relative;
+  font-family:"Fredoka",sans-serif;font-weight:700;font-size:1.3rem;color:#fff;background:var(--panel);box-shadow:0 0 0 2px var(--line)}
+.ustrip .ucnt{position:absolute;right:-5px;bottom:-5px;z-index:3;min-width:19px;height:19px;padding:0 5px;border-radius:999px;
+  background:#11132b;color:#fff;font-size:.68rem;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px var(--bg)}
+.ustrip .unm{font-family:"Fredoka",sans-serif;font-weight:600;font-size:.74rem;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dim)}
+.ustrip .uchip.cur .uava{background:var(--gold);color:#2b2200;box-shadow:0 0 26px rgba(255,209,102,.7)}
+.ustrip .uchip.cur .uava::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:3px solid var(--gold);pointer-events:none;z-index:1;
+  box-shadow:0 0 16px 2px rgba(255,209,102,.9),0 0 34px 8px rgba(255,209,102,.5)} /* strong bright-yellow ring, attached to the avatar so it can't drift */
+.ustrip .uchip.cur .unm{color:var(--gold)}
+.ustrip .uchip.one .ucnt{background:var(--R);box-shadow:0 0 0 2px var(--bg),0 0 10px rgba(226,69,60,.8)} /* ONE card left */
+.ustrip .uchip.out{filter:grayscale(.7);opacity:.5}
+.ustrip .uchip.flash .uava{animation:uflash .5s ease} /* someone hopped over on a skip / sit-out */
+@keyframes uflash{30%{filter:grayscale(.6) brightness(.6)}30%,60%{box-shadow:0 0 0 3px var(--fg)}}
+.ustrip .udir{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:.72rem;color:var(--dim);z-index:5}
+@media (prefers-reduced-motion:reduce){.ustrip .uchip{transition:none}}
+/* when the strip is up on a phone, drop the ring of seats + arrows and keep a compact play mat */
+.app.stripon .round .seat,.app.stripon #dring,.app.stripon #dirlbl{display:none}
+.app.stripon .tlayout.withhand .tl-round .round{width:clamp(200px,34vh,100%)}
+.app.stripon{padding-top:calc(116px + env(safe-area-inset-top,0px))}
+body.hasvid .app.stripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
 /* phone */
 .status{display:flex;align-items:center;gap:12px;background:var(--panel);border-radius:18px;padding:10px 12px;margin:.5rem 0}
 .status .txt{flex:1;min-width:0}
@@ -166,6 +197,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 </head>
 <body>
 <div class="app" id="app"></div>
+<div id="ustripwrap"></div>
 <div id="vid"></div>
 <div id="ovl"></div>
 <div id="banner"></div>
@@ -173,7 +205,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.7.9 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.1 · 24 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -189,7 +221,7 @@ const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game 
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
 let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('uno-mode')||'';
-let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
+let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
 let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, holdT=null, held=false;
 const app=document.getElementById('app'), ovlEl=document.getElementById('ovl'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
@@ -229,7 +261,7 @@ function onState(st,old){
   skew=st.serverNow-Date.now();
   // the table moved everyone to another game: follow it (same code, same name)
   if(st.goto&&st.goto.to==='fk'&&st.goto.at>+(qs.get('from')||0)){ if(framed) return; const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; const toRoom=!!st.goto.lounge&&mode!=='table'; if(toRoom&&st.host) set('fk-lhost',room); location.replace('/?room='+room+'&mode='+(toRoom?'lounge':mode)+'&from='+st.goto.at+bots+(toRoom&&st.host?'&lounge=1':'')); return; }
-  if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; send({t:'join',name:nick}); }
+  if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; send({t:'join',name:nick,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(wantLayout&&st.host){ send({t:'settings',layout:wantLayout}); wantLayout=''; }
@@ -284,6 +316,74 @@ function drawRing(flip,r,k){
   const lbl=document.getElementById('dirlbl'); if(lbl) lbl.textContent=(animDir===1?'↻ clockwise':'↺ anticlockwise')+(flip&&k>1?` (reverse ${r} of ${k})`:'');
   const pa=document.getElementById('parrow'); if(pa) pa.textContent=animDir===1?'↻':'↺';
 }
+/* ---- v2.8.1 turn strip (phones): a thin top strip of players that glides to the next turn ---- */
+const USTRIP_COPIES=9, USTRIP_MID=4, UHUE=[205,0,275,150,35,320,95,250,15,180];
+let utrackEl=null, udirEl=null, uchips=[], uN=0, uCur=0, uDir=1, uPrevTurn=null, uKey='', stripShown=false;
+function ensureStrip(){
+  if(utrackEl) return;
+  const wrap=document.getElementById('ustripwrap');
+  wrap.innerHTML='<div class="ustrip" id="ustrip"><div class="utrack" id="utrack"></div><div class="udir" id="udir"></div></div>';
+  utrackEl=document.getElementById('utrack'); udirEl=document.getElementById('udir');
+}
+function uMyIndex(st){ for(let i=0;i<st.players.length;i++) if(st.players[i].id===pid) return i; return -1; }
+function uFace(p){ return p.bot?'🤖':(p.emoji||((p.name||'?').charAt(0).toUpperCase())); }
+function buildStrip(st){
+  ensureStrip(); const n=st.players.length; uN=n; utrackEl.innerHTML=''; uchips=[];
+  for(let c=0;c<USTRIP_COPIES;c++) for(let i=0;i<n;i++){ const g=c*n+i;
+    const el=document.createElement('div'); el.className='uchip'; el.dataset.g=g;
+    el.innerHTML='<div class="uava"><span class="uface"></span><span class="ucnt"></span></div><div class="unm"></div>';
+    utrackEl.appendChild(el); uchips.push({el,g,pi:i});
+  }
+  uCur=USTRIP_MID*n+st.turn; uDir=st.dir; uPrevTurn=st.turn; paintStrip(st); placeStrip(false);
+}
+function paintStrip(st){
+  const playing=st.phase==='play', meI=uMyIndex(st);
+  for(const ch of uchips){ const p=st.players[ch.pi]; if(!p) continue;
+    ch.el.querySelector('.uava').style.background = p.bot?'var(--panel)':`hsl(${UHUE[ch.pi%UHUE.length]} 55% 44%)`;
+    ch.el.querySelector('.uface').textContent = uFace(p);
+    ch.el.querySelector('.ucnt').textContent = (playing&&p.in)?p.cards:'';
+    ch.el.querySelector('.unm').textContent = (ch.pi===meI?'You':p.name);
+    ch.el.classList.toggle('one', playing&&p.in&&p.cards===1);
+    ch.el.classList.toggle('out', playing&&!p.in);
+  }
+}
+function placeStrip(animated){
+  const el=document.getElementById('ustrip'); if(!el||!uchips.length) return;
+  if(!animated) el.classList.add('noanim');
+  const w=el.clientWidth||340, step=Math.min(78,w*0.21);
+  for(const ch of uchips){ const d=ch.g-uCur, ad=Math.abs(d);
+    const scale=d===0?1.12:Math.max(.7,1-ad*.13);
+    ch.el.style.transform=`translateX(${d*step}px) scale(${scale})`;
+    ch.el.style.opacity=ad>3?0:(d===0?1:.85-ad*.14);
+    ch.el.style.zIndex=String(50-ad);
+    ch.el.classList.toggle('cur',d===0);
+  }
+  if(udirEl) udirEl.textContent=uDir===1?'▸ clockwise':'◂ anticlockwise';
+  if(!animated){ void el.offsetWidth; el.classList.remove('noanim'); }
+}
+function recenterStrip(){ if(uCur<2*uN){uCur+=uN;placeStrip(false);} else if(uCur>(USTRIP_COPIES-2)*uN){uCur-=uN;placeStrip(false);} }
+function flashStrip(g){ const c=uchips.find(x=>x.g===g); if(c){ c.el.classList.add('flash'); setTimeout(()=>c.el.classList.remove('flash'),520); } }
+function syncStrip(on){
+  if(!on||!S){ stripShown=false; const s=document.getElementById('ustrip'); if(s) s.classList.remove('on'); return; }
+  const prevShown=stripShown; ensureStrip(); stripShown=true;
+  document.getElementById('ustrip').classList.add('on');
+  const st=S, n=st.players.length;
+  const key=n+'|'+st.players.map(p=>(p.id||p.name)+':'+(p.bot?'b':'')+':'+(p.emoji||'')).join(',');
+  if(key!==uKey){ uKey=key; buildStrip(st); return; }
+  paintStrip(st); uDir=st.dir;
+  if(!prevShown||uPrevTurn===null){ uCur=USTRIP_MID*n+st.turn; uPrevTurn=st.turn; placeStrip(false); return; }
+  if(st.turn!==uPrevTurn){
+    let steps=(((st.turn-uPrevTurn)*st.dir)%n+n)%n; if(steps===0) steps=n;
+    const oldCur=uCur;
+    for(let k=1;k<steps;k++) flashStrip(oldCur+k*uDir); // anyone hopped over (skip or a sat-out seat)
+    uCur=oldCur+steps*uDir; uPrevTurn=st.turn; recenterStrip(); placeStrip(true);
+  } else { placeStrip(false); }
+}
+if(typeof matchMedia==='function'){ const mq=matchMedia('(max-width:820px)');
+  if(mq.addEventListener) mq.addEventListener('change',()=>{ if(S) render(); });
+  else if(mq.addListener) mq.addListener(()=>{ if(S) render(); }); }
+window.addEventListener('resize',()=>{ if(stripShown) placeStrip(false); });
+window.addEventListener('orientationchange',()=>{ if(S) setTimeout(render,160); });
 let bannerQ=[], bannerBusy=false;
 function banner(t,s,bc,bt,cls,sparks){ bannerQ.push({t,s,bc,bt,cls,sparks}); if(!bannerBusy) nextBanner(); }
 function nextBanner(){
@@ -397,14 +497,15 @@ const sfx={
 function render(){
   if(!room||!mode){ if(framed){ tellShell('home'); return; } location.replace('/?home=1'); return; } // the Game Night home page has the game picker
   if(!S){ app.innerHTML=`<div class="center dim" style="padding:3rem 0">Connecting to table ${esc(room)}…</div>`; return; }
-  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':''); // own-devices game: players get the wide table layout too
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
+  const stripOn=withTable&&S.phase==='play'&&S.players.length>=2&&typeof matchMedia==='function'&&matchMedia('(max-width:820px)').matches; // phones: the top turn strip replaces the ring of seats
+  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':''); // own-devices game: players get the wide table layout too
   let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your cards</div>${handMain(S)}</div>`):handHTML(S);
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
   html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
   app.innerHTML=html;
   ovlEl.innerHTML=overlay?overlayHTML(overlay):'';
-  bind(); drawRing(); tick();
+  bind(); drawRing(); tick(); syncStrip(stripOn);
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:170,height:170}); }catch(e){} }
 }
 function startHTML(){
@@ -418,7 +519,7 @@ function seatsHTML(st){
   return st.players.map((p,i)=>{ const a=(-90+360*i/n)*Math.PI/180, x=50+44*Math.cos(a), y=50+44*Math.sin(a);
     const turn=st.phase==='play'&&st.turn===i, cls=`seat ${turn?'turn':''} ${st.phase==='play'&&!p.in?'out':''} ${p.in&&p.cards===1&&st.phase==='play'?'one':''}`;
     const ct=st.phase==='play'?(p.in?(turn&&st.picking?`picking up ${st.pickTotal-st.drawStack}/${st.pickTotal}`:p.cards===1?'ONE card!':p.cards+' cards'):p.left?'left':'sitting out'):'$'+p.balance;
-    return `<div class="${cls}" style="left:${x}%;top:${y}%"><div class="nm">${esc(p.name)}${p.bot?' 🤖':''}</div><div class="ct">${ct}</div></div>`; }).join('');
+    return `<div class="${cls}" style="left:${x}%;top:${y}%"><div class="nm">${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.bot?' 🤖':''}</div><div class="ct">${ct}</div></div>`; }).join('');
 }
 function pileHTML(st){
   const pile=st.pile||[], n=pile.length;
@@ -513,7 +614,7 @@ function handMain(st){
 function statusHTML(st,i){
   const t=st.pile&&st.pile.length?st.pile[st.pile.length-1].c:null, turnP=st.players[st.turn], mine=st.turn===i;
   return `<div class="status">${t?cardHTML(t,'sm'):''}<div class="txt"><div class="big">${mine?'Your turn':esc(turnP?turnP.name:'')+'\u2019s turn'}</div><div class="small dim">Colour <b style="color:var(--${st.colour})">${CNAME[st.colour]||''}</b>${st.drawStack?` · <b style="color:var(--R)">+${st.drawStack} pending</b>`:''} · pot $${st.pot}</div></div><span class="arrow" id="parrow">${animDir===1?'↻':'↺'}</span></div>
-  <div class="small dim" style="display:flex;gap:10px;flex-wrap:wrap;margin:-2px 4px 0">${st.players.filter(p=>p.in&&p.id!==pid).map(p=>`<span style="${st.players[st.turn]===p?'color:var(--gold)':''}">${esc(p.name)} ${p.cards===1?'<b style="color:var(--R)">1!</b>':p.cards}</span>`).join('')}</div>`;
+  <div class="small dim" style="display:flex;gap:10px;flex-wrap:wrap;margin:-2px 4px 0">${st.players.filter(p=>p.in&&p.id!==pid).map(p=>`<span style="${st.players[st.turn]===p?'color:var(--gold)':''}">${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)} ${p.cards===1?'<b style="color:var(--R)">1!</b>':p.cards}</span>`).join('')}</div>`;
 }
 function overlayHTML(o){
   if(o.k==='howto'){ const st=(n,t)=>`<div class="step"><div class="n">${n}</div><div>${t}</div></div>`; return `<div class="ovl"><div class="sheet howto"><h2>How to play</h2>
@@ -555,7 +656,7 @@ function bind(){
   on('#sfx',()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); sfx.card(); render(); });
   on('#winsnd',()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); render(); });
   on('#sharelink',async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Ultium UNO, table '+room,url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } });
-  on('#join',()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); send({t:'join',name:nick}); });
+  on('#join',()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); send({t:'join',name:nick,emoji}); });
   on('#leave',()=>send({t:'leave'})); on('#start',()=>send({t:'start'})); on('#nextgame',()=>send({t:'next'}));
   on('#addbot',()=>send({t:'addbot'})); on('#removebot',()=>send({t:'removebot'})); on('#rebuy',()=>send({t:'rebuy'}));
   on('#reset',()=>{ if(confirm('Clear the table for everyone?')) send({t:'reset'}); });

@@ -111,6 +111,7 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .fan .card{position:absolute;top:50%;width:40px;height:56px;margin-top:-28px;font-size:1.55rem;box-shadow:0 2px 6px rgba(0,0,0,.45)}
 .fan .card small{font-size:1.1rem}
 .fan .card.last{outline:2px solid var(--brass);outline-offset:1px}
+.fan .whobadge{position:absolute;right:-7px;bottom:-7px;width:22px;height:22px;border-radius:50%;background:var(--felt-deep);display:grid;place-items:center;font-size:.8rem;box-shadow:0 0 0 2px var(--ivory);z-index:3;pointer-events:none} /* who played this card */
 .minirun .card.ghost{width:44px;height:60px;font-size:1.5rem}.minirun .card.ghost small{font-size:1.05rem}
 .minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
 .card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
@@ -158,7 +159,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.5 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.6 · 24 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -448,7 +449,7 @@ function kingsHTML(st){
 function scoresHTML(st){
   if(!st.players.length) return '';
   const order=st.players.map((p,i)=>({p,i})).sort((a,b)=>b.p.balance-a.p.balance); const top=order[0].p.balance;
-  const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:(st.phase==='swap'&&st.swapTurn!=null?st.swapTurn:-1);
+  const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:st.phase==='claim'?(st.waitingOn>=0?st.waitingOn:-1):(st.phase==='swap'&&st.swapTurn!=null?st.swapTurn:-1);
   return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
   <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${o.p.emoji?esc(o.p.emoji)+' ':''}${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
 }
@@ -572,7 +573,7 @@ function tableHTML(st,handPanel){
   } else if(st.phase==='play'){
     main=`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
   } else if(st.phase==='claim'){
-    main=`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">Who has the ${cs({s:st.runSuit,r:st.nextRank})}?</div><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`;
+    main=`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">${st.waitingOn>=0&&st.players[st.waitingOn]?`Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs({s:st.runSuit,r:st.nextRank})}`:`Who has the ${cs({s:st.runSuit,r:st.nextRank})}?`}</div><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`;
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
@@ -637,7 +638,8 @@ function handMain(st,embedded){
   else if(st.phase==='claim'){
     const need={s:st.runSuit,r:st.nextRank}; const have=hand.some(c=>c.s===need.s&&c.r===need.r);
     const autoNote=p.auto&&have?`<p class="center small" style="color:var(--brass)">⚡ Auto-play is playing it for you…</p>`:'';
-    main=`${miniRun(st,true,need)}${noteHTML(st,'small')}${autoNote}
+    const waitLine=(!have&&st.waitingOn>=0&&st.waitingOn!==i&&st.players[st.waitingOn])?`<p class="center small" style="color:var(--brass)">Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs(need)}</p>`:'';
+    main=`${miniRun(st,true,need)}${noteHTML(st,'small')}${autoNote}${waitLine}
       ${hints&&have&&!p.auto?`<button class="huge" id="claim">I've got the ${cs(need)}!</button><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`:`<p class="center">Got it? Tap the card in your hand. <span class="serif" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</span></p>`}
       ${handView(hand,null,{need,hint:hints})}`;
   }
@@ -646,10 +648,11 @@ function handMain(st,embedded){
   }
   return main;
 }
+function faceOf(st,i){ const p=st.players&&st.players[i]; return p?(p.bot?'🤖':(p.emoji||(p.name||'?').charAt(0).toUpperCase())):''; }
 function miniRun(st,live,need){
   if(!st.run.length) return `<div class="minirun"><span class="muted small">Table is clear</span></div>`;
   const shown=st.run.slice(-5), n=shown.length;
-  const fan=shown.map((x,k)=>{ const ang=(k%2?9:-9); const left=n>1?`calc(${k} * (100% - 40px) / ${n-1})`:'calc(50% - 20px)'; return `<div style="position:absolute;top:0;bottom:0;left:${left};transform:rotate(${ang}deg)">${cardHTML(x.c,k===n-1?'last':'')}</div>`; }).join('');
+  const fan=shown.map((x,k)=>{ const ang=(k%2?9:-9); const left=n>1?`calc(${k} * (100% - 40px) / ${n-1})`:'calc(50% - 20px)'; return `<div style="position:absolute;top:0;bottom:0;left:${left};transform:rotate(${ang}deg)">${cardHTML(x.c,k===n-1?'last':'')}${x.who!=null&&faceOf(st,x.who)?`<span class="whobadge">${faceOf(st,x.who)}</span>`:''}</div>`; }).join('');
   return `<div class="minirun"><div class="fan">${fan}<div class="lbl">last ${n} played</div></div>${need?`<div style="position:relative;flex:none">${cardHTML(need,'ghost')}<div class="lbl">wanted</div></div>`:''}</div>`;
 }
 function handView(h,leads,claim){

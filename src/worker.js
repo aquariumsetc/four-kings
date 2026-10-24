@@ -405,6 +405,8 @@ export class Table extends DurableObject {
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined, swapAns: undefined, botAt: undefined,
       swapTurn: st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : null,
+      // who the table is waiting on right now — the claim holder is hidden info the client can't compute, so the server tells it (so everyone can see who it's stuck on)
+      waitingOn: st.phase === "claim" ? holderOf(st, st.runSuit, st.nextRank) : st.phase === "play" ? st.leader : st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : -1,
       players: st.players.map((p) => ({
         id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, auto: !!p.auto, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, carried: !!p.carried,
         broke: broke(p), in: !!p.in, rebuys: p.rebuys || 0, kept: !!(st.swapAns || {})[p.id],

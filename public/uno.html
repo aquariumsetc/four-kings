@@ -110,7 +110,6 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 .ustrip .uchip.flash .uava{animation:uflash .5s ease} /* someone hopped over on a skip / sit-out */
 @keyframes uflash{30%{filter:grayscale(.6) brightness(.6)}30%,60%{box-shadow:0 0 0 3px var(--fg)}}
 .ustrip .udir{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:.72rem;color:var(--dim);z-index:5}
-@media (prefers-reduced-motion:reduce){.ustrip .uchip{transition:none}}
 /* when the strip is up on a phone, drop the ring of seats + arrows and keep a compact play mat */
 .app.stripon .round .seat,.app.stripon #dring,.app.stripon #dirlbl{display:none}
 .app.stripon .tlayout.withhand .tl-round .round{width:clamp(200px,34vh,100%)}
@@ -221,7 +220,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.2 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.3 · 24 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -237,7 +236,7 @@ const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game 
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
 let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('uno-mode')||'';
-let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0';
+let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', unoHints=get('uno-hints')!=='0';
 let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, holdT=null, held=false;
 const app=document.getElementById('app'), ovlEl=document.getElementById('ovl'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
@@ -516,7 +515,7 @@ function render(){
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':''); // own-devices game: players get the wide table layout too
   let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your cards</div>${handMain(S,true)}</div>`):handHTML(S);
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
-  html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
+  html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button>${IOS&&(sfxOn||winOn)?` <span class="dim" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${unoHints?'on':'off'}</button>`:''} · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
   app.innerHTML=html;
   ovlEl.innerHTML=overlay?overlayHTML(overlay):'';
   bind(); drawRing(); tick(); syncStrip(stripOn);
@@ -607,8 +606,8 @@ function handMain(st,embedded){
   if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.queued?`<h2 style="color:var(--fg)">You're in, ${esc(p.name)}!</h2>You'll be dealt in when the next game starts.<br>${notYou}`:p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake&&!p.queued?' Rebuy between games to get back in.':''}</div>`;
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
   const rows={}; hand.forEach(c=>{ (rows[c.c]=rows[c.c]||[]).push(c); });
-  const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${mine&&!can.has(c.id)&&!sel.length?'no':''} ${st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
-  const first=sel.length?hand.find(c=>c.id===sel[0]):null, okPlay=mine&&first&&can.has(first.id);
+  const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
+  const first=sel.length?hand.find(c=>c.id===sel[0]):null, okPlay=mine&&first&&(!unoHints||can.has(first.id));
   let acts='', deck='';
   if(mine&&st.drawStack){
     const done=st.picking?st.pickTotal-st.drawStack:0, tot=st.picking?st.pickTotal:st.drawStack;
@@ -622,7 +621,7 @@ function handMain(st,embedded){
   const hint=st.picked?'Play one of the cards you just picked up, or pass.':st.picking?'Keep tapping the deck.':st.drawStack?(can.size?`Stack a draw card, or tap the deck to pick up ${st.drawStack}.`:`Tap the deck to pick up ${st.drawStack}, one card at a time.`):st.drew?'Play a card or pass.':null;
   const called=(st.unoCalled||{})[pid], unoB=st.rules.callUno&&hand.length<=2&&(mine||st.catchable===i)?`<button class="unobtn ${called?'called':''}" id="calluno">${called?'UNO! called ✓':'Call UNO!'}</button>`:'';
   const catchB=st.catchable>=0&&st.catchable!==i&&st.players[st.catchable]?`<button class="catchbtn" id="catchuno">Catch ${esc(st.players[st.catchable].name)}! They didn't call UNO</button>`:'';
-  return `${statusHTML(st,i)}${nudge}${catchB}${deck}${handH}${unoB}${mine?`<p class="small dim center">${hint!==null?hint:(!can.size?'Nothing you can play: draw a card.':st.rules.multi?'Hold a card to play it. Tap to pick several identical cards, then Play.':'Hold a card to play it, or tap it then Play.')}</p>`:''}${acts}
+  return `${statusHTML(st,i)}${nudge}${catchB}${deck}${handH}${unoB}${mine?`<p class="small dim center">${hint!==null?hint:(unoHints&&!can.size?'Nothing you can play: draw a card.':st.rules.multi?'Hold a card to play it. Tap to pick several identical cards, then Play.':'Hold a card to play it, or tap it then Play.')}</p>`:''}${acts}
     <p class="center" style="margin-top:1.4rem"><button class="ghost small" id="quit">Leave this game</button></p>`;
 }
 function statusHTML(st,i){
@@ -669,6 +668,7 @@ function bind(){
   on('#leaveRoom',()=>{ if(framed){ tellShell('home'); return; } stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('uno-mode',''); location.href='/?home=1'; });
   on('#sfx',()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); sfx.card(); render(); });
   on('#winsnd',()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); render(); });
+  on('#hints',()=>{ unoHints=!unoHints; set('uno-hints',unoHints?'1':'0'); render(); });
   on('#sharelink',async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Ultium UNO, table '+room,url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } });
   on('#join',()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); send({t:'join',name:nick,emoji}); });
   on('#leave',()=>send({t:'leave'})); on('#start',()=>send({t:'start'})); on('#nextgame',()=>send({t:'next'}));
@@ -689,7 +689,7 @@ function bind(){
   document.querySelectorAll('[data-card]').forEach(b=>{
     // hold a card to play it (with any identical cards already picked); a quick tap selects
     const stop=()=>{ clearTimeout(holdT); b.classList.remove('holding'); };
-    b.onpointerdown=()=>{ held=false; const id=+b.dataset.card; if(!(S.canPlay||[]).includes(id)&&!sel.includes(id)) return; b.classList.add('holding');
+    b.onpointerdown=()=>{ held=false; const id=+b.dataset.card; const myTurn=S&&S.phase==='play'&&S.players[S.turn]&&S.players[S.turn].id===pid; if(!myTurn) return; if(unoHints&&!(S.canPlay||[]).includes(id)&&!sel.includes(id)) return; b.classList.add('holding');
       holdT=setTimeout(()=>{ held=true; b.classList.remove('holding'); const me=S.players.find(p=>p.id===pid), c=me.hand.find(x=>x.id===id);
         if(!(sel.includes(id)&&sel.every(x=>same(me.hand.find(y=>y.id===x),c)))) sel=[id];
         try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} tryPlay(); },450); };

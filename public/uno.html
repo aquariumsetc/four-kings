@@ -114,8 +114,8 @@ details.more summary{cursor:pointer;padding:6px 0;color:var(--dim)}
 .app.table .actions{position:static;background:none;padding:0;max-width:none}
 .nudge{color:var(--gold);text-align:center;animation:pulse 1s ease-in-out infinite alternate}@keyframes pulse{to{transform:scale(1.04)}}
 /* overlays */
-.ovl{position:fixed;inset:0;z-index:60;background:rgba(10,10,25,.72);display:flex;align-items:center;justify-content:center;padding:20px}
-.sheet{background:var(--panel);border-radius:22px;padding:1.2rem;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.ovl{position:fixed;inset:0;z-index:60;background:rgba(10,10,25,.72);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet{background:var(--panel);border-radius:22px;padding:1.2rem;max-width:420px;width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;-webkit-overflow-scrolling:touch;box-shadow:0 30px 80px rgba(0,0,0,.5)}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
 .cols button{height:80px;font-family:"Fredoka",sans-serif;font-size:1.2rem;color:#fff}
 .cols .R{background:var(--R)}.cols .Y{background:var(--Y);color:#2b2200}.cols .G{background:var(--G)}.cols .B{background:var(--B)}
@@ -171,7 +171,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.7 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.7.2 · 24 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -301,7 +301,7 @@ async function startVideo(){
   if(rtc.on||rtc.joining) return;
   rtc.joining=true; // while the camera starts, hold any connection requests that arrive (answered below)
   try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
-  catch(e){ rtc.joining=false; rtc.queue=[]; viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
+  catch(e){ rtc.joining=false; rtc.queue=[]; const nm=(e&&e.name)||''; viewMsg = (nm==='NotAllowedError'||nm==='SecurityError') ? 'Camera blocked — allow camera/mic access in your browser, then tap Join video again.' : (nm==='NotFoundError'||nm==='OverconstrainedError'||/not found/i.test((e&&e.message)||'')) ? 'No camera found on this device — you can still play without video.' : 'Camera/mic unavailable — you can still play without video.'; render(); return; }
   rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
   rtc.on=true; set('gn-video','1'); await loadIce();
   Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();

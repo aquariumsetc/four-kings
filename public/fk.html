@@ -123,8 +123,8 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .leadcall{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;line-height:1.1;text-align:center;margin:.4rem 0}
 .leadcall .col{display:inline-block;padding:.05em .35em;border-radius:8px;background:var(--ivory);color:var(--ink);text-transform:uppercase;letter-spacing:.06em}
 .leadcall .col.red{color:var(--red)}
-#howto{position:fixed;inset:0;z-index:60;background:rgba(10,20,14,.75);display:flex;align-items:center;justify-content:center;padding:20px}
-#howto .sheet{background:var(--felt-deep);border-radius:20px;padding:1.2rem;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+#howto{position:fixed;inset:0;z-index:60;background:rgba(10,20,14,.75);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#howto .sheet{background:var(--felt-deep);border-radius:20px;padding:1.2rem;max-width:420px;width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;-webkit-overflow-scrolling:touch;box-shadow:0 30px 80px rgba(0,0,0,.5)}
 #howto .step{display:flex;gap:12px;margin:10px 0}#howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brass);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center}
 #banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:50}
 #banner:empty{display:none}
@@ -158,7 +158,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.7 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.7.2 · 24 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -363,7 +363,7 @@ async function startVideo(){
   if(rtc.on||rtc.joining) return;
   rtc.joining=true; // while the camera starts, hold any connection requests that arrive (answered below)
   try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
-  catch(e){ rtc.joining=false; rtc.queue=[]; viewMsg='Camera or microphone not available: '+(e.message||e.name); render(); return; }
+  catch(e){ rtc.joining=false; rtc.queue=[]; const nm=(e&&e.name)||''; viewMsg = (nm==='NotAllowedError'||nm==='SecurityError') ? 'Camera blocked — allow camera/mic access in your browser, then tap Join video again.' : (nm==='NotFoundError'||nm==='OverconstrainedError'||/not found/i.test((e&&e.message)||'')) ? 'No camera found on this device — you can still play without video.' : 'Camera/mic unavailable — you can still play without video.'; render(); return; }
   rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
   rtc.on=true; set('gn-video','1'); await loadIce();
   Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();

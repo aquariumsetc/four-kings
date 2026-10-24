@@ -268,10 +268,11 @@ export class Table extends DurableObject {
       case "join": {
         if (!pid) break;
         const name = String(m.name || "Player").trim().slice(0, 18) || "Player";
-        if (me) { me.name = name; changed = true; break; }
+        const emoji = String(m.emoji || "").slice(0, 4);
+        if (me) { me.name = name; me.emoji = emoji; changed = true; break; }
         if (st.players.length >= 8) { err = "The table is full."; break; }
         // joining mid-game: you're seated now and dealt in at the next game
-        st.players.push({ id: pid, name, balance: START_BAL, bets: {}, placed: false, hand: [], startBal: START_BAL, auto: !!m.auto, in: false });
+        st.players.push({ id: pid, name, emoji, balance: START_BAL, bets: {}, placed: false, hand: [], startBal: START_BAL, auto: !!m.auto, in: false });
         if (st.phase === "ante") { if (st.dealAt) st.dealAt = Math.max(st.dealAt, Date.now() + JOIN_GRACE_MS); updateDealAt(st); }
         changed = true; break;
       }
@@ -405,7 +406,7 @@ export class Table extends DurableObject {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined, swapAns: undefined, botAt: undefined,
       swapTurn: st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : null,
       players: st.players.map((p) => ({
-        id: p.id, name: p.name, bot: !!p.bot, auto: !!p.auto, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, carried: !!p.carried,
+        id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, auto: !!p.auto, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, carried: !!p.carried,
         broke: broke(p), in: !!p.in, rebuys: p.rebuys || 0, kept: !!(st.swapAns || {})[p.id],
         cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined,
       })),

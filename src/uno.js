@@ -297,10 +297,11 @@ export class UnoTable extends DurableObject {
       case "join": {
         if (!pid) return;
         const name = String(m.name || "Player").trim().slice(0, 18) || "Player";
-        if (me) { me.name = name; break; }
+        const emoji = String(m.emoji || "").slice(0, 4);
+        if (me) { me.name = name; me.emoji = emoji; break; }
         if (st.players.length >= 10) { err = "The table is full."; changed = false; break; }
         // joining mid-game: you're seated now and dealt in at the next game
-        st.players.push({ id: pid, name, balance: START_BAL, hand: [], in: false, queued: st.phase === "play" }); break;
+        st.players.push({ id: pid, name, emoji, balance: START_BAL, hand: [], in: false, queued: st.phase === "play" }); break;
       }
       case "leave": if (me && (between || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.turn > i) st.turn--; } else changed = false; break;
       case "uno": if (me) err = callUno(st, i); if (err) changed = false; break;
@@ -376,7 +377,7 @@ export class UnoTable extends DurableObject {
     const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, pid: a.pid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, deck: undefined, deckCount: st.deck.length, pile: st.pile.slice(-8), wakeAt: undefined, pickedSoFar: undefined,
-      players: st.players.map((p) => ({ id: p.id, name: p.name, bot: !!p.bot, balance: p.balance, in: !!p.in, left: !!p.left, queued: !!p.queued, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
+      players: st.players.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, balance: p.balance, in: !!p.in, left: !!p.left, queued: !!p.queued, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
       you: pid, sid, peers, host: role === "table" || !!creator || (!tablePresent && st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       turnBy: st.phase === "play" && st.turnMs && !st.players[st.turn]?.bot ? st.turnAt + st.turnMs : 0,
       canPlay: role === "hand" && st.phase === "play" && st.players[st.turn]?.id === pid ? st.players[st.turn].hand.filter((c) => playable(st, c)).map((c) => c.id) : [],

@@ -153,6 +153,9 @@ body.hasvid.tbl .app{padding-top:136px}
 #stage{position:fixed;left:0;right:0;top:0;width:100%;height:100%;border:0;display:none;background:transparent}
 body.ingame #stage{display:block}
 body.ingame #app{display:none}
+#gohome{position:fixed;top:env(safe-area-inset-top,0px);left:0;z-index:30;display:none;margin:6px;padding:7px 11px;border-radius:12px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;border:1px solid rgba(255,255,255,.2);font-size:1rem;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.45);cursor:pointer}
+body.inroom #gohome{display:block}
+body.inroom.hasvid #vid{padding-left:58px}
 </style>
 </head>
 <body>
@@ -160,9 +163,10 @@ body.ingame #app{display:none}
 <div id="vid"></div>
 <iframe id="stage" allow="camera;microphone;autoplay;fullscreen" title="Game"></iframe>
 <div class="conn" id="conn"></div>
+<button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
 <script>
 (function(){
-const VERSION='v2.7.3 · 24 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.7.6 · 24 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -170,6 +174,10 @@ let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let nick=get('fk-nick');
+// Nudge people out of Messenger/WhatsApp's in-app browser (where video is flaky, names aren't remembered, and popups get clipped) into real Safari or the home-screen app.
+let iabDismissed=false;
+const inAppBrowser=/FBAN|FBAV|FB_IAB|Instagram|Messenger|WhatsApp|Line\//i.test(navigator.userAgent||'') || (/iPhone|iPad|iPod/.test(navigator.userAgent||'') && window.navigator.standalone!==true && !/Safari/.test(navigator.userAgent||''));
+function iabBanner(){ if(!inAppBrowser||iabDismissed) return ''; return `<div class="panel" id="iab" style="border:1px solid #c9a227;background:rgba(201,162,39,.14)"><div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start"><div class="small">📱 <b>Open in Safari for the best experience</b> — video works properly and it remembers your name. Tap <b>•••</b> (top-right) → <b>Open in Safari</b>, or <b>Share → Add to Home Screen</b> for an app icon.</div><button class="ghost small" id="iabx" aria-label="dismiss">✕</button></div></div>`; }
 let S=null, ws=null, reconnectIn=800, skew=0, viewMsg='';
 let curGame=null, inLobby=false, lastGotoAt=+(qs.get('from')||0), wantGame='', wantLobby=false, wantStart=null, autoTried=false;
 const app=document.getElementById('app'), connEl=document.getElementById('conn'), stage=document.getElementById('stage');
@@ -319,9 +327,10 @@ function onState(st){
   else { inLobby=false; if(!curGame) curGame=wantGame||'fk'; }
 }
 function render(){
-  if(!room){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ stage.src='about:blank'; stageGame=null; } app.innerHTML=startHTML(); bind(); renderVideo(); return; }
+  document.body.classList.toggle('inroom',!!room);
+  if(!room){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ stage.src='about:blank'; stageGame=null; } app.innerHTML=iabBanner()+startHTML(); bind(); renderVideo(); return; }
   if(!S){ document.body.classList.remove('ingame'); app.style.display=''; app.innerHTML=`<div class="wait">Joining ${esc(room)}…</div>`; renderVideo(); return; }
-  if(inLobby||!curGame){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ stage.src='about:blank'; stageGame=null; } app.innerHTML=loungeHTML(S)+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:''); bind(); renderVideo(); return; }
+  if(inLobby||!curGame){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ stage.src='about:blank'; stageGame=null; } app.innerHTML=iabBanner()+loungeHTML(S)+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:''); bind(); renderVideo(); return; }
   // a game is on: show it in the frame; the shell (and video) stay put
   const mode2=S.host?'both':'hand';
   if(stageGame!==curGame){ stage.src=gameSrc(curGame,mode2); stageGame=curGame; }
@@ -386,6 +395,7 @@ function bind(){
   if(q('#newlounge')) q('#newlounge').onclick=()=>startRoom();
   if(q('#joinroom')) q('#joinroom').onclick=()=>joinCode('fk',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
   if(q('#joinuno')) q('#joinuno').onclick=()=>joinCode('uno',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
+  if(q('#iabx')) q('#iabx').onclick=()=>{ iabDismissed=true; render(); };
   if(q('#clearsaved')) q('#clearsaved').onclick=clearSaved;
   if(q('#rejoinfk')) q('#rejoinfk').onclick=()=>rejoin('fk');
   if(q('#rejoinuno')) q('#rejoinuno').onclick=()=>rejoin('uno');
@@ -405,6 +415,7 @@ window.addEventListener('message',e=>{ const d=e&&e.data; if(!d||d.gn!=='action'
 /* ---------- test hook (read-only; lets the end-to-end check that the camera survives a game change) ---------- */
 window.__gn={stream:()=>rtc.stream,streamId:()=>rtc.stream&&rtc.stream.id,peers:()=>Object.keys(rtc.peers),on:()=>rtc.on,screen:()=>({room,curGame,inLobby,host:!!(S&&S.host)})};
 
+document.getElementById('gohome').onclick=()=>{ if(confirm('Leave this game and go back to the Game Night home page?')) goHome(); };
 /* ---------- boot ---------- */
 if(qs.get('home')) history.replaceState(null,'','/'); // the home-screen icon opens the home page once
 if(room){ wantGame = qs.get('game')==='uno'?'uno':(qs.get('mode')==='lounge'?'':'fk'); if(qs.get('room')) history.replaceState(null,'','/'); }

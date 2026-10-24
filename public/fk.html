@@ -112,6 +112,37 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .fan .card small{font-size:1.1rem}
 .fan .card.last{outline:2px solid var(--brass);outline-offset:1px}
 .fan .whobadge{position:absolute;right:-7px;bottom:-7px;width:22px;height:22px;border-radius:50%;background:var(--felt-deep);display:grid;place-items:center;font-size:.8rem;box-shadow:0 0 0 2px var(--ivory);z-index:3;pointer-events:none} /* who played this card */
+/* v2.8.7 top avatar strip (phones): the ring sits on whoever we're waiting on; it hops with the run */
+#fkstripwrap .fkstrip{position:fixed;left:0;right:0;top:0;z-index:8;padding:12px 6px 8px;padding-top:calc(12px + env(safe-area-inset-top,0px));
+  background:linear-gradient(180deg,rgba(15,43,29,.95),rgba(15,43,29,.72) 72%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line);overflow:visible;clip-path:inset(-60px 0 0 0);display:none}
+#fkstripwrap .fkstrip.on{display:block}
+body.hasvid #fkstripwrap .fkstrip{top:calc(124px + env(safe-area-inset-top,0px))}
+.fkstrip .fkrow{display:flex;justify-content:center;align-items:flex-start;gap:4px;max-width:560px;margin:0 auto}
+.fkstrip .fkchip{flex:1;max-width:76px;text-align:center;transition:transform .4s cubic-bezier(.3,.7,.25,1)}
+.fkstrip .fkchip.cur{transform:scale(1.06)}
+.fkstrip .fkava{width:48px;height:48px;border-radius:50%;margin:0 auto;display:grid;place-items:center;position:relative;font-weight:700;font-size:1.25rem;color:#fff;background:var(--felt-deep);box-shadow:0 0 0 2px var(--line);transition:box-shadow .3s,background .3s}
+.fkstrip .fknm{font-weight:600;font-size:.72rem;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(251,247,236,.72)}
+.fkstrip .fkbal{font-size:.68rem;color:rgba(251,247,236,.6)}
+.fkstrip .fkchip.cur .fkava{background:var(--brass);color:#2b2200;box-shadow:0 0 22px rgba(201,162,39,.6)}
+.fkstrip .fkchip.cur .fkava::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--brass);pointer-events:none;box-shadow:0 0 14px 2px rgba(201,162,39,.9),0 0 30px 7px rgba(201,162,39,.5)}
+.fkstrip .fkchip.cur .fknm{color:var(--brass)}
+.fkstrip .fkchip.owe .fkava{box-shadow:0 0 0 3px var(--brass);animation:fkowe 1.1s ease-in-out infinite}
+@keyframes fkowe{50%{box-shadow:0 0 0 3px var(--brass),0 0 20px rgba(201,162,39,.6)}}
+.fkstrip .fkchip.out{opacity:.4}
+.fkstrip .fkchip.just .fkava{animation:fkpop .5s ease}
+@keyframes fkpop{30%{transform:scale(1.14)}}
+@media (prefers-reduced-motion:reduce){.fkstrip .fkchip{transition:none}.fkstrip .fkchip.owe .fkava,.fkstrip .fkchip.just .fkava{animation:none}}
+/* fit: reserve space for the fixed strip and drop the now-duplicate standings on phones */
+.app.fkstripon{padding-top:calc(104px + env(safe-area-inset-top,0px))}
+body.hasvid .app.fkstripon{padding-top:calc(224px + env(safe-area-inset-top,0px))}
+.app.fkstripon .scores{display:none}
+@media (orientation:landscape) and (max-height:560px){
+  #fkstripwrap .fkstrip{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-bottom:4px}
+  .fkstrip .fkava{width:40px;height:40px;font-size:1.05rem}
+  .fkstrip .fknm,.fkstrip .fkbal{font-size:.64rem}
+  .app.fkstripon{padding-top:calc(84px + env(safe-area-inset-top,0px))}
+}
 .minirun .card.ghost{width:44px;height:60px;font-size:1.5rem}.minirun .card.ghost small{font-size:1.05rem}
 .minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
 .card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
@@ -153,13 +184,14 @@ body.hasvid.tbl .app{padding-top:136px}
 </head>
 <body>
 <div class="app" id="app"></div>
+<div id="fkstripwrap"></div>
 <div id="vid"></div>
 <div id="banner"></div>
 <div class="conn" id="conn"></div>
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.6 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.7 · 24 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -482,15 +514,49 @@ function render(){
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); document.getElementById('banner').innerHTML=''; bind(); renderVideo(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
-  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':''); // own-devices game: players get the wide table layout too
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
+  const fkStripOn=withTable&&typeof matchMedia==='function'&&(matchMedia('(max-width:760px)').matches||matchMedia('(max-height:560px) and (orientation:landscape)').matches)&&['ante','swap','play','claim'].includes(S.phase); // phones in a live game: top avatar strip, ring on who we're waiting on
+  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(fkStripOn?' fkstripon':''); // own-devices game: players get the wide table layout too
   app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();
   if(S.phase==='claim') tickCount();
   if(S.phase==='ante'&&S.dealAt) tickDeal();
+  syncFkStrip(fkStripOn);
 }
+/* ---- v2.8.7 top avatar strip (phones): ring on who we're waiting on; hops with the run ---- */
+const FKHUE=[205,0,275,150,35,320,95,250,15,180];
+let fkRow=null, fkchips=[], fkKey='', fkShown=false, fkPrevRun=-1;
+function ensureFkStrip(){ if(fkRow) return; const w=document.getElementById('fkstripwrap'); w.innerHTML='<div class="fkstrip" id="fkstrip"><div class="fkrow" id="fkrow"></div></div>'; fkRow=document.getElementById('fkrow'); }
+function buildFkStrip(st){ ensureFkStrip(); fkRow.innerHTML=''; fkchips=st.players.map((p,k)=>{ const el=document.createElement('div'); el.className='fkchip'; el.innerHTML='<div class="fkava"></div><div class="fknm"></div><div class="fkbal"></div>'; fkRow.appendChild(el); return {el,k}; }); }
+function paintFkStrip(st){
+  st.players.forEach((p,k)=>{ const ch=fkchips[k]; if(!ch) return;
+    const ava=ch.el.querySelector('.fkava'), nm=ch.el.querySelector('.fknm'), bal=ch.el.querySelector('.fkbal');
+    ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`;
+    ava.textContent = p.bot?'🤖':(p.emoji||(p.name||'?').charAt(0).toUpperCase());
+    nm.textContent = (p.id===pid&&mode!=='table')?'You':p.name;
+    bal.textContent = '$'+p.balance;
+    const cur = st.phase!=='ante' && st.waitingOn>=0 && st.waitingOn===k;
+    const owe = st.phase==='ante' ? (!p.placed&&!p.broke) : (st.phase==='swap'&&st.swapTurn==null&&p.in&&!p.kept);
+    const out = st.phase==='ante' ? !!p.broke : !p.in;
+    ch.el.classList.toggle('cur', cur);
+    ch.el.classList.toggle('owe', owe&&!cur);
+    ch.el.classList.toggle('out', out&&!cur);
+  });
+}
+function syncFkStrip(on){
+  if(!on||!S){ fkShown=false; const s=document.getElementById('fkstrip'); if(s) s.classList.remove('on'); return; }
+  ensureFkStrip(); document.getElementById('fkstrip').classList.add('on');
+  const st=S, key=st.players.length+'|'+st.players.map(p=>(p.id||p.name)+':'+(p.bot?'b':'')+':'+(p.emoji||'')).join(',');
+  if(key!==fkKey){ fkKey=key; buildFkStrip(st); }
+  paintFkStrip(st);
+  const rl=st.run?st.run.length:0;
+  if(fkShown&&rl>fkPrevRun&&rl>0){ const w=st.run[rl-1].who, ch=fkchips[w]; if(ch){ ch.el.classList.remove('just'); void ch.el.offsetWidth; ch.el.classList.add('just'); setTimeout(()=>ch.el&&ch.el.classList.remove('just'),540); } }
+  fkPrevRun=rl; fkShown=true;
+}
+if(typeof matchMedia==='function'){ ['(max-width:760px)','(max-height:560px) and (orientation:landscape)'].forEach(q=>{ const mq=matchMedia(q); const h=()=>{ if(S) render(); }; if(mq.addEventListener) mq.addEventListener('change',h); else if(mq.addListener) mq.addListener(h); }); }
+window.addEventListener('orientationchange',()=>{ if(S) setTimeout(render,160); });
 function tickDeal(){ const el=document.getElementById('dealin'); if(!el||!S||S.phase!=='ante'||!S.dealAt) return; const left=Math.max(0,Math.ceil((dealSeen-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickDeal,250); }
 function tickAll(){
   const now=Date.now(); const sh=document.getElementById('sndhint'); if(sh) sh.hidden=!soundBlocked();

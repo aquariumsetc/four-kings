@@ -150,10 +150,8 @@ body.hasvid .app{padding-top:128px}
 body.hasvid.tbl .app{padding-top:136px}
 
 /* --- Game Night shell: the game runs in a frame beneath the video bar; the shell (and its video mesh) never reloads --- */
-#stage{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);bottom:0;width:100%;height:auto;border:0;display:none;background:transparent}
+#stage{position:fixed;left:0;right:0;top:0;width:100%;height:100%;border:0;display:none;background:transparent}
 body.ingame #stage{display:block}
-body.ingame.hasvid #stage{top:128px}
-body.ingame.hasvid.tbl #stage{top:136px}
 body.ingame #app{display:none}
 </style>
 </head>
@@ -164,7 +162,7 @@ body.ingame #app{display:none}
 <div class="conn" id="conn"></div>
 <script>
 (function(){
-const VERSION='v2.7 · 24 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.7.1 · 24 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -274,7 +272,22 @@ function renderVideo(){
     const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic;
   } else if(ctl) ctl.remove();
   document.body.classList.toggle('hasvid',vidEl.children.length>0);
+  layoutForVideo();
 }
+// Size the game frame to the space left under the video bar (its height varies by device,
+// orientation and notch), and pad the lobby/home the same way. Fixes the collapsed-frame bug.
+function layoutForVideo(){
+  const barBottom = (vidEl && vidEl.children.length) ? Math.ceil(vidEl.getBoundingClientRect().bottom) : 0;
+  if(document.body.classList.contains('ingame')){
+    stage.style.top = barBottom + 'px';
+    stage.style.height = (barBottom ? 'calc(100% - ' + barBottom + 'px)' : '100%');
+    app.style.paddingTop = '';
+  } else {
+    stage.style.top = ''; stage.style.height = '';
+    app.style.paddingTop = barBottom ? barBottom + 'px' : '';
+  }
+}
+['resize','orientationchange'].forEach(ev=>window.addEventListener(ev,layoutForVideo));
 
 /* ---------- connection: one socket to the room (Table DO) for the whole night — presence + video ---------- */
 function connect(){

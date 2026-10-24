@@ -116,6 +116,22 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 .app.stripon .tlayout.withhand .tl-round .round{width:clamp(200px,34vh,100%)}
 .app.stripon{padding-top:calc(116px + env(safe-area-inset-top,0px))}
 body.hasvid .app.stripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
+.app.stripon .oppstrip{display:none} /* the top strip already shows every player + their count */
+.app.stripon .tlayout.withhand{gap:8px}
+/* portrait phones: a smaller felt so your hand is on-screen without scrolling */
+@media (max-width:820px){ .app.stripon .tlayout.withhand .tl-round .round{width:clamp(150px,24vh,100%)} }
+/* landscape phones (short height): compact strip, felt beside the hand, no vertical scroll */
+@media (orientation:landscape) and (max-height:560px){
+  .app.stripon .ustrip{height:84px}
+  .app.stripon .ustrip .utrack{top:calc(6px + env(safe-area-inset-top,0px));height:72px}
+  .app.stripon .ustrip .uava{width:44px;height:44px;font-size:1.1rem}
+  .app.stripon .ustrip .unm{font-size:.68rem;margin-top:2px}
+  .app.stripon{padding-top:calc(92px + env(safe-area-inset-top,0px))}
+  .app.stripon .tlayout.withhand{grid-template-columns:minmax(140px,36%) 1fr;grid-template-areas:"round hand";gap:10px;align-items:start}
+  .app.stripon .tlayout.withhand .tl-side{display:none} /* host Finish/settings: rotate to portrait */
+  .app.stripon .tlayout.withhand .tl-round .round{width:clamp(120px,40vh,100%)}
+  .app.stripon .tlayout.withhand .tl-hand{max-height:calc(100dvh - 96px);overflow-y:auto}
+}
 /* phone */
 .status{display:flex;align-items:center;gap:12px;background:var(--panel);border-radius:18px;padding:10px 12px;margin:.5rem 0}
 .status .txt{flex:1;min-width:0}
@@ -205,7 +221,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.1 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.2 · 24 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -379,9 +395,7 @@ function syncStrip(on){
     uCur=oldCur+steps*uDir; uPrevTurn=st.turn; recenterStrip(); placeStrip(true);
   } else { placeStrip(false); }
 }
-if(typeof matchMedia==='function'){ const mq=matchMedia('(max-width:820px)');
-  if(mq.addEventListener) mq.addEventListener('change',()=>{ if(S) render(); });
-  else if(mq.addListener) mq.addListener(()=>{ if(S) render(); }); }
+if(typeof matchMedia==='function'){ ['(max-width:820px)','(max-height:560px) and (orientation:landscape)'].forEach(q=>{ const mq=matchMedia(q); const h=()=>{ if(S) render(); }; if(mq.addEventListener) mq.addEventListener('change',h); else if(mq.addListener) mq.addListener(h); }); }
 window.addEventListener('resize',()=>{ if(stripShown) placeStrip(false); });
 window.addEventListener('orientationchange',()=>{ if(S) setTimeout(render,160); });
 let bannerQ=[], bannerBusy=false;
@@ -498,9 +512,9 @@ function render(){
   if(!room||!mode){ if(framed){ tellShell('home'); return; } location.replace('/?home=1'); return; } // the Game Night home page has the game picker
   if(!S){ app.innerHTML=`<div class="center dim" style="padding:3rem 0">Connecting to table ${esc(room)}…</div>`; return; }
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
-  const stripOn=withTable&&S.phase==='play'&&S.players.length>=2&&typeof matchMedia==='function'&&matchMedia('(max-width:820px)').matches; // phones: the top turn strip replaces the ring of seats
+  const stripOn=withTable&&S.phase==='play'&&S.players.length>=2&&typeof matchMedia==='function'&&(matchMedia('(max-width:820px)').matches||matchMedia('(max-height:560px) and (orientation:landscape)').matches); // phones, portrait or landscape: the top strip replaces the ring of seats
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':''); // own-devices game: players get the wide table layout too
-  let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your cards</div>${handMain(S)}</div>`):handHTML(S);
+  let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your cards</div>${handMain(S,true)}</div>`):handHTML(S);
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
   html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">effects ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">wins ${winOn?'on':'off'}</button> · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
   app.innerHTML=html;
@@ -579,16 +593,16 @@ function settingsHTML(st){
   <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to 4 Kings</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the Game Night room</button>`:''}</span></div></div>`;
 }
 function handHTML(st){ return handMain(st)+(st.phase!=='play'?scoresHTML(st):''); }
-function handMain(st){
+function handMain(st,embedded){
   const i=pidx(st,pid), p=i>=0?st.players[i]:null;
   if(!p){
     if(nick&&!autoTried) return `<div class="center dim" style="padding:2rem 0">Joining as ${esc(nick)}…</div>`;
     return `<h2 style="margin-top:1rem">Join table ${esc(room)}</h2><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18" style="margin-top:8px"><button class="big" id="join">Join game</button>${st.players.length?`<p class="small dim">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
   }
   const notYou=`<button class="ghost small" id="notyou">Not ${esc(p.name)}?</button>`;
-  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2>${notYou}<p class="dim">Stake is $${st.stake}. Waiting for the table to deal.</p>${st.host?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> <button class="ghost" id="addbot">Add a bot</button> `:''}<button class="ghost" id="leave">Leave the table</button>${st.host?settingsHTML(st):''}</div>`;
+  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2>${notYou}<p class="dim">Stake is $${st.stake}. Waiting for the table to deal.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> <button class="ghost" id="addbot">Add a bot</button> `:''}<button class="ghost" id="leave">Leave the table</button>${st.host&&!embedded?settingsHTML(st):''}</div>`;
   if(st.phase==='over'){ const w=st.winner, won=w&&w.idx.includes(i);
-    return `<div class="center" style="padding:1.2rem 0"><h2>${won?'You win!':w?w.idx.map(k=>esc(st.players[k].name)).join(' & ')+' won':'Game over'}</h2>${w?`<p class="dim">$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}${p.balance<st.stake?`<button class="ghost" id="rebuy">Out of money: rebuy $1000</button>`:''}${mode==='both'?'':nextHTML(st)}</div>`; }
+    return `<div class="center" style="padding:1.2rem 0"><h2>${won?'You win!':w?w.idx.map(k=>esc(st.players[k].name)).join(' & ')+' won':'Game over'}</h2>${w?`<p class="dim">$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}${p.balance<st.stake?`<button class="ghost" id="rebuy">Out of money: rebuy $1000</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st)}</div>`; }
   // play
   if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.queued?`<h2 style="color:var(--fg)">You're in, ${esc(p.name)}!</h2>You'll be dealt in when the next game starts.<br>${notYou}`:p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake&&!p.queued?' Rebuy between games to get back in.':''}</div>`;
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
@@ -614,7 +628,7 @@ function handMain(st){
 function statusHTML(st,i){
   const t=st.pile&&st.pile.length?st.pile[st.pile.length-1].c:null, turnP=st.players[st.turn], mine=st.turn===i;
   return `<div class="status">${t?cardHTML(t,'sm'):''}<div class="txt"><div class="big">${mine?'Your turn':esc(turnP?turnP.name:'')+'\u2019s turn'}</div><div class="small dim">Colour <b style="color:var(--${st.colour})">${CNAME[st.colour]||''}</b>${st.drawStack?` · <b style="color:var(--R)">+${st.drawStack} pending</b>`:''} · pot $${st.pot}</div></div><span class="arrow" id="parrow">${animDir===1?'↻':'↺'}</span></div>
-  <div class="small dim" style="display:flex;gap:10px;flex-wrap:wrap;margin:-2px 4px 0">${st.players.filter(p=>p.in&&p.id!==pid).map(p=>`<span style="${st.players[st.turn]===p?'color:var(--gold)':''}">${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)} ${p.cards===1?'<b style="color:var(--R)">1!</b>':p.cards}</span>`).join('')}</div>`;
+  <div class="oppstrip small dim" style="display:flex;gap:10px;flex-wrap:wrap;margin:-2px 4px 0">${st.players.filter(p=>p.in&&p.id!==pid).map(p=>`<span style="${st.players[st.turn]===p?'color:var(--gold)':''}">${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)} ${p.cards===1?'<b style="color:var(--R)">1!</b>':p.cards}</span>`).join('')}</div>`;
 }
 function overlayHTML(o){
   if(o.k==='howto'){ const st=(n,t)=>`<div class="step"><div class="n">${n}</div><div>${t}</div></div>`; return `<div class="ovl"><div class="sheet howto"><h2>How to play</h2>

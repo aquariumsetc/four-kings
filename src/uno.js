@@ -284,7 +284,7 @@ export class UnoTable extends DurableObject {
     // video signalling: relayed between sockets, never touches game state
     if (m.t === "video") { att.video = !!m.on; ws.serializeAttachment(att); this.broadcast(); return; }
     if (m.t === "rtc") {
-      for (const other of this.ctx.getWebSockets()) { const o = other.deserializeAttachment() || {}; if (o.sid === m.to) { try { other.send(JSON.stringify({ t: "rtc", from: att.sid, data: m.data })); } catch {} } }
+      for (const other of this.ctx.getWebSockets()) { const o = other.deserializeAttachment() || {}; if (o.pid && o.pid === m.to && other !== ws) { try { other.send(JSON.stringify({ t: "rtc", from: att.pid, data: m.data })); } catch {} } }
       return;
     }
     const st = this.S, i = pidx(st, pid), me = i >= 0 ? st.players[i] : null;
@@ -373,7 +373,7 @@ export class UnoTable extends DurableObject {
   }
   send(ws) {
     const { pid, role, sid, creator } = ws.deserializeAttachment() || {}, st = this.S; const tablePresent = this.tablePresent();
-    const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
+    const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, pid: a.pid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, deck: undefined, deckCount: st.deck.length, pile: st.pile.slice(-8), wakeAt: undefined, pickedSoFar: undefined,
       players: st.players.map((p) => ({ id: p.id, name: p.name, bot: !!p.bot, balance: p.balance, in: !!p.in, left: !!p.left, queued: !!p.queued, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),

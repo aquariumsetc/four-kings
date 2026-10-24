@@ -254,7 +254,7 @@ export class Table extends DurableObject {
     if (m.t === "rtc") {
       for (const other of this.ctx.getWebSockets()) {
         const o = other.deserializeAttachment() || {};
-        if (o.sid === m.to) { try { other.send(JSON.stringify({ t: "rtc", from: att.sid, data: m.data })); } catch {} }
+        if (o.pid && o.pid === m.to && other !== ws) { try { other.send(JSON.stringify({ t: "rtc", from: att.pid, data: m.data })); } catch {} }
       }
       return;
     }
@@ -276,7 +276,10 @@ export class Table extends DurableObject {
         changed = true; break;
       }
       case "leave": if (me && (between || st.phase === "ante" || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.leader > i) st.leader--; st.run.forEach((x) => { if (x.who > i) x.who--; }); changed = true; } break;
-      case "switchgame": if (isHost && between && m.to === "uno") { st.goto = { to: "uno", at: Date.now(), bots: st.players.filter((p) => p.bot).length, layout: st.layout || "table" }; st.lounge = false; toLobby(st); changed = true; } break;
+      case "switchgame":
+        if (isHost && between && m.to === "uno") { st.goto = { to: "uno", at: Date.now(), bots: st.players.filter((p) => p.bot).length, layout: st.layout || "table" }; st.lounge = false; toLobby(st); changed = true; }
+        else if (isHost && between && m.to === "fk") { toLobby(st); st.lounge = false; st.goto = { to: "fk", at: Date.now(), bots: st.players.filter((p) => p.bot).length, layout: st.layout || "phones" }; changed = true; } // leave the room straight into 4 Kings (the shell follows goto → 4 Kings frame)
+        break;
       // Game Night room: the host brings everyone back to the video lounge between games (balances and the scoreboard are kept, bots are let go)
       case "toroom": if (isHost && between) { toLobby(st); st.players = st.players.filter((p) => !p.bot); st.first = 0; st.lounge = true; st.layout = "phones"; delete st.goto; changed = true; } break;
       case "addbot": {
@@ -397,7 +400,7 @@ export class Table extends DurableObject {
   send(ws) {
     const { pid, role, sid, creator } = ws.deserializeAttachment() || {};
     const st = this.S, d = deadlines(st); const tablePresent = this.tablePresent();
-    const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
+    const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, pid: a.pid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined, swapAns: undefined, botAt: undefined,
       swapTurn: st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : null,

@@ -254,7 +254,7 @@ export class Table extends DurableObject {
     if (m.t === "rtc") {
       for (const other of this.ctx.getWebSockets()) {
         const o = other.deserializeAttachment() || {};
-        if (o.pid && o.pid === m.to && other !== ws) { try { other.send(JSON.stringify({ t: "rtc", from: att.pid, data: m.data })); } catch {} }
+        if (other !== ws && ((o.sid && o.sid === m.to) || (o.pid && o.pid === m.to))) { const from = o.sid === m.to ? att.sid : att.pid; try { other.send(JSON.stringify({ t: "rtc", from, data: m.data })); } catch {} }
       }
       return;
     }

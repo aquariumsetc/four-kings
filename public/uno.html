@@ -130,6 +130,8 @@ body.hasvid .app.stripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
 body.hasvid.tbl .ustrip{top:calc(136px + env(safe-area-inset-top,0px))} /* iPad table video bar is a touch taller */
 body.hasvid.tbl .app.stripon{padding-top:calc(248px + env(safe-area-inset-top,0px))}
 .app.stripon .oppstrip{display:none} /* the top strip already shows every player + their count */
+.app.stripon .status .card,.app.stripon .status .big,.app.stripon .status .arrow{display:none} /* carousel shows whose turn + direction, discard shows the card — keep only the colour · pot line */
+.app.stripon .status{padding:3px 10px;min-height:0}
 .app.stripon .tlayout.withhand{gap:8px}
 /* portrait phones: a slightly smaller mat + smaller hand cards + tighter spacing so the deck and your whole hand are on-screen without scrolling */
 @media (max-width:820px){
@@ -252,7 +254,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.17 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.18 · 24 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};

@@ -160,17 +160,23 @@ body.inroom.hasvid #vid{padding-left:58px}
 .emojirow{display:flex;flex-wrap:wrap;gap:7px}
 .emo{width:42px;height:42px;border:0;border-radius:12px;background:rgba(255,255,255,.08);font-size:1.3rem;line-height:1;cursor:pointer;display:grid;place-items:center;color:#fff;font-weight:600}
 .emo.on{background:rgba(255,255,255,.18);box-shadow:0 0 0 2px #ffd166}
+/* v2.8.20 room polish */
+.games .game{display:flex;flex-direction:column}
+.games .game button.big:first-of-type{margin-top:auto}
+.irow{display:flex;gap:8px}.irow>*{flex:1}.irow input{min-width:0}
+#qr{display:inline-block;background:#fbf7ec;padding:8px;border-radius:10px;line-height:0}
 </style>
 </head>
 <body>
 <div class="app" id="app"></div>
 <div id="vid"></div>
 <iframe id="stage" allow="camera;microphone;autoplay;fullscreen" title="Game"></iframe>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <div class="conn" id="conn"></div>
 <button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
 <script>
 (function(){
-const VERSION='v2.8.19 · 25 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.20 · 25 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -355,7 +361,10 @@ function loungeHTML(st){
   ${me?'':`<div class="panel"><h3>Your name</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><button class="big" id="join">Join the room</button></div>`}
   <div class="panel"><div class="small muted" style="margin-bottom:8px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div></div>
   <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}
-    <button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px;width:100%">🔗 Invite people</button><div class="small muted center" style="margin-top:4px">Send the link; it opens straight into this room.</div></div>
+    <div class="irow" style="margin-top:10px"><button class="ghost" id="sharelink" data-link="${esc(link)}">🔗 Share link</button><button class="ghost" id="showqr">▦ Show QR</button></div>
+    <div id="qrbox" hidden style="text-align:center;margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="margin-top:6px">Scan to join — opens straight into this room.</div></div>
+    <button class="ghost small" id="entercode" style="width:100%;margin-top:8px;opacity:.78">Joining a different room? Enter a code</button>
+    <div id="codebox" hidden style="margin-top:8px"><div class="irow"><input id="joincode" placeholder="CODE" maxlength="6" style="text-transform:uppercase;letter-spacing:.2em;text-align:center"><button id="gocode" style="flex:0 0 auto">Join</button></div></div></div>
   ${host?`<div class="games">
     <div class="game fk"><h2>4 Kings</h2><p class="small">Bet on the kings, play the cards in order, grab the queens.</p><button class="big" id="lgofk">Play 4 Kings</button></div>
     <div class="game uno"><h2>Ultium UNO</h2><p class="small">Match colours and numbers, stack the draws, flip the direction.</p><button class="big" id="lgouno">Play Ultium UNO</button></div>
@@ -420,7 +429,10 @@ function bind(){
   if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); };
   q('#emojirow') && q('#emojirow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); if(S&&S.players&&S.players.some(p=>p.id===pid)&&nick) sendMsg({t:'join',name:nick,emoji}); render(); });
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>goHome();
-  if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Invite people');
+  if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Share link');
+  if(q('#showqr')) q('#showqr').onclick=()=>{ const box=q('#qrbox'); if(!box) return; box.hidden=!box.hidden; const qr=q('#qr'); if(!box.hidden&&qr&&window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} } };
+  if(q('#entercode')) q('#entercode').onclick=()=>{ const b=q('#codebox'); if(b) b.hidden=!b.hidden; };
+  if(q('#gocode')) q('#gocode').onclick=()=>{ const c=(q('#joincode').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6); if(c) location.href='/?room='+c+'&mode=lounge'; };
 }
 
 /* ---------- a game frame asks the shell to move the whole party ---------- */

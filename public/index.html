@@ -167,6 +167,15 @@ body.inroom.hasvid #vid{padding-left:58px}
 #qr{display:inline-block;background:#fbf7ec;padding:8px;border-radius:10px;line-height:0}
 #updbar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#c9a227;color:#1b1a17;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.45)}
 #updbar button{background:#1b1a17;color:#fbf7ec;border:0;border-radius:10px;padding:8px 16px;font-weight:600;cursor:pointer}
+/* v2.8.23 room tile grid (video when on, avatar when off) */
+body.inroom:not(.ingame) #vid{flex-wrap:wrap;justify-content:center;align-content:flex-start;overflow:visible;gap:8px;padding:12px 10px;max-width:600px;margin:0 auto;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+body.inroom:not(.ingame).hasvid #vid{padding-left:10px}
+body.inroom:not(.ingame) .tile{width:92px;height:92px}
+body.inroom:not(.ingame) #vid .vctl{flex-basis:100%;justify-content:center;margin-top:2px}
+body.inroom:not(.ingame) #gohome{display:none}
+.tile .ava{width:100%;height:100%;display:grid;place-items:center;font-size:2rem;background:#1c3b52}
+.tile.me .ava{background:#1f4a34}
+.tile .tgear{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);border:0;color:#fff;font-size:.72rem;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;z-index:2}
 </style>
 </head>
 <body>
@@ -176,9 +185,10 @@ body.inroom.hasvid #vid{padding-left:58px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <div class="conn" id="conn"></div>
 <button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
+<input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.22 · 25 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.24 · 25 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -187,6 +197,7 @@ const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let nick=get('fk-nick');
 let emoji=get('fk-emoji')||'';
+let myPhoto=get('fk-photo')||''; const photos={}; if(myPhoto) photos[pid]=myPhoto;
 const EMOJIS=['🦊','🐯','🐼','🦄','🦁','🐸','🐵','🦉','🐙','🐨','👑','🚀','⚽','🎸','🌈','😎'];
 // Nudge people out of Messenger/WhatsApp's in-app browser (where video is flaky, names aren't remembered, and popups get clipped) into real Safari or the home-screen app.
 let iabDismissed=false;
@@ -280,14 +291,26 @@ async function onRtc(from,data){
 }
 function renderVideo(){
   const tiles=[]; document.body.classList.toggle('tbl',isTbl());
+  const inRoom=!!(room&&S&&S.lounge)&&!document.body.classList.contains('ingame'); // only the room shows avatar tiles for everyone; in-game stays video-only
   if(rtc.on) tiles.push({key:'me',stream:rtc.stream,name:'You',me:true});
   const pl=peerList();
   for(const id in rtc.peers){ const peer=pl.find(x=>x.pid===id); if(peer&&peer.video&&rtc.peers[id].stream) tiles.push({key:id,stream:rtc.peers[id].stream,name:peer.name}); }
+  if(inRoom){ const shown=new Set(tiles.map(t=>t.key));
+    if(!shown.has('me')){ tiles.push({key:'me',name:'You',me:true,avatar:emoji||'🙂',photoId:pid}); shown.add('me'); }
+    for(const p of S.players){ if(p.bot||p.id===pid||shown.has(p.id)) continue; tiles.push({key:p.id,name:p.name,avatar:p.emoji||'🙂',photoId:p.id}); shown.add(p.id); } }
   const keep=new Set(tiles.map(t=>t.key));
   [...vidEl.querySelectorAll('.tile')].forEach(el=>{ if(!keep.has(el.dataset.key)) el.remove(); });
-  tiles.forEach(t=>{ let el=vidEl.querySelector(`.tile[data-key="${t.key}"]`);
-    if(!el){ el=document.createElement('div'); el.className='tile'+(t.me?' me':''); el.dataset.key=t.key; const v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.setAttribute('playsinline',''); v.muted=!!t.me; el.appendChild(v); const n=document.createElement('div'); n.className='nm'; el.appendChild(n); vidEl.insertBefore(el,vidEl.querySelector('.vctl')); }
-    const v=el.querySelector('video'); if(v.srcObject!==t.stream){ v.srcObject=t.stream; v.play().catch(()=>{}); } el.querySelector('.nm').textContent=t.name; });
+  tiles.forEach(t=>{ const kind=t.stream?'video':'avatar'; let el=vidEl.querySelector(`.tile[data-key="${t.key}"]`);
+    if(el&&el.dataset.kind!==kind){ el.remove(); el=null; }
+    if(!el){ el=document.createElement('div'); el.className='tile'+(t.me?' me':''); el.dataset.key=t.key; el.dataset.kind=kind;
+      if(kind==='video'){ const v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.setAttribute('playsinline',''); v.muted=!!t.me; el.appendChild(v); }
+      else { const a=document.createElement('div'); a.className='ava'; el.appendChild(a); }
+      const n=document.createElement('div'); n.className='nm'; el.appendChild(n);
+      if(t.me){ const g=document.createElement('button'); g.type='button'; g.className='tgear'; g.textContent='⚙️'; g.title='Edit your name or emoji'; g.setAttribute('aria-label','Edit your name or emoji'); g.onclick=(e)=>{ e.stopPropagation(); meOpen=true; render(); const m=document.getElementById('meedit'); if(m){ m.hidden=false; m.scrollIntoView({block:'nearest'}); } }; el.appendChild(g); }
+      vidEl.insertBefore(el,vidEl.querySelector('.vctl')); }
+    if(kind==='video'){ const v=el.querySelector('video'); if(v.srcObject!==t.stream){ v.srcObject=t.stream; v.play().catch(()=>{}); } }
+    else { const ava=el.querySelector('.ava'); const ph=t.photoId&&photos[t.photoId]; if(ph){ ava.textContent=''; ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundSize='cover'; ava.style.backgroundPosition='center'; } else { ava.style.backgroundImage=''; ava.textContent=t.avatar||'🙂'; } }
+    el.querySelector('.nm').textContent=t.name; });
   let ctl=vidEl.querySelector('.vctl');
   const showCtl=room&&S;
   if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
@@ -326,6 +349,7 @@ function connect(){
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
+    if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; renderVideo(); return; }
     if(m.t==='state'){ S=m.s; onState(S); render(); syncPeers(); } };
   ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
   ws.onerror=()=>{ try{ws.close();}catch(e){} };
@@ -334,7 +358,7 @@ function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function onState(st){
   skew=st.serverNow-Date.now();
   // appear in the room's people list once we're in a lounge and have a remembered name
-  if(st.lounge&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,emoji}); }
+  if(st.lounge&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); }
   // host chores: bring the room up, or kick off a game picked from the home page
   if(wantLobby){ if(st.lounge) wantLobby=false; else if(st.host) sendMsg({t:'toroom'}); }
   if(wantStart&&st.host){ wantStart.forEach(m=>sendMsg(m)); wantStart=null; }
@@ -359,12 +383,12 @@ function loungeHTML(st){
   const link=location.origin+'/?room='+room+'&mode=lounge';
   const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
   return `<div class="home">
-  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted">Room <b>${esc(room)}</b>. Tap <b>Join video</b> at the top to see and hear everyone, chat about what to play, then the host picks a game and everyone moves into it together.</p></div></div>
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted small">Everyone here is shown above. Tap <b>Join video</b> to turn your camera on; the host picks a game when you're ready.</p></div></div>
   ${me
-    ? `<div class="panel"><button class="ghost small" id="editme" style="width:100%">⚙️ Change your name or emoji</button><div id="meedit" ${meOpen?'':'hidden'}><input id="nick" value="${esc(me.name)}" maxlength="18" style="margin-top:10px"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="saveme" style="margin-top:12px">Save</button></div></div>`
+    ? `<div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
     : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
   }
-  <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}
+  <div class="panel"><div class="small muted" style="margin-bottom:6px">${st.players.filter(p=>!p.bot).length} in the room · invite more</div>
     <div class="irow" style="margin-top:10px"><button class="ghost" id="sharelink" data-link="${esc(link)}">🔗 Share link</button><button class="ghost" id="showqr">▦ Show QR</button></div>
     <div id="qrbox" hidden style="text-align:center;margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="margin-top:6px">Scan to join — opens straight into this room.</div></div>
     <button class="ghost small" id="entercode" style="width:100%;margin-top:8px;opacity:.78">Joining a different room? Enter a code</button>
@@ -430,11 +454,13 @@ function bind(){
   if(q('#rejoinuno')) q('#rejoinuno').onclick=()=>rejoin('uno');
   if(q('#lgofk')) q('#lgofk').onclick=()=>{ const m=roomMessageFor('pick-fk'); if(m) sendMsg(m); };
   if(q('#lgouno')) q('#lgouno').onclick=()=>{ const m=roomMessageFor('pick-uno'); if(m) sendMsg(m); };
-  if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); };
+  if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); };
   q('#emojirow') && q('#emojirow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); if(S&&S.players&&S.players.some(p=>p.id===pid)&&nick) sendMsg({t:'join',name:nick,emoji}); render(); });
   q('#emojirow2') && q('#emojirow2').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); q('#emojirow2').querySelectorAll('button').forEach(x=>x.classList.toggle('on',(x.dataset.emoji||'')===emoji)); if(nick) sendMsg({t:'join',name:nick,emoji}); });
   if(q('#editme')) q('#editme').onclick=()=>{ meOpen=!meOpen; const d=q('#meedit'); if(d) d.hidden=!meOpen; };
   if(q('#saveme')) q('#saveme').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||nick||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); meOpen=false; const d=q('#meedit'); if(d) d.hidden=true; };
+  if(q('#takeselfie')){ const inp=document.getElementById('selfiein'); if(inp) q('#takeselfie').onclick=()=>inp.click(); }
+  if(q('#rmselfie')) q('#rmselfie').onclick=()=>{ myPhoto=''; set('fk-photo',''); delete photos[pid]; sendMsg({t:'photo',photo:''}); render(); };
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>goHome();
   if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Share link');
   if(q('#showqr')) q('#showqr').onclick=()=>{ const box=q('#qrbox'); if(!box) return; box.hidden=!box.hidden; const qr=q('#qr'); if(!box.hidden&&qr&&window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} } };
@@ -477,6 +503,10 @@ function showUpdateBar(){
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkVersion(); });
 window.addEventListener('focus',checkVersion);
 setTimeout(checkVersion,4000);
+
+/* ---------- selfie avatar: snap, square-crop, shrink to ~128px, share on the photo channel ---------- */
+function onSelfie(file){ const img=new Image(); img.onload=()=>{ try{ const s=Math.min(img.width,img.height), c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'); g.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,128,128); let d=c.toDataURL('image/jpeg',0.72); if(d.length>60000) d=c.toDataURL('image/jpeg',0.5); myPhoto=d; set('fk-photo',d); photos[pid]=d; if(ws&&ws.readyState===1) sendMsg({t:'photo',photo:d}); render(); }catch(e){} try{URL.revokeObjectURL(img.src);}catch(e){} }; img.onerror=()=>{ try{URL.revokeObjectURL(img.src);}catch(e){} }; img.src=URL.createObjectURL(file); }
+{ const inp=document.getElementById('selfiein'); if(inp) inp.onchange=()=>{ const f=inp.files&&inp.files[0]; inp.value=''; if(f) onSelfie(f); }; }
 })();
 </script>
 </body>

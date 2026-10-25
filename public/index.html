@@ -170,7 +170,7 @@ body.inroom.hasvid #vid{padding-left:58px}
 <button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
 <script>
 (function(){
-const VERSION='v2.8.10 · 24 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.17 · 24 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -214,7 +214,7 @@ function gameSrc(game,mode){
 }
 
 /* ---------- video: WebRTC mesh keyed by the stable device id (pid), so it survives a game change ---------- */
-function wantedPids(peers,me,on,tbl){ const want=new Set(); if(!(on||tbl)) return want; for(const p of peers||[]){ if(!p||!p.pid||p.pid===me) continue; const sv=!!p.video, tb=p.role==='table'; if((sv||tb)&&(sv||on)) want.add(p.pid); } return want; }
+function wantedPids(peers,me,on,tbl){ const want=new Set(); for(const p of peers||[]){ if(!p||!p.pid||p.pid===me) continue; if(p.video) want.add(p.pid); } return want; } // every device shows everyone who's sending video, even with its own camera off
 const isPolite=(a,b)=>String(a)>String(b);
 const GRACE=10000;
 const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false};
@@ -247,6 +247,7 @@ setInterval(()=>{ if(iParticipate()) syncPeers(); },3000); // advance the grace 
 function makePeer(id){
   const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:isPolite(myPid(),id),stream:null,making:false,ignore:false,cands:[],goneAt:0}; rtc.peers[id]=p;
   if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
+  else { try{ pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }catch(e){} } // camera off: still receive everyone else
   pc.onnegotiationneeded=async()=>{ const other=peerList().find(x=>x.pid===id); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; await pc.setLocalDescription(); sendMsg({t:'rtc',to:id,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
   pc.onicecandidate=({candidate})=>{ if(candidate) sendMsg({t:'rtc',to:id,data:{candidate}}); };
   pc.ontrack=ev=>{ p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };

@@ -355,6 +355,9 @@ export class Table extends DurableObject {
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
   tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) { if (ws.readyState === 1) this.send(ws); } }
+  async stop() { this.S = fresh(); this.S.lounge = true; await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); }
+  async register(code) { if (!code) return; const r = (await this.ctx.storage.get("rooms")) || []; if (!r.includes(code)) { r.push(code); if (r.length > 1000) r.shift(); await this.ctx.storage.put("rooms", r); } } // the "__rooms__" instance keeps the list of active room codes
+  async stopAll() { const r = (await this.ctx.storage.get("rooms")) || []; let n = 0; for (const code of r) { try { await this.env.TABLE.get(this.env.TABLE.idFromName(code)).stop(); n++; } catch (e) {} try { await this.env.UNO.get(this.env.UNO.idFromName(code)).stop(); } catch (e) {} } await this.ctx.storage.put("rooms", []); return n; }
 
   async alarm() {
     const st = this.S, now = Date.now(), d = deadlines(st), due = (t) => t && now >= t - 50; let changed = false;
@@ -448,11 +451,14 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === "/ice") return iceServers(env);
+    if (url.pathname === "/stopall") { const n = await env.TABLE.get(env.TABLE.idFromName("__rooms__")).stopAll(); return new Response("Stopped " + n + " room(s).", { headers: { "content-type": "text/plain" } }); }
+    const reg = (code) => env.TABLE.get(env.TABLE.idFromName("__rooms__")).register(code).catch(() => {}); // remember active rooms so /stopall can clear them all
     const u = url.pathname.match(/^\/uws\/([A-Za-z0-9]{3,8})$/);
-    if (u) return env.UNO.get(env.UNO.idFromName(u[1].toUpperCase())).fetch(req);
+    if (u) { const code = u[1].toUpperCase(); await reg(code); return env.UNO.get(env.UNO.idFromName(code)).fetch(req); }
     const m = url.pathname.match(/^\/ws\/([A-Za-z0-9]{3,8})$/);
     if (m) {
-      const id = env.TABLE.idFromName(m[1].toUpperCase());
+      const code = m[1].toUpperCase(); await reg(code);
+      const id = env.TABLE.idFromName(code);
       return env.TABLE.get(id).fetch(req);
     }
     return new Response("Not found", { status: 404 });

@@ -178,7 +178,7 @@ body.inroom.hasvid #vid{padding-left:58px}
 <button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
 <script>
 (function(){
-const VERSION='v2.8.21 · 25 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.22 · 25 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -192,7 +192,7 @@ const EMOJIS=['🦊','🐯','🐼','🦄','🦁','🐸','🐵','🦉','🐙','�
 let iabDismissed=false;
 const inAppBrowser=/FBAN|FBAV|FB_IAB|Instagram|Messenger|WhatsApp|Line\//i.test(navigator.userAgent||'') || (/iPhone|iPad|iPod/.test(navigator.userAgent||'') && window.navigator.standalone!==true && !/Safari/.test(navigator.userAgent||''));
 function iabBanner(){ if(!inAppBrowser||iabDismissed) return ''; return `<div class="panel" id="iab" style="border:1px solid #c9a227;background:rgba(201,162,39,.14)"><div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start"><div class="small">📱 <b>Open in Safari for the best experience</b> — video works properly and it remembers your name. Tap <b>•••</b> (top-right) → <b>Open in Safari</b>, or <b>Share → Add to Home Screen</b> for an app icon.</div><button class="ghost small" id="iabx" aria-label="dismiss">✕</button></div></div>`; }
-let S=null, ws=null, reconnectIn=800, skew=0, viewMsg='';
+let S=null, ws=null, reconnectIn=800, skew=0, viewMsg='', meOpen=false;
 let curGame=null, inLobby=false, lastGotoAt=+(qs.get('from')||0), wantGame='', wantLobby=false, wantStart=null, autoTried=false;
 const app=document.getElementById('app'), connEl=document.getElementById('conn'), stage=document.getElementById('stage');
 let stageGame=null;
@@ -360,8 +360,10 @@ function loungeHTML(st){
   const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted">Room <b>${esc(room)}</b>. Tap <b>Join video</b> at the top to see and hear everyone, chat about what to play, then the host picks a game and everyone moves into it together.</p></div></div>
-  ${me?'':`<div class="panel"><h3>Your name</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><button class="big" id="join">Join the room</button></div>`}
-  <div class="panel"><div class="small muted" style="margin-bottom:8px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div></div>
+  ${me
+    ? `<div class="panel"><button class="ghost small" id="editme" style="width:100%">⚙️ Change your name or emoji</button><div id="meedit" ${meOpen?'':'hidden'}><input id="nick" value="${esc(me.name)}" maxlength="18" style="margin-top:10px"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="saveme" style="margin-top:12px">Save</button></div></div>`
+    : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
+  }
   <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}
     <div class="irow" style="margin-top:10px"><button class="ghost" id="sharelink" data-link="${esc(link)}">🔗 Share link</button><button class="ghost" id="showqr">▦ Show QR</button></div>
     <div id="qrbox" hidden style="text-align:center;margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="margin-top:6px">Scan to join — opens straight into this room.</div></div>
@@ -430,6 +432,9 @@ function bind(){
   if(q('#lgouno')) q('#lgouno').onclick=()=>{ const m=roomMessageFor('pick-uno'); if(m) sendMsg(m); };
   if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); };
   q('#emojirow') && q('#emojirow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); if(S&&S.players&&S.players.some(p=>p.id===pid)&&nick) sendMsg({t:'join',name:nick,emoji}); render(); });
+  q('#emojirow2') && q('#emojirow2').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); q('#emojirow2').querySelectorAll('button').forEach(x=>x.classList.toggle('on',(x.dataset.emoji||'')===emoji)); if(nick) sendMsg({t:'join',name:nick,emoji}); });
+  if(q('#editme')) q('#editme').onclick=()=>{ meOpen=!meOpen; const d=q('#meedit'); if(d) d.hidden=!meOpen; };
+  if(q('#saveme')) q('#saveme').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||nick||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); meOpen=false; const d=q('#meedit'); if(d) d.hidden=true; };
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>goHome();
   if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Share link');
   if(q('#showqr')) q('#showqr').onclick=()=>{ const box=q('#qrbox'); if(!box) return; box.hidden=!box.hidden; const qr=q('#qr'); if(!box.hidden&&qr&&window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} } };

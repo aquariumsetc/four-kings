@@ -193,7 +193,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.18 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.19 · 25 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -213,7 +213,7 @@ const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game 
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
-let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged=''; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -495,11 +495,15 @@ function statusOf(st,p){
 function settingsHTML(st){
   const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min']], on='background:var(--ivory);color:var(--ink);';
   const pick=(attr,val,cur,label)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}">${label}</button>`;
+  const timerRow=`<div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>`;
+  const nextRow=`<div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>`;
+  // mid-game: only the settings the server honours during a live hand (the card timer, which also sets how long a lead/claim waits before it's auto-played). Spare hand, layout and game-switch change between games.
+  if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
   return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
-  <div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>
+  ${timerRow}
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
-  <div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>
+  ${nextRow}
   <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to Ultium UNO</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the Game Night room</button>`:''}</span></div>
   <div class="muted" style="margin-top:4px">${swapRace(st)?'Fastest finger: everyone sees their cards at once and the first to tap Swap gets the spare.':'In turn: starting left of the dealer, each player in order may take the spare. The first seat moves round each game.'}</div></div>`;
 }
@@ -519,7 +523,7 @@ function render(){
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const fkStripOn=['ante','swap','play','claim'].includes(S.phase)&&S.players.length>=2; // the avatar strip shows during a live game on every device (table, own-devices phones, hand devices)
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(fkStripOn?' fkstripon':''); // own-devices game: players get the wide table layout too
-  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
+  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+(S.host?`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Table settings ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();
@@ -621,9 +625,12 @@ function tableHTML(st,handPanel){
   let main=''; const host=st.host;
   const link=location.origin+location.pathname+'?room='+room+'&mode=hand';
   if(st.phase==='lobby'){
-    main=`<div class="panel center"><div class="small muted">Table code</div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div style="max-width:240px;text-align:left"><div class="small muted">Scan with the phone camera to join, or send the link, or type the code on the main page.</div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:8px">🔗 Share join link</button></div></div></div>
-    ${mode==='table'&&window.innerWidth<760?`<div class="notice small">Playing on this phone too? Tap <b>table + my hand</b> at the bottom to get your cards on this screen as well.</div>`:''}<h2>Waiting for players</h2><div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
-    ${host?`<div class="row"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>${st.players.length<2?'<p class="center small muted">Need at least 2 players: add a bot or have someone scan the code.</p>':''}${settingsHTML(st)}`:''}`;
+    const invite=`<div class="panel center" style="margin-top:8px"><div class="small muted">Invite players · table <b>${esc(room)}</b></div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div style="max-width:240px;text-align:left"><div class="small muted">Scan with the phone camera to join, or send the link, or type the code on the main page.</div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:8px">🔗 Share join link</button></div></div></div>`;
+    main=`<h2>Table ${esc(room)}</h2>
+    <div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
+    ${host?`<button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>${st.players.length<2?'<p class="center small muted">Need at least 2 players: add a bot, or share the code below.</p>':'<p class="center small muted">Everyone in — start when you\'re ready. Table settings are at the bottom.</p>'}<div class="row" style="margin-top:6px"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}
+    ${mode==='table'&&window.innerWidth<760?`<div class="notice small">Playing on this phone too? Tap <b>table + my hand</b> at the bottom to get your cards on this screen as well.</div>`:''}
+    ${invite}`;
   } else if(st.phase==='ante'){
     const waiting=st.players.filter(p=>!p.placed&&!p.broke), brokeP=st.players.filter(p=>p.broke&&!p.placed);
     main=`<h2>Place your bets</h2><p class="muted">Pick one or two kings and a stake on your phone. Last game's bet is kept unless you change it.</p>
@@ -645,7 +652,7 @@ function tableHTML(st,handPanel){
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
-    ${nextHTML(st)}${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>${settingsHTML(st)}`:''}`;
+    ${nextHTML(st)}${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
   }
   return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }
@@ -664,7 +671,7 @@ function handMain(st,embedded){
     else main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
     return main;
   }
-  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`:(embedded?'':settingsHTML(st))}</div>`; }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`:''}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
     main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${p.balance}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
   }
@@ -773,6 +780,7 @@ function bind(){
   document.querySelectorAll('#toroom').forEach(b=>b.onclick=()=>{ if(confirm('Take everyone back to the Game Night room? Money and the scoreboard are kept; bots leave.')) { set('fk-lhost',room); sendMsg({t:'toroom'}); } });
   if(q('#notyou')) q('#notyou').onclick=()=>{ set('fk-nick',''); nick=''; autoTried=true; sendMsg({t:'leave'}); };
   if(q('#howtobtn')) q('#howtobtn').onclick=showHowto;
+  if(q('#rulesToggle')) q('#rulesToggle').onclick=()=>{ showRules=!showRules; render(); };
   if(q('#hints')) q('#hints').onclick=()=>{ hints=!hints; set('fk-hints',hints?'1':'0'); render(); };
   if(q('#sfx')) q('#sfx').onclick=()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); if(sfxOn) sfx.card(); render(); };
   if(q('#musicbtn')) q('#musicbtn').onclick=()=>{ musicOn=!musicOn; set('fk-music',musicOn?'1':'0'); try{ musicOn?musicStart():musicStop(); }catch(e){} render(); };

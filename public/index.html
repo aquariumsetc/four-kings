@@ -165,6 +165,8 @@ body.inroom.hasvid #vid{padding-left:58px}
 .games .game button.big:first-of-type{margin-top:auto}
 .irow{display:flex;gap:8px}.irow>*{flex:1}.irow input{min-width:0}
 #qr{display:inline-block;background:#fbf7ec;padding:8px;border-radius:10px;line-height:0}
+#updbar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#c9a227;color:#1b1a17;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.45)}
+#updbar button{background:#1b1a17;color:#fbf7ec;border:0;border-radius:10px;padding:8px 16px;font-weight:600;cursor:pointer}
 </style>
 </head>
 <body>
@@ -176,7 +178,7 @@ body.inroom.hasvid #vid{padding-left:58px}
 <button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
 <script>
 (function(){
-const VERSION='v2.8.20 · 25 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.21 · 25 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -450,6 +452,26 @@ if(qs.get('home')) history.replaceState(null,'','/'); // the home-screen icon op
 if(room){ wantGame = qs.get('game')==='uno'?'uno':(qs.get('mode')==='lounge'?'':'fk'); if(qs.get('room')) history.replaceState(null,'','/'); }
 render();
 if(room) connect();
+
+/* ---------- auto-update: catch a newer deploy (past any cache) and offer a one-tap refresh ---------- */
+let updateSeen=false;
+async function checkVersion(){
+  if(updateSeen||document.hidden) return;
+  try{ const r=await fetch(location.pathname+'?_v='+Date.now(),{cache:'no-store'}); if(!r.ok) return;
+    const t=await r.text(); const m=t.match(/const VERSION='([^']+)'/);
+    if(m&&m[1]&&m[1]!==VERSION){ updateSeen=true; showUpdateBar(); }
+  }catch(e){}
+}
+function showUpdateBar(){
+  if(document.getElementById('updbar')) return;
+  const bar=document.createElement('div'); bar.id='updbar';
+  bar.innerHTML='<span>A new version of Game Night is ready.</span><button id="updnow">Refresh</button>';
+  document.body.appendChild(bar);
+  document.getElementById('updnow').onclick=()=>location.reload();
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkVersion(); });
+window.addEventListener('focus',checkVersion);
+setTimeout(checkVersion,4000);
 })();
 </script>
 </body>

@@ -241,6 +241,7 @@ export class Table extends DurableObject {
     server.serializeAttachment({ pid, role, creator, sid, video: false });
     if (role === "table" && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // an iPad table device clears a stale goto; a reconnecting room host must NOT wipe the active game
     this.broadcast();
+    await this.schedule(); // a device (re)connected — resume the loop if it was paused for an empty room
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -373,6 +374,7 @@ export class Table extends DurableObject {
   }
 
   async schedule() {
+    if (!this.ctx.getWebSockets().some((w) => w.readyState === 1)) { await this.ctx.storage.deleteAlarm(); return; } // nobody connected — don't run the game (or its bots) to an empty room
     const st = this.S, times = Object.values(deadlines(st)).filter(Boolean);
     const bi = botPending(st);
     if (bi >= 0) { if (!st.botAt || st.botAt < Date.now() - 10000) st.botAt = Date.now() + botDelay(st); times.push(st.botAt); } else st.botAt = 0;

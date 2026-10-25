@@ -283,6 +283,7 @@ export class UnoTable extends DurableObject {
     const att = ws.deserializeAttachment() || {}, { pid, role } = att;
     // video signalling: relayed between sockets, never touches game state
     if (m.t === "video") { att.video = !!m.on; ws.serializeAttachment(att); this.broadcast(); return; }
+    if (m.t === "stopgame") { this.S = fresh(); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); return; } // emergency reset: empty the room and stop the loop
     if (m.t === "rtc") {
       for (const other of this.ctx.getWebSockets()) { const o = other.deserializeAttachment() || {}; if (other !== ws && ((o.sid && o.sid === m.to) || (o.pid && o.pid === m.to))) { const from = o.sid === m.to ? att.sid : att.pid; try { other.send(JSON.stringify({ t: "rtc", from, data: m.data })); } catch {} } }
       return;

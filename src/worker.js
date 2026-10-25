@@ -253,6 +253,7 @@ export class Table extends DurableObject {
     // --- video signalling: relayed between sockets, never touches game state ---
     if (m.t === "video") { att.video = !!m.on; ws.serializeAttachment(att); this.broadcast(); return; }
     if (m.t === "photo") { const photo = (typeof m.photo === "string" && m.photo.length <= 60000 && m.photo.startsWith("data:image/")) ? m.photo : ""; if (photo) await this.ctx.storage.put("photo:" + att.pid, photo); else await this.ctx.storage.delete("photo:" + att.pid); const msg = JSON.stringify({ t: "photo", pid: att.pid, photo }); for (const w of this.ctx.getWebSockets()) { if (w.readyState === 1) try { w.send(msg); } catch {} } return; }
+    if (m.t === "stopgame") { this.S = fresh(); this.S.lounge = true; await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); return; } // emergency reset: drop everyone back to an empty room and stop the loop
     if (m.t === "rtc") {
       for (const other of this.ctx.getWebSockets()) {
         const o = other.deserializeAttachment() || {};

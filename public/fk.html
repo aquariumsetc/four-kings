@@ -182,11 +182,6 @@ body.hasvid.tbl .app.fkstripon{padding-top:calc(236px + env(safe-area-inset-top,
 .vctl button{padding:.45rem .7rem;font-size:.82rem;border-radius:9px}
 body.hasvid .app{padding-top:128px}
 body.hasvid.tbl .app{padding-top:136px}
-/* v2.9 avatar picker */
-.epick{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-.epick .eopt{font-size:1.25rem;line-height:1;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.1);border:0;cursor:pointer;color:inherit}
-.epick .eopt.sel{background:#c9a227;box-shadow:0 0 0 2px rgba(255,255,255,.22)}
-#meedit{margin-top:8px}
 </style>
 </head>
 <body>
@@ -198,7 +193,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.0 · 25 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.19 · 25 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -578,8 +573,6 @@ function tickAll(){
 setInterval(tickAll,250);
 function fmtSec(n){ return n>=60?Math.floor(n/60)+':'+String(n%60).padStart(2,'0'):String(n); }
 function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left!==lastLeft){ lastLeft=left; if(left>=1&&left<=3) sfx.beep(left===1); } if(left>0) timer=setTimeout(tickCount,250); }
-const AVATARS=['🐸','🦊','🐻','🐼','🦁','🐯','🐨','🐵','🦄','🐧','🦉','🐳','🐙','🐢','🦖','🐱','🐶','🐝','🦋','⭐'];
-function emojiPicker(sel){ return `<div class="epick">${AVATARS.map(e=>`<button type="button" class="eopt${e===sel?' sel':''}" data-emoji="${e}">${e}</button>`).join('')}</div>`; }
 function loungeHTML(st){
   // Game Night room: everyone on video first, then the host picks a game and the room moves into it
   const me=st.players.find(p=>p.id===pid), host=st.host, hostP=st.players[0], onVid=new Set((st.peers||[]).filter(p=>p.video).map(p=>p.name));
@@ -587,8 +580,8 @@ function loungeHTML(st){
   const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room</h1><p class="muted">Room <b>${esc(room)}</b>. Tap <b>Join video</b> at the top to see and hear everyone, chat about what to play, then the host picks a game and everyone moves into it together.</p></div></div>
-  ${me?'':`<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin-top:8px">Pick your emoji</div>${emojiPicker(emoji)}<button class="big" id="join">Join the room</button></div>`}
-  <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}${me?`<button class="ghost small" id="editme" style="margin-top:8px;width:100%">⚙️ Change your name or emoji</button><div id="meedit" hidden><input id="nick2" value="${esc(me.name)}" maxlength="18" style="margin-top:8px">${emojiPicker(me.emoji||emoji)}<button class="big" id="saveme">Save</button></div>`:''}
+  ${me?'':`<div class="panel"><h3>Your name</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><button class="big" id="join">Join the room</button></div>`}
+  <div class="panel"><div class="small muted" style="margin-bottom:6px">In the room</div>${people}
     <button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px;width:100%">🔗 Invite people</button><div class="small muted center" style="margin-top:4px">Send the link; it opens straight into this room.</div></div>
   ${host?`<div class="games">
     <div class="game fk"><h2>4 Kings</h2><p class="small">Bet on the kings, play the cards in order, grab the queens.</p><button class="big" id="lgofk">Play 4 Kings</button></div>
@@ -769,9 +762,6 @@ function bind(){
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
   if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});
   if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,auto:autoOn,emoji}); };
-  app.querySelectorAll('.epick .eopt').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji; set('fk-emoji',emoji); b.closest('.epick').querySelectorAll('.eopt').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); });
-  if(q('#editme')) q('#editme').onclick=()=>{ const d=q('#meedit'); if(d) d.hidden=!d.hidden; };
-  if(q('#saveme')) q('#saveme').onclick=()=>{ const v=q('#nick2'); if(v){ nick=v.value.trim().slice(0,18)||nick||'Player'; set('fk-nick',nick); } sendMsg({t:'join',name:nick,auto:autoOn,emoji}); const d=q('#meedit'); if(d) d.hidden=true; };
   if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
   app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<2) draft.suits.push(s); else draft.suits=[draft.suits[1],s]; if(draft.suits.length===2&&draft.total<20) draft.total=20; render(); });
   app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.total=Math.max(10,draft.total+(+b.dataset.bet)); render(); });

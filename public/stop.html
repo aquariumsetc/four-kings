@@ -23,6 +23,11 @@ input{font:inherit;padding:.85rem;border-radius:12px;border:1px solid rgba(255,2
   <h1>🛑 Stop a game</h1>
   <p class="muted">Resets a Game Night room on the server. Everyone in it drops back to the room and any sound stops. Use this if a game is stuck playing. It only resets that room — nothing else is affected.</p>
 
+  <div class="sect">
+    <button class="stop" id="stopall" style="padding:1.2rem;font-size:1.15rem">🛑 Stop ALL games</button>
+    <p class="muted">Resets every active room on the server. No code needed. Use this if you don't know the code.</p>
+  </div>
+
   <div class="sect" id="known"></div>
 
   <div class="sect">
@@ -72,6 +77,11 @@ if(cands.size){
   known.innerHTML='<p class="muted">No saved room found on this device — type the code below.</p>';
 }
 document.getElementById('stopmanual').onclick=()=>stop(document.getElementById('code').value);
+document.getElementById('stopall').onclick=async()=>{
+  log('Stopping ALL games on the server…');
+  try{ const r=await fetch('/stopall',{cache:'no-store'}); log('✅ '+(await r.text())); }
+  catch(e){ log('⚠️ Could not reach the server — check you uploaded the new worker.js.'); }
+};
 </script>
 </body>
 </html>

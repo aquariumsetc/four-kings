@@ -254,7 +254,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.19 · 25 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.25 · 25 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -519,14 +519,14 @@ function renderVideo(){
 /* ---------- sound (synthesised; resumes after the phone locks) ---------- */
 let actx=null, audioStale=false;
 const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-function ac(){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(actx&&actx.state==='closed') actx=null; actx=actx||new AC(); if(actx.state!=='running') actx.resume().catch(()=>{}); return actx; }
+function ac(){ if(document.hidden) return null; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(actx&&actx.state==='closed') actx=null; actx=actx||new AC(); if(actx.state!=='running') actx.resume().catch(()=>{}); return actx; }
 function unlockAudio(){ try{ if(audioStale&&actx){ try{actx.close();}catch(e){} actx=null; } audioStale=false; const a=ac(); if(!a) return; const b=a.createBuffer(1,1,22050), s=a.createBufferSource(); s.buffer=b; s.connect(a.destination); s.start(0); if('speechSynthesis' in window) speechSynthesis.resume(); }catch(e){} }
 let wake=null;
 async function keepAwake(){ try{ if(room&&mode&&'wakeLock' in navigator&&!document.hidden&&(!wake||wake.released)) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) keepAwake(); });
 ['touchend','click'].forEach(ev=>document.addEventListener(ev,keepAwake,{passive:true}));
 const soundBlocked=()=>(sfxOn||winOn)&&room&&mode&&(!actx||actx.state!=='running'||audioStale);
-document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; } else if(actx) actx.resume().catch(()=>{}); });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; if(actx) actx.suspend().catch(()=>{}); } else if(actx) actx.resume().catch(()=>{}); });
 window.addEventListener('pageshow',e=>{ if(e.persisted&&IOS) audioStale=true; });
 ['touchend','click','keydown'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true,capture:true}));
 function tone(f,t0,dur,vol,type){ const a=ac(); if(!a) return; const o=a.createOscillator(), g=a.createGain(); o.type=type||'triangle'; o.frequency.value=f; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(vol,t0+.015); g.gain.exponentialRampToValueAtTime(.001,t0+dur); o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur+.05); }

@@ -193,7 +193,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.19 · 25 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.25 · 25 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -290,7 +290,7 @@ function showBanner(st){
 /* ---------- sounds (all synthesised, nothing to download) ---------- */
 let actx=null, audioStale=false;
 const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-function ac(){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(actx&&actx.state==='closed') actx=null; actx=actx||new AC(); if(actx.state!=='running') actx.resume().catch(()=>{}); return actx; }
+function ac(){ if(document.hidden) return null; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(actx&&actx.state==='closed') actx=null; actx=actx||new AC(); if(actx.state!=='running') actx.resume().catch(()=>{}); return actx; }
 // iOS pauses page audio when the phone locks or the app goes to the background, and only lets it
 // start again from a tap. After a lock some iOS versions leave the old audio engine silent, so the
 // first tap after coming back builds a fresh one.
@@ -320,7 +320,7 @@ function showHowto(){
   document.body.appendChild(d); d.querySelector('#howtook').onclick=()=>d.remove();
 }
 function soundBlocked(){ return (sfxOn||winOn||musicOn)&&room&&mode&&(!actx||actx.state!=='running'||audioStale); }
-document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; } else if(actx) actx.resume().catch(()=>{}); });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(IOS) audioStale=true; if(actx) actx.suspend().catch(()=>{}); } else if(actx) actx.resume().catch(()=>{}); });
 window.addEventListener('pageshow',e=>{ if(e.persisted&&IOS) audioStale=true; });
 function tone(f,t0,dur,vol,type){ const a=ac(); if(!a) return; const o=a.createOscillator(), g=a.createGain(); o.type=type||'triangle'; o.frequency.value=f; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(vol,t0+.015); g.gain.exponentialRampToValueAtTime(.001,t0+dur); o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur+.05); }
 function noise(t0,dur,vol,hp){ const a=ac(); if(!a) return; const n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0); for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n); const src=a.createBufferSource(); src.buffer=buf; const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp||1200; const g=a.createGain(); g.gain.value=vol; src.connect(f).connect(g).connect(a.destination); src.start(t0); }

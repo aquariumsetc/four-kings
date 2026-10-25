@@ -251,6 +251,7 @@ export class Table extends DurableObject {
     const st = this.S;
     // --- video signalling: relayed between sockets, never touches game state ---
     if (m.t === "video") { att.video = !!m.on; ws.serializeAttachment(att); this.broadcast(); return; }
+    if (m.t === "photo") { const photo = (typeof m.photo === "string" && m.photo.length <= 60000 && m.photo.startsWith("data:image/")) ? m.photo : ""; if (photo) await this.ctx.storage.put("photo:" + att.pid, photo); else await this.ctx.storage.delete("photo:" + att.pid); const msg = JSON.stringify({ t: "photo", pid: att.pid, photo }); for (const w of this.ctx.getWebSockets()) { if (w.readyState === 1) try { w.send(msg); } catch {} } return; }
     if (m.t === "rtc") {
       for (const other of this.ctx.getWebSockets()) {
         const o = other.deserializeAttachment() || {};
@@ -264,7 +265,7 @@ export class Table extends DurableObject {
     const i = pidx(st, pid), me = i >= 0 ? st.players[i] : null;
     const between = st.phase === "lobby" || st.phase === "over";
     switch (m.t) {
-      case "hello": this.send(ws); return;
+      case "hello": this.send(ws); { const ph = await this.ctx.storage.list({ prefix: "photo:" }); for (const [k, v] of ph) try { ws.send(JSON.stringify({ t: "photo", pid: k.slice(6), photo: v })); } catch {} } return;
       case "join": {
         if (!pid) break;
         const name = String(m.name || "Player").trim().slice(0, 18) || "Player";

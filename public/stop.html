@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stop a game · Game Night</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#153f2a radial-gradient(ellipse at 50% 0%,#2a7049,#153f2a 60%);color:#fbf7ec;font:17px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 70px;min-height:100vh}
+.card{max-width:460px;margin:0 auto}
+h1{font-size:1.7rem;margin:0 0 6px}
+.muted{opacity:.8;font-size:.92rem}
+button{font:inherit;border:0;border-radius:14px;padding:1rem 1.1rem;cursor:pointer;width:100%;margin:8px 0;font-weight:700}
+button.stop{background:#c0282f;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+button.stop:active{transform:translateY(1px)}
+input{font:inherit;padding:.85rem;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:#fbf7ec;color:#1b1a17;width:100%;text-transform:uppercase;letter-spacing:.25em;text-align:center;font-size:1.3rem;font-weight:700}
+.sect{margin-top:22px}
+.log{font-size:.86rem;opacity:.9;margin-top:16px;white-space:pre-wrap;background:rgba(0,0,0,.25);border-radius:12px;padding:10px 12px;min-height:1.5em}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🛑 Stop a game</h1>
+  <p class="muted">Resets a Game Night room on the server. Everyone in it drops back to the room and any sound stops. Use this if a game is stuck playing. It only resets that room — nothing else is affected.</p>
+
+  <div class="sect" id="known"></div>
+
+  <div class="sect">
+    <p class="muted">Or type a room code (the 4 letters from the game):</p>
+    <input id="code" placeholder="CODE" maxlength="8" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="stop" id="stopmanual">Stop this room</button>
+  </div>
+
+  <div class="log" id="log">Ready.</div>
+  <p class="muted" style="margin-top:14px">After stopping, give it a few seconds. If a device is still noisy, also put that device in Airplane mode or restart it.</p>
+</div>
+<script>
+const G=k=>{try{return localStorage.getItem(k)||'';}catch(e){return'';}};
+const logEl=document.getElementById('log');
+const log=m=>{ logEl.textContent += '\n'+m; };
+const pid='stop'+Math.random().toString(36).slice(2,10);
+const clean=c=>(c||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);
+const WS=location.protocol==='https:'?'wss':'ws';
+
+function stopOne(path,code){
+  return new Promise(res=>{ let done=false; const fin=()=>{ if(!done){done=true;res();} };
+    try{ const ws=new WebSocket(WS+'://'+location.host+path+'/'+code+'?pid='+pid+'&role=hand');
+      ws.onopen=()=>{ try{ws.send(JSON.stringify({t:'stopgame'}));}catch(e){} setTimeout(()=>{ try{ws.close();}catch(e){} fin(); },700); };
+      ws.onerror=()=>fin();
+      setTimeout(fin,3000);
+    }catch(e){ fin(); }
+  });
+}
+async function stop(code){
+  code=clean(code);
+  if(code.length<3){ log('⚠️ Enter a valid room code.'); return; }
+  log('Stopping '+code+' …');
+  await Promise.all([ stopOne('/ws',code), stopOne('/uws',code) ]);  // try both games
+  log('✅ Sent stop to '+code+'. The game should go quiet within a few seconds.');
+}
+
+// candidate codes saved on THIS device
+const cands=new Set();
+['fk-room','fk-lhost','uno-room','uno-lhost'].forEach(k=>{ const v=clean(G(k)); if(v.length>=3) cands.add(v); });
+try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i)||''; if(/room|lhost|last/i.test(k)){ const v=clean(localStorage.getItem(k)); if(v.length>=3&&v.length<=8) cands.add(v); } } }catch(e){}
+
+const known=document.getElementById('known');
+if(cands.size){
+  known.innerHTML='<p class="muted">Rooms this device has joined — tap to stop:</p>';
+  cands.forEach(c=>{ const b=document.createElement('button'); b.className='stop'; b.textContent='🛑 Stop '+c; b.onclick=()=>stop(c); known.appendChild(b); });
+}else{
+  known.innerHTML='<p class="muted">No saved room found on this device — type the code below.</p>';
+}
+document.getElementById('stopmanual').onclick=()=>stop(document.getElementById('code').value);
+</script>
+</body>
+</html>

@@ -49,7 +49,8 @@ input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fredoka",sa
 .card .wlbl{position:absolute;bottom:7px;left:0;right:0;text-align:center;font-size:.6rem;font-weight:600;letter-spacing:.02em}
 .card.wildv .v{position:absolute;font-size:1rem;color:#fff;text-shadow:0 1px 2px #000}
 .card.back{background:repeating-linear-gradient(45deg,#3a3f7a 0 6px,#30346a 6px 12px);box-shadow:0 2px 0 rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,255,255,.85)}
-.card.back::after{content:"U";font-size:1.6rem;color:var(--gold)}
+.card.back::after{content:"DECK";font-size:.72rem;font-weight:700;letter-spacing:.12em;color:var(--gold)}
+.card.back.lg::after{font-size:1.05rem;letter-spacing:.16em}
 .card.lg{width:96px;height:142px;border-radius:14px}.card.lg .v{font-size:3rem}.card.lg .cn{font-size:1rem;top:9px;left:10px}.card.lg .cn.b{bottom:9px;right:10px}.card.lg .wheel{width:54px;height:54px}.card.lg .wlbl{font-size:.8rem;bottom:10px}.card.lg.wildv .v{font-size:1.5rem}
 .card.sm{width:34px;height:50px;border-radius:6px}.card.sm .v{font-size:1.05rem}.card.sm .cn{display:none}.card.sm .wheel{width:18px;height:18px}.card.sm .wlbl{display:none}
 /* the round table */
@@ -117,19 +118,31 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 body.hasvid .app.stripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
 .app.stripon .oppstrip{display:none} /* the top strip already shows every player + their count */
 .app.stripon .tlayout.withhand{gap:8px}
-/* portrait phones: a smaller felt so your hand is on-screen without scrolling */
-@media (max-width:820px){ .app.stripon .tlayout.withhand .tl-round .round{width:clamp(150px,24vh,100%)} }
-/* landscape phones (short height): compact strip, felt beside the hand, no vertical scroll */
+/* portrait phones: smaller felt + smaller hand cards + tighter spacing so the deck and your whole hand are on-screen without scrolling */
+@media (max-width:820px){
+  .app.stripon .tlayout.withhand .tl-round .round{width:clamp(150px,22vh,100%)}
+  .app.stripon .status{margin:.3rem 0;padding:7px 10px}
+  .app.stripon .hand{margin:.4rem 0;gap:6px}
+  .app.stripon .hrow{gap:5px}
+  .app.stripon .hand .card{width:46px;height:68px;border-radius:8px}
+  .app.stripon .hand .card .v{font-size:1.45rem}
+  .app.stripon .hand .card .cn{font-size:.58rem}
+}
+/* landscape phones (short height): drop the felt table entirely (the status line already shows the top card, colour & pot) and show just the strip + your hand, so it isn't a cramped, overlapping mess */
 @media (orientation:landscape) and (max-height:560px){
-  .app.stripon .ustrip{height:84px}
-  .app.stripon .ustrip .utrack{top:calc(6px + env(safe-area-inset-top,0px));height:72px}
-  .app.stripon .ustrip .uava{width:44px;height:44px;font-size:1.1rem}
-  .app.stripon .ustrip .unm{font-size:.68rem;margin-top:2px}
-  .app.stripon{padding-top:calc(92px + env(safe-area-inset-top,0px))}
-  .app.stripon .tlayout.withhand{grid-template-columns:minmax(140px,36%) 1fr;grid-template-areas:"round hand";gap:10px;align-items:start}
-  .app.stripon .tlayout.withhand .tl-side{display:none} /* host Finish/settings: rotate to portrait */
-  .app.stripon .tlayout.withhand .tl-round .round{width:clamp(120px,40vh,100%)}
-  .app.stripon .tlayout.withhand .tl-hand{max-height:calc(100dvh - 96px);overflow-y:auto}
+  .app.stripon .ustrip{height:72px}
+  .app.stripon .ustrip .utrack{top:calc(5px + env(safe-area-inset-top,0px));height:62px}
+  .app.stripon .ustrip .uava{width:40px;height:40px;font-size:1rem}
+  .app.stripon .ustrip .unm{font-size:.62rem;margin-top:1px}
+  .app.stripon .ustrip .ucnt{min-width:16px;height:16px;font-size:.6rem}
+  .app.stripon{padding-top:calc(80px + env(safe-area-inset-top,0px))}
+  .app.stripon .tlayout.withhand{grid-template-columns:1fr;grid-template-areas:"hand"}
+  .app.stripon .tlayout.withhand .tl-round{display:none} /* no felt in landscape; status line carries the top card */
+  .app.stripon .tlayout.withhand .tl-side{display:none}
+  .app.stripon .status{margin:.25rem 0;padding:6px 10px}
+  .app.stripon .hand{margin:.3rem 0;gap:5px}
+  .app.stripon .hand .card{width:42px;height:62px;border-radius:7px}
+  .app.stripon .hand .card .v{font-size:1.3rem}
 }
 /* phone */
 .status{display:flex;align-items:center;gap:12px;background:var(--panel);border-radius:18px;padding:10px 12px;margin:.5rem 0}
@@ -223,7 +236,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.7 · 24 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.10 · 24 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -239,7 +252,7 @@ const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game 
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
 let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('uno-mode')||'';
-let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', unoHints=get('uno-hints')!=='0';
+let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', unoHints=get('uno-hints')!=='0', showRules=false;
 let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, holdT=null, held=false;
 const app=document.getElementById('app'), ovlEl=document.getElementById('ovl'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
@@ -549,25 +562,25 @@ function roundHTML(st){
     ${st.phase==='play'||st.phase==='over'?`<div class="halo" style="--hc:${col}"></div><div class="dirlbl" id="dirlbl"></div><div class="pile">${pileHTML(st)}</div>
     <div class="deck">${backHTML()}<div class="n">${st.deckCount} left</div></div>
     <div class="potchip"><div class="n">$${st.pot}</div><div class="l">in the pot</div></div>
-    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc"><div class="n">$${st.stake}</div><div class="l">stake each</div><div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div><ol><li>${st.layout==='phones'?'Tap <b>Share join link</b> and send it to everyone':'Scan the code with a phone camera to join'}</li><li>Short of players? <b>Add a bot</b></li><li>Pick the rules, then <b>Deal</b></li></ol></div>`}
+    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc"><div class="n">$${st.stake}</div><div class="l">stake each</div><div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div>${st.players.length<2?`<ol><li>${st.layout==='phones'?'Tap <b>Share join link</b> and send it to everyone':'Scan the code with a phone camera to join'}</li><li>Short of players? <b>Add a bot</b></li><li>Pick the rules, then <b>Deal</b></li></ol>`:`<p class="dim" style="margin-top:8px">Everyone in — tap <b>Deal</b> to start. More players, rules &amp; options are below.</p>`}</div>`}
     ${seatsHTML(st)}</div>`;
 }
 function tableHTML(st,handPanel){
   const host=st.host, link=location.origin+'/uno.html?room='+room+'&mode=hand';
+  // invite block (QR + share) — moved to the bottom of the lobby; rules/options tucked behind a toggle so the lobby isn't one long scroll
+  const codeBlock=`<div class="panel center" style="margin-top:8px"><div class="small dim">Invite more players · table ${esc(room)}</div><div style="margin-top:8px"><div class="qr" id="qr" data-link="${esc(link)}"></div></div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px">🔗 Share join link</button></div>`;
+  const rulesBlock=host&&st.phase!=='play'?`<button class="ghost small" id="rulesToggle" style="width:100%;margin-top:8px">⚙️ Rules &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(st):''}`:'';
+  const resetBtn=host?`<button class="ghost small" id="reset" style="width:100%;margin-top:6px">Clear the table</button>`:'';
   let side='';
   if(st.phase==='lobby'){
-    side=`<div class="panel center"><div class="small dim">Table code</div><div class="codebig">${esc(room)}</div><div style="margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div></div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:10px">🔗 Share join link</button></div>
-    ${host?`<div class="row"><button class="ghost" id="addbot">Add a bot</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div><button class="big" id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button>${st.players.length<2?'<p class="center small dim">Need at least 2 players: add a bot or have someone scan the code.</p>':''}`:''}`;
+    side=`${host?`<button class="big" id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button>${st.players.length<2?'<p class="center small dim">Need at least 2 players — add a bot, or share the link below.</p>':''}<div class="row" style="margin-top:8px"><button class="ghost" id="addbot">Add a bot</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}${scoresHTML(st)}${rulesBlock}${codeBlock}${resetBtn}`;
   } else if(st.phase==='play'){
     const p=st.players[st.turn];
-    side=`<div class="panel center"><div class="small dim">Now playing</div><h2>${esc(p?p.name:'')}</h2><p class="small dim">${esc(st.note||'')}</p></div>
-    ${host?`<button class="ghost big" id="finish">Finish the game</button><p class="small dim center">Whoever has the fewest cards wins the pot.</p>`:''}`;
+    side=`<div class="panel center"><div class="small dim">Now playing</div><h2>${esc(p?p.name:'')}</h2><p class="small dim">${esc(st.note||'')}</p></div>${host?`<button class="ghost big" id="finish">Finish the game</button><p class="small dim center">Whoever has the fewest cards wins the pot.</p>`:''}${scoresHTML(st)}${resetBtn}`;
   } else if(st.phase==='over'){
     const w=st.winner;
-    side=`<div class="panel center"><h2>${w?w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins'):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div>${nextHTML(st)}
-    ${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
+    side=`<div class="panel center"><h2>${w?w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins'):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div>${nextHTML(st)}${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}${scoresHTML(st)}${rulesBlock}${resetBtn}`;
   }
-  side+=scoresHTML(st)+(host&&st.phase!=='play'?settingsHTML(st):'')+(host?`<button class="ghost small" id="reset" style="width:100%;margin-top:6px">Clear the table</button>`:'');
   return `<div class="tlayout${handPanel?' withhand':''}"><div class="tl-round">${roundHTML(st)}</div><div class="tl-side">${side}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }
 function nextHTML(st){ return `${st.autoNext?`<p class="center small dim">Next game in <span data-until="${local(st.overAt+20000)}"></span> s</p>`:''}<button class="big" id="nextgame">${st.autoNext?'Next game now':'Start the next game'}</button>`; }
@@ -610,7 +623,7 @@ function handMain(st,embedded){
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
   const selCard=sel.length?hand.find(c=>c.id===sel[0]):null;
   const rows={}; hand.forEach(c=>{ (rows[c.c]=rows[c.c]||[]).push(c); });
-  const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${unoHints&&mine&&st.rules.multi&&selCard&&!sel.includes(c.id)&&same(selCard,c)&&can.has(c.id)?'addable':''} ${st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
+  const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${unoHints&&mine&&st.rules.multi&&selCard&&!sel.includes(c.id)&&same(selCard,c)&&can.has(c.id)?'addable':''} ${unoHints&&st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
   const first=selCard, okPlay=mine&&first&&(!unoHints||can.has(first.id));
   let acts='', deck='';
   if(mine&&st.drawStack){
@@ -679,6 +692,7 @@ function bind(){
   on('#sfx',()=>{ sfxOn=!sfxOn; set('fk-sfx',sfxOn?'1':'0'); sfx.card(); render(); });
   on('#winsnd',()=>{ winOn=!winOn; set('fk-win',winOn?'1':'0'); render(); });
   on('#hints',()=>{ unoHints=!unoHints; set('uno-hints',unoHints?'1':'0'); render(); });
+  on('#rulesToggle',()=>{ showRules=!showRules; render(); });
   on('#sharelink',async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Ultium UNO, table '+room,url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } });
   on('#join',()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); send({t:'join',name:nick,emoji}); });
   on('#leave',()=>send({t:'leave'})); on('#start',()=>send({t:'start'})); on('#nextgame',()=>send({t:'next'}));

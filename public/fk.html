@@ -193,7 +193,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.25 · 25 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.26 · 26 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -208,12 +208,13 @@ const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
 
 let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
+let myPhoto=get('fk-photo')||''; const photos={}; if(myPhoto) photos[pid]=myPhoto; // selfie avatars keyed by pid (shared via the {t:'photo'} channel; emoji fallback)
 const qs=new URLSearchParams(location.search);
 const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game Night shell: the shell owns the camera + video bar, so this frame runs video-free and never navigates away
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
-let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -243,10 +244,11 @@ function connect(){
   const role=mode==='lounge'?(get('fk-lhost')===room?'both':'hand'):mode;
   ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${role}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(!framed&&rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(!framed&&isTbl()) loadIce(); };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(myPhoto) ws.send(JSON.stringify({t:'photo',photo:myPhoto})); if(!framed&&rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(!framed&&isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2500); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
+    if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; if(S) paintFkStrip(S); return; }
     if(m.t==='state'){ prev=S; S=m.s; onState(S,prev); render(); syncPeers(); } };
   ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
   ws.onerror=()=>{ try{ws.close();}catch(e){} };
@@ -260,6 +262,7 @@ function onState(st,old){
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
+  if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) sendMsg({t:'start'}); },1200); } // launched from the Game Night room: start straight in rather than showing the lobby + a second invite
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
   if(wantLounge&&st.lounge) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'toroom'}); // keep asking until the server confirms it's a room
   // the host took everyone back to the Game Night room: this page becomes the room (no reload, video stays up)
@@ -539,8 +542,9 @@ function buildFkStrip(st){ ensureFkStrip(); fkRow.innerHTML=''; fkchips=st.playe
 function paintFkStrip(st){
   st.players.forEach((p,k)=>{ const ch=fkchips[k]; if(!ch) return;
     const ava=ch.el.querySelector('.fkava'), nm=ch.el.querySelector('.fknm'), bal=ch.el.querySelector('.fkbal');
-    ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`;
-    ava.textContent = p.bot?'🤖':(p.emoji||(p.name||'?').charAt(0).toUpperCase());
+    const ph = !p.bot && photos[p.id];
+    if(ph){ ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundSize='cover'; ava.style.backgroundPosition='center'; ava.style.backgroundColor=`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`; ava.textContent=''; }
+    else { ava.style.backgroundImage=''; ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`; ava.textContent = p.bot?'🤖':(p.emoji||(p.name||'?').charAt(0).toUpperCase()); }
     nm.textContent = (p.id===pid&&mode!=='table')?'You':p.name;
     bal.textContent = '$'+p.balance;
     const cur = st.phase!=='ante' && st.waitingOn>=0 && st.waitingOn===k;

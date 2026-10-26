@@ -286,6 +286,7 @@ export class Table extends DurableObject {
         break;
       // Game Night room: the host brings everyone back to the video lounge between games (balances and the scoreboard are kept, bots are let go)
       case "toroom": if (isHost && between) { toLobby(st); st.players = st.players.filter((p) => !p.bot); st.first = 0; st.lounge = true; st.layout = "phones"; delete st.goto; changed = true; } break;
+      case "endsession": { const msg = JSON.stringify({ t: "closed" }); for (const w of this.ctx.getWebSockets()) { if (w.readyState === 1) try { w.send(msg); } catch {} } this.S = fresh(); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); changed = false; } break; // finish the whole session: every connected device goes home, then the room is wiped clean
       case "addbot": {
         if (!isHost || !between || st.players.length >= 8) break;
         const used = new Set(st.players.map((p) => p.name)); const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${st.players.length + 1}`;

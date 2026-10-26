@@ -193,7 +193,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.28 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.32 · 26 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -263,7 +263,7 @@ function onState(st,old){
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
-  if(framed&&st.host&&st.phase==='lobby'&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(!(S&&S.host&&S.phase==='lobby')) return; if(S.players.length<2) sendMsg({t:'addbot'}); sendMsg({t:'start'}); },1200); } // launched from the Game Night room: start straight in; if you're on your own, add a bot rather than bouncing back to the lobby
+  if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) sendMsg({t:'start'}); },1200); } // launched from the room: start straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
   if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; sendMsg({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
   if(wantLounge&&st.lounge) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'toroom'}); // keep asking until the server confirms it's a room
@@ -522,7 +522,7 @@ function boardHTML(st,host){
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(framed&&S&&S.lounge){ app.className='app'; app.innerHTML='<div class="wait">Back to the Game Night room…</div>'; return; } // the shell is about to show the lobby
-  if(framed&&S&&S.phase==='lobby'&&Date.now()<dealingUntil){ app.className='app'; app.innerHTML='<div class="wait"><h2>Starting the game…</h2></div>'; return; } // launched from the room: auto-start is imminent — don't flash the lobby/invite
+  if(framed&&S&&S.phase==='lobby'){ const n=S.players.length; app.className='app'; app.innerHTML=n>=2?'<div class="wait"><h2>Starting the game…</h2></div>':`<div class="wait"><h2>Setting up the table…</h2><p class="muted">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="muted">Waiting for the host to start.</p>`}</div>`; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot when you're on your own
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); document.getElementById('banner').innerHTML=''; bind(); renderVideo(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }

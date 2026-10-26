@@ -254,7 +254,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.31 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.32 · 26 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -316,7 +316,7 @@ function onState(st,old){
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; send({t:'join',name:nick,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
-  if(framed&&st.host&&st.phase==='lobby'&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(!(S&&S.host&&S.phase==='lobby')) return; if(S.players.length<2) send({t:'addbot'}); send({t:'start'}); },1200); } // launched from the Game Night room: deal straight in; if you're on your own, fill with a bot rather than bouncing back to the lobby
+  if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) send({t:'start'}); },1200); } // launched from the room: deal straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
   if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; send({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ send({t:'settings',layout:wantLayout}); wantLayout=''; }
   // video was on before (e.g. in the Game Night room): switch it back on
@@ -551,7 +551,7 @@ const sfx={
 function render(){
   if(!room||!mode){ if(framed){ tellShell('home'); return; } location.replace('/?home=1'); return; } // the Game Night home page has the game picker
   if(!S){ app.innerHTML=`<div class="center dim" style="padding:3rem 0">Connecting to table ${esc(room)}…</div>`; return; }
-  if(framed&&S.phase==='lobby'&&Date.now()<dealingUntil){ app.innerHTML=`<div class="center dim" style="padding:3rem 0"><h2>Dealing you in…</h2></div>`; return; } // launched from the room: auto-deal is imminent — don't flash the lobby/invite
+  if(framed&&S.phase==='lobby'){ const n=S.players.length; app.className='app'; app.innerHTML=n>=2?`<div class="center dim" style="padding:3rem 0"><h2>Dealing you in…</h2></div>`:`<div class="center" style="padding:3rem 1rem"><h2>Setting up the table…</h2><p class="dim">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="dim">Waiting for the host to start.</p>`}</div>`; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot when you're on your own
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const stripOn=(S.phase==='play'||S.phase==='over')&&S.players.length>=2; // compact strip layout during play AND on the end screen, so the full-size round table doesn't take over after a game
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':''); // own-devices game: players get the wide table layout too

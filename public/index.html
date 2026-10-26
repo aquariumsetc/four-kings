@@ -188,7 +188,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.28 · 26 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.29 · 26 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -403,15 +403,11 @@ function loungeHTML(st){
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function startHTML(){
-  // Game Night home: both games side by side, plus one-tap rejoin of the last table
-  const fr=get('fk-room'), fl=get('fk-last'), ur=get('uno-room'), ul=get('uno-last');
-  const as=m=>m==='table'?'as the table':m==='both'?'as table + hand':'with your cards';
-  const rejoin=(fr&&fl?`<button class="ghost rj" id="rejoinfk">4 Kings · <b>${esc(fr)}</b> <span>${as(fl)}</span></button>`:'')+(ur&&ul?`<button class="ghost rj" id="rejoinuno">Ultium UNO · <b>${esc(ur)}</b> <span>${as(ul)}</span></button>`:'');
+  // Game Night home: both games side by side (no "resume" — leaving a game closes it; you start a new one from here)
   const k=(t,red,rot)=>`<span class="mini ${red?'red':''}" style="transform:rotate(${rot}deg)">${t}</span>`;
   const u=(bg,t,rot,fg)=>`<span class="mini u" style="background:${bg};color:${fg||'#fff'};transform:rotate(${rot}deg)">${t}</span>`;
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
-  ${rejoin?`<div class="panel"><div class="small muted" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">Pick up where you left off <button class="ghost small" id="clearsaved">Clear</button></div>${rejoin}</div>`:''}
   <div class="panel lounge"><div><h3 style="margin:0">📹 Start a Game Night room</h3><div class="small muted">Get everyone on video first, chat about what to play, then pick a game together.</div></div><button class="big" id="newlounge">📹 Start a video game room</button></div>
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
@@ -435,11 +431,9 @@ async function shareInvite(btn,label){ const link=roomLink(); const base=label||
   try{ if(navigator.share){ await navigator.share({title:'Game Night room '+room,text:'Join my Game Night room',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
   try{ await navigator.clipboard.writeText(link); if(btn){ btn.textContent='Copied!'; setTimeout(()=>{ if(btn.isConnected&&base) btn.textContent=base; },1800); } }catch(e){ prompt('Copy this link:',link); } }
 function freshRoom(){ curGame=null; inLobby=false; stageGame=null; lastGotoAt=0; autoTried=false; S=null; }
-function clearSaved(){ ['fk-room','fk-last','fk-mode','uno-room','uno-last','uno-mode','fk-lhost'].forEach(k=>set(k,'')); render(); } // forget this device's saved-game shortcuts (does not close the room on the server)
 function startOwn(game){ room=newCode(); set(game==='uno'?'uno-room':'fk-room',room); set('fk-lhost',room); wantGame=game; wantLobby=false; wantStart=game==='uno'?[{t:'settings',layout:'phones'},{t:'switchgame',to:'uno'}]:[{t:'settings',layout:'phones'}]; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 function startRoom(){ room=newCode(); set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 function joinCode(game,c){ if(c.length<3) return; room=c; set(game==='uno'?'uno-room':'fk-room',room); wantGame=game; wantLobby=false; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
-function rejoin(game){ const r=get(game==='uno'?'uno-room':'fk-room'); if(!r) return; room=r; wantGame=game; wantLobby=false; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 function bind(){
   const q=s=>app.querySelector(s);
   if(q('#newtable')) q('#newtable').onclick=()=>{ location.href='/fk.html?setup=table'; };
@@ -450,9 +444,6 @@ function bind(){
   if(q('#joinroom')) q('#joinroom').onclick=()=>joinCode('fk',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
   if(q('#joinuno')) q('#joinuno').onclick=()=>joinCode('uno',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
   if(q('#iabx')) q('#iabx').onclick=()=>{ iabDismissed=true; render(); };
-  if(q('#clearsaved')) q('#clearsaved').onclick=clearSaved;
-  if(q('#rejoinfk')) q('#rejoinfk').onclick=()=>rejoin('fk');
-  if(q('#rejoinuno')) q('#rejoinuno').onclick=()=>rejoin('uno');
   if(q('#lgofk')) q('#lgofk').onclick=()=>{ const m=roomMessageFor('pick-fk'); if(m) sendMsg(m); };
   if(q('#lgouno')) q('#lgouno').onclick=()=>{ const m=roomMessageFor('pick-uno'); if(m) sendMsg(m); };
   if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); };

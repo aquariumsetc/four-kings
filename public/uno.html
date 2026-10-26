@@ -147,7 +147,7 @@ body.hasvid.tbl .app.stripon{padding-top:calc(248px + env(safe-area-inset-top,0p
   .app.stripon .hand .card .v{font-size:1.45rem}
   .app.stripon .hand .card .cn{font-size:.58rem}
 }
-/* landscape phones (short height): drop the felt table entirely (the status line already shows the top card, colour & pot) and show just the strip + your hand, so it isn't a cramped, overlapping mess */
+/* landscape / short height (incl. iPad Safari with the bookmarks bar): single column — compact mat on top, your hand below, side hidden */
 @media (orientation:landscape) and (max-height:560px){
   .app.stripon .ustrip{height:72px}
   .app.stripon .ustrip .utrack{top:calc(5px + env(safe-area-inset-top,0px));height:62px}
@@ -155,8 +155,8 @@ body.hasvid.tbl .app.stripon{padding-top:calc(248px + env(safe-area-inset-top,0p
   .app.stripon .ustrip .unm{font-size:.62rem;margin-top:1px}
   .app.stripon .ustrip .ucnt{min-width:16px;height:16px;font-size:.6rem}
   .app.stripon{padding-top:calc(80px + env(safe-area-inset-top,0px))}
-  .app.stripon .tlayout.withhand{grid-template-columns:1fr;grid-template-areas:"hand"}
-  .app.stripon .tlayout.withhand .tl-round{display:none} /* no felt in landscape; status line carries the top card */
+  .app.stripon .tlayout.withhand{grid-template-columns:1fr;grid-template-areas:"round" "hand"} /* keep the compact mat (discard · pot · deck) on top — it no longer gets dropped in short landscape */
+  .app.stripon .tlayout.withhand .tl-round{margin-top:-4px}
   .app.stripon .tlayout.withhand .tl-side{display:none}
   .app.stripon .status{margin:.25rem 0;padding:6px 10px}
   .app.stripon .hand{margin:.3rem 0;gap:5px}
@@ -255,7 +255,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.36 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.37 · 26 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};

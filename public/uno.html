@@ -254,7 +254,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.26 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.27 · 26 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -315,7 +315,7 @@ function onState(st,old){
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; send({t:'join',name:nick,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
-  if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) send({t:'start'}); },1200); } // launched from the Game Night room: deal straight in rather than showing the lobby + a second invite
+  if(framed&&st.host&&st.phase==='lobby'&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(!(S&&S.host&&S.phase==='lobby')) return; if(S.players.length<2) send({t:'addbot'}); send({t:'start'}); },1200); } // launched from the Game Night room: deal straight in; if you're on your own, fill with a bot rather than bouncing back to the lobby
   if(wantLayout&&st.host){ send({t:'settings',layout:wantLayout}); wantLayout=''; }
   // video was on before (e.g. in the Game Night room): switch it back on
   if(!framed&&!autoVidTried&&get('gn-video')==='1'&&mode!=='table'&&!rtc.on){ autoVidTried=true; setTimeout(()=>{ if(!rtc.on) startVideo(); },400); }

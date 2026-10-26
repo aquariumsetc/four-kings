@@ -25,7 +25,7 @@ const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 function fresh() {
   return {
     phase: "lobby", players: [], deck: [], pile: [], colour: null, dir: 1, turn: 0, first: 0, drawStack: 0, drew: false,
-    pot: 0, stake: 20, turnMs: 60000, autoNext: true, rules: { ...RULES }, customs: ["", "", "", ""],
+    pot: 0, stake: 20, turnMs: 0, autoNext: false, rules: { ...RULES }, customs: ["", "", "", ""],
     game: 0, winner: null, note: "", event: null, ledger: {}, turnAt: 0, overAt: 0, nextId: 1, v: 0,
   };
 }
@@ -284,6 +284,7 @@ export class UnoTable extends DurableObject {
     // video signalling: relayed between sockets, never touches game state
     if (m.t === "video") { att.video = !!m.on; ws.serializeAttachment(att); this.broadcast(); return; }
     if (m.t === "stopgame") { this.S = fresh(); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); return; } // emergency reset: empty the room and stop the loop
+    if (m.t === "photo") { if (!pid) return; const photo = (typeof m.photo === "string" && m.photo.length <= 60000 && m.photo.startsWith("data:image/")) ? m.photo : ""; if (photo) await this.ctx.storage.put("photo:" + pid, photo); else await this.ctx.storage.delete("photo:" + pid); const msg = JSON.stringify({ t: "photo", pid, photo }); for (const w of this.ctx.getWebSockets()) { if (w.readyState === 1) try { w.send(msg); } catch {} } return; } // selfie avatars: store per-player + fan out (kept off the frequent game-state broadcast)
     if (m.t === "rtc") {
       for (const other of this.ctx.getWebSockets()) { const o = other.deserializeAttachment() || {}; if (other !== ws && ((o.sid && o.sid === m.to) || (o.pid && o.pid === m.to))) { const from = o.sid === m.to ? att.sid : att.pid; try { other.send(JSON.stringify({ t: "rtc", from, data: m.data })); } catch {} } }
       return;
@@ -294,7 +295,7 @@ export class UnoTable extends DurableObject {
     const between = st.phase === "lobby" || st.phase === "over";
     let changed = true, err = "";
     switch (m.t) {
-      case "hello": this.send(ws); return;
+      case "hello": this.send(ws); { const ph = await this.ctx.storage.list({ prefix: "photo:" }); for (const [k, v] of ph) try { ws.send(JSON.stringify({ t: "photo", pid: k.slice(6), photo: v })); } catch {} } return;
       case "join": {
         if (!pid) return;
         const name = String(m.name || "Player").trim().slice(0, 18) || "Player";

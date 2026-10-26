@@ -26,7 +26,7 @@ function fresh() {
     phase: "lobby", players: [], kings: { S: 0, H: 0, D: 0, C: 0 }, pot: 0, first: 0, game: 0,
     dead: [], spare: [], swapIdx: 0, swapAns: {}, leader: 0, colour: null, runSuit: null, run: [], nextRank: 0,
     calledAt: 0, turnAt: 0, swapEnd: 0, overAt: 0, note: "", winner: null, v: 0,
-    claimMs: CLAIM_MS, swapMode: "race", autoNext: true, ledger: {},
+    claimMs: CLAIM_MS, swapMode: "race", autoNext: false, ledger: {},
   };
 }
 function deck() {

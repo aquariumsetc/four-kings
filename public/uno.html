@@ -254,7 +254,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.28 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.31 · 26 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -553,9 +553,9 @@ function render(){
   if(!S){ app.innerHTML=`<div class="center dim" style="padding:3rem 0">Connecting to table ${esc(room)}…</div>`; return; }
   if(framed&&S.phase==='lobby'&&Date.now()<dealingUntil){ app.innerHTML=`<div class="center dim" style="padding:3rem 0"><h2>Dealing you in…</h2></div>`; return; } // launched from the room: auto-deal is imminent — don't flash the lobby/invite
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
-  const stripOn=S.phase==='play'&&S.players.length>=2; // the player strip (everyone + whose turn) shows during play on every device: the iPad table, own-devices phones, and hand devices in an iPad-table game
+  const stripOn=(S.phase==='play'||S.phase==='over')&&S.players.length>=2; // compact strip layout during play AND on the end screen, so the full-size round table doesn't take over after a game
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':''); // own-devices game: players get the wide table layout too
-  let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your cards</div>${handMain(S,true)}</div>`):handHTML(S);
+  let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,S.phase==='over'?'':`<div class="panel" style="border:1px solid rgba(255,209,102,.4)"><div class="small dim">Your cards</div>${handMain(S,true)}</div>`):handHTML(S);
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
   if(S.host) html+=`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Rules &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>`;
   html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button>${IOS&&(sfxOn||winOn)?` <span class="dim" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${unoHints?'on':'off'}</button>`:''} · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
@@ -604,8 +604,8 @@ function tableHTML(st,handPanel){
     const p=st.players[st.turn];
     side=`<div class="panel center"><div class="small dim">Now playing</div><h2>${esc(p?p.name:'')}</h2><p class="small dim">${esc(st.note||'')}</p></div>${host?`<button class="ghost big" id="finish">Finish the game</button><p class="small dim center">Whoever has the fewest cards wins the pot.</p>`:''}${scoresHTML(st)}${resetBtn}`;
   } else if(st.phase==='over'){
-    const w=st.winner;
-    side=`<div class="panel center"><h2>${w?w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins'):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div><div class="endbar"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>${scoresHTML(st)}`;
+    const w=st.winner, iWon=!!(w&&w.idx.some(i=>st.players[i]&&st.players[i].id===pid));
+    side=`<div class="panel center"><h2>${w?(iWon?'You win!':w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins')):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div><div class="endbar"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>${scoresHTML(st)}`;
   }
   return `<div class="tlayout${handPanel?' withhand':''}"><div class="tl-round">${roundHTML(st)}</div><div class="tl-side">${side}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }

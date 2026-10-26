@@ -114,17 +114,18 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 /* when the strip is up on a phone, drop the ring of seats + arrows and keep a compact play mat */
 .app.stripon .round .seat,.app.stripon #dring,.app.stripon #dirlbl{display:none}
 /* compact play mat wherever the strip is up (own-devices phones AND the iPad table): discard left, deck to its right, pot below — no big ring of seats */
-.app.stripon .tl-round .round{width:min(100%,360px);height:160px;aspect-ratio:auto;margin:.4rem auto}
+.app.stripon .tl-round .round{width:min(100%,270px);height:118px;aspect-ratio:auto;margin:.4rem auto}
 .app.stripon .round .felt{inset:0;border-radius:20px}
 .app.stripon .round .halo{display:none}
 .app.stripon .round .pile{left:32%;top:46%}
-.app.stripon .round .pile .card.lg{transform:scale(.62)}
+.app.stripon .round .pile .card.lg{transform:scale(.46)}
 .app.stripon .round .deck{left:70%;top:40%}
-.app.stripon .round .deck .card{width:54px;height:80px}
-.app.stripon .round .deck .n{font-size:.72rem;margin-top:2px}
+.app.stripon .round .deck .card{width:40px;height:58px}
+.app.stripon .round .deck .n{font-size:.6rem;margin-top:1px}
 .app.stripon .round .potchip{left:50%;top:auto;bottom:8px;transform:translateX(-50%)}
 .app.stripon .round .potchip .n{font-size:1.2rem}
 .app.stripon .round .stackbadge{top:auto;bottom:44px}
+.app.stripon .hand .card{width:42px;height:62px;border-radius:8px}.app.stripon .hand .card .v{font-size:1.3rem}.app.stripon .hand .card .cn{font-size:.56rem}
 .app.stripon{padding-top:calc(116px + env(safe-area-inset-top,0px))}
 body.hasvid .app.stripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
 body.hasvid.tbl .ustrip{top:calc(136px + env(safe-area-inset-top,0px))} /* iPad table video bar is a touch taller */
@@ -254,7 +255,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.32 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.33 · 26 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -679,7 +680,7 @@ function handMain(st,embedded){
 }
 function statusHTML(st,i){
   const t=st.pile&&st.pile.length?st.pile[st.pile.length-1].c:null, turnP=st.players[st.turn], mine=st.turn===i;
-  return `<div class="status">${t?cardHTML(t,'sm'):''}<div class="txt"><div class="big">${mine?'Your turn':esc(turnP?turnP.name:'')+'\u2019s turn'}</div><div class="small dim">Colour <b style="color:var(--${st.colour})">${CNAME[st.colour]||''}</b>${st.drawStack?` · <b style="color:var(--R)">+${st.drawStack} pending</b>`:''} · pot $${st.pot}</div></div><span class="arrow" id="parrow">${animDir===1?'↻':'↺'}</span></div>
+  return `<div class="status">${t?cardHTML(t,'sm'):''}<div class="txt"><div class="big">${mine?'Your turn':esc(turnP?turnP.name:'')+'\u2019s turn'}</div><div class="small dim">${st.drawStack?`<b style="color:var(--R)">+${st.drawStack} pending</b>`:''}</div></div><span class="arrow" id="parrow">${animDir===1?'↻':'↺'}</span></div>
   <div class="oppstrip small dim" style="display:flex;gap:10px;flex-wrap:wrap;margin:-2px 4px 0">${st.players.filter(p=>p.in&&p.id!==pid).map(p=>`<span style="${st.players[st.turn]===p?'color:var(--gold)':''}">${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)} ${p.cards===1?'<b style="color:var(--R)">1!</b>':p.cards}</span>`).join('')}</div>`;
 }
 function overlayHTML(o){

@@ -193,7 +193,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.27 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.28 · 26 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -214,7 +214,7 @@ const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game 
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
-let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
+let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
@@ -249,6 +249,7 @@ function connect(){
     if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2500); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
     if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; if(S) paintFkStrip(S); return; }
+    if(m.t==='closed'){ if(!framed) location.replace('/?home=1'); return; } // session finished (standalone goes home; framed is handled by the shell)
     if(m.t==='state'){ prev=S; S=m.s; onState(S,prev); render(); syncPeers(); } };
   ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
   ws.onerror=()=>{ try{ws.close();}catch(e){} };
@@ -263,6 +264,7 @@ function onState(st,old){
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(framed&&st.host&&st.phase==='lobby'&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(!(S&&S.host&&S.phase==='lobby')) return; if(S.players.length<2) sendMsg({t:'addbot'}); sendMsg({t:'start'}); },1200); } // launched from the Game Night room: start straight in; if you're on your own, add a bot rather than bouncing back to the lobby
+  if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; sendMsg({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
   if(wantLounge&&st.lounge) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'toroom'}); // keep asking until the server confirms it's a room
   // the host took everyone back to the Game Night room: this page becomes the room (no reload, video stays up)
@@ -520,6 +522,7 @@ function boardHTML(st,host){
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(framed&&S&&S.lounge){ app.className='app'; app.innerHTML='<div class="wait">Back to the Game Night room…</div>'; return; } // the shell is about to show the lobby
+  if(framed&&S&&S.phase==='lobby'&&Date.now()<dealingUntil){ app.className='app'; app.innerHTML='<div class="wait"><h2>Starting the game…</h2></div>'; return; } // launched from the room: auto-start is imminent — don't flash the lobby/invite
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); document.getElementById('banner').innerHTML=''; bind(); renderVideo(); return; }
   if(!S){ app.innerHTML=`<div class="wait">Connecting to table ${esc(room)}…</div>`; return; }
@@ -656,9 +659,9 @@ function tableHTML(st,handPanel){
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
-    ${nextHTML(st)}${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`;
+    <div class="endbar" style="margin-top:10px"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>`;
   }
-  return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
+  return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&st.phase!=='over'&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }
 function pileHTML(st,live){
   if(!st.run.length) return `<div class="wait" style="padding-top:110px">${st.game?'Table is clear':''}</div>`;
@@ -765,6 +768,7 @@ function bind(){
   if(q('#clearboard')) q('#clearboard').onclick=()=>{ if(confirm('Reset the season scoreboard?')) sendMsg({t:'clearboard'}); };
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
   if(q('#nextgame')) q('#nextgame').onclick=()=>sendMsg({t:'next'});
+  if(q('#endsession')) q('#endsession').onclick=()=>{ if(confirm('Finish the game session for everyone? This ends the game and closes the room — every player goes back to home.')){ if(framed) tellShell('endsession'); else { sendMsg({t:'endsession'}); setTimeout(()=>location.replace('/?home=1'),300); } } };
   if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,auto:autoOn,emoji}); };
   if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
   app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<2) draft.suits.push(s); else draft.suits=[draft.suits[1],s]; if(draft.suits.length===2&&draft.total<20) draft.total=20; render(); });

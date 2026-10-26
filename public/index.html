@@ -188,7 +188,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.27 · 26 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.28 · 26 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -349,6 +349,7 @@ function connect(){
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
+    if(m.t==='closed'){ goHome(); return; } // the session was finished for everyone
     if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; renderVideo(); return; }
     if(m.t==='state'){ S=m.s; onState(S); render(); syncPeers(); } };
   ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
@@ -471,6 +472,7 @@ function bind(){
 /* ---------- a game frame asks the shell to move the whole party ---------- */
 window.addEventListener('message',e=>{ const d=e&&e.data; if(!d||d.gn!=='action') return;
   if(d.action==='home'){ goHome(); return; }
+  if(d.action==='endsession'){ sendMsg({t:'endsession'}); return; } // finish the whole session for everyone
   const m=roomMessageFor(d.action); if(m) sendMsg(m);
 });
 

@@ -254,7 +254,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.27 · 26 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.28 · 26 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -272,7 +272,7 @@ function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},
 let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('uno-mode')||'';
 let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', unoHints=get('uno-hints')==='1', showRules=false;
-let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, autoStartTried=false, holdT=null, held=false;
+let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0, holdT=null, held=false;
 const app=document.getElementById('app'), ovlEl=document.getElementById('ovl'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
 const pidx=(st,id)=>st.players.findIndex(p=>p.id===id);
@@ -304,6 +304,7 @@ function connect(){
     if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2600); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
     if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; if(S) paintStrip(S); return; }
+    if(m.t==='closed'){ if(!framed) location.replace('/?home=1'); return; } // session finished (standalone goes home; framed is handled by the shell)
     if(m.t==='state'){ const old=S; S=m.s; onState(S,old); render(); syncPeers(); } };
   ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
 }
@@ -316,6 +317,7 @@ function onState(st,old){
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(framed&&st.host&&st.phase==='lobby'&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(!(S&&S.host&&S.phase==='lobby')) return; if(S.players.length<2) send({t:'addbot'}); send({t:'start'}); },1200); } // launched from the Game Night room: deal straight in; if you're on your own, fill with a bot rather than bouncing back to the lobby
+  if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; send({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ send({t:'settings',layout:wantLayout}); wantLayout=''; }
   // video was on before (e.g. in the Game Night room): switch it back on
   if(!framed&&!autoVidTried&&get('gn-video')==='1'&&mode!=='table'&&!rtc.on){ autoVidTried=true; setTimeout(()=>{ if(!rtc.on) startVideo(); },400); }
@@ -549,6 +551,7 @@ const sfx={
 function render(){
   if(!room||!mode){ if(framed){ tellShell('home'); return; } location.replace('/?home=1'); return; } // the Game Night home page has the game picker
   if(!S){ app.innerHTML=`<div class="center dim" style="padding:3rem 0">Connecting to table ${esc(room)}…</div>`; return; }
+  if(framed&&S.phase==='lobby'&&Date.now()<dealingUntil){ app.innerHTML=`<div class="center dim" style="padding:3rem 0"><h2>Dealing you in…</h2></div>`; return; } // launched from the room: auto-deal is imminent — don't flash the lobby/invite
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const stripOn=S.phase==='play'&&S.players.length>=2; // the player strip (everyone + whose turn) shows during play on every device: the iPad table, own-devices phones, and hand devices in an iPad-table game
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':''); // own-devices game: players get the wide table layout too
@@ -602,7 +605,7 @@ function tableHTML(st,handPanel){
     side=`<div class="panel center"><div class="small dim">Now playing</div><h2>${esc(p?p.name:'')}</h2><p class="small dim">${esc(st.note||'')}</p></div>${host?`<button class="ghost big" id="finish">Finish the game</button><p class="small dim center">Whoever has the fewest cards wins the pot.</p>`:''}${scoresHTML(st)}${resetBtn}`;
   } else if(st.phase==='over'){
     const w=st.winner;
-    side=`<div class="panel center"><h2>${w?w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins'):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div>${nextHTML(st)}${host&&st.layout==='phones'?`<button class="ghost" id="toroom" style="width:100%;margin-top:8px">📹 Back to the Game Night room</button>`:''}${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">Add a bot</button><button class="ghost small" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}${scoresHTML(st)}${resetBtn}`;
+    side=`<div class="panel center"><h2>${w?w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins'):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div><div class="endbar"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>${scoresHTML(st)}`;
   }
   return `<div class="tlayout${handPanel?' withhand':''}"><div class="tl-round">${roundHTML(st)}</div><div class="tl-side">${side}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }
@@ -723,6 +726,7 @@ function bind(){
   on('#sharelink',async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'Ultium UNO, table '+room,url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } });
   on('#join',()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); send({t:'join',name:nick,emoji}); });
   on('#leave',()=>send({t:'leave'})); on('#start',()=>send({t:'start'})); on('#nextgame',()=>send({t:'next'}));
+  on('#endsession',()=>{ if(confirm('Finish the game session for everyone? This ends the game and closes the room — every player goes back to home.')){ send({t:'stopgame'}); if(framed) tellShell('endsession'); else location.replace('/?home=1'); } });
   on('#addbot',()=>send({t:'addbot'})); on('#removebot',()=>send({t:'removebot'})); on('#rebuy',()=>send({t:'rebuy'}));
   on('#reset',()=>{ if(confirm('Clear the table for everyone?')) send({t:'reset'}); });
   on('#clearboard',()=>{ if(confirm('Reset the wins scoreboard?')) send({t:'clearboard'}); });

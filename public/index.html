@@ -188,7 +188,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.37 · 26 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.38 · 26 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -233,7 +233,7 @@ function gameSrc(game,mode){
 }
 
 /* ---------- video: WebRTC mesh keyed by the stable device id (pid), so it survives a game change ---------- */
-function wantedPids(peers,me,on,tbl){ const want=new Set(); for(const p of peers||[]){ if(!p||!p.pid||p.pid===me) continue; if(p.video) want.add(p.pid); } return want; } // every device shows everyone who's sending video, even with its own camera off
+function wantedPids(peers,me,on,tbl){ const want=new Set(); for(const p of peers||[]){ if(!p||!p.pid||p.pid===me) continue; if(p.video||on||tbl) want.add(p.pid); } return want; } // receive every broadcaster; and when I'm sending (or I'm the table), also connect to camera-off devices so they receive me — otherwise a camera-on phone never initiates to a camera-off PC and the handshake deadlocks
 const isPolite=(a,b)=>String(a)>String(b);
 const GRACE=10000;
 const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false};
@@ -262,7 +262,7 @@ function syncPeers(){
   want.forEach(id=>{ if(!rtc.peers[id]) makePeer(id); });
   renderVideo();
 }
-setInterval(()=>{ if(iParticipate()) syncPeers(); },3000); // advance the grace timers even when no new state arrives
+setInterval(()=>{ if(rtc.on||isTbl()||((S&&S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid()))) syncPeers(); },3000); // advance grace timers AND keep a camera-off device connecting to broadcasters (not just when its own camera is on)
 function makePeer(id){
   const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:isPolite(myPid(),id),stream:null,making:false,ignore:false,cands:[],goneAt:0}; rtc.peers[id]=p;
   if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
@@ -277,7 +277,7 @@ function closePeer(id){ const p=rtc.peers[id]; if(!p) return; try{p.pc.close();}
 async function onRtc(from,data){
   if(rtc.joining){ rtc.queue.push([from,data]); return; }
   if(!S||!peerList().some(x=>x.pid===from)) return;
-  let p=rtc.peers[from]; if(!p){ if(!iParticipate()) return; await loadIce(); p=makePeer(from); } else p.goneAt=0;
+  let p=rtc.peers[from]; if(!p){ if(!wantedPids(peerList(),myPid(),rtc.on,isTbl()).has(from)) return; await loadIce(); p=makePeer(from); } else p.goneAt=0; // accept an inbound connection from any peer we want (a camera-off device still wants every broadcaster)
   const pc=p.pc;
   try{
     if(data.description){

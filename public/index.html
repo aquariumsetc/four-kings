@@ -190,7 +190,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.40 · 27 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.41 · 27 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -238,7 +238,7 @@ function gameSrc(game,mode){
 function wantedPids(peers,me,on,tbl){ const want=new Set(); for(const p of peers||[]){ if(!p||!p.pid||p.pid===me) continue; if(p.video||on||tbl) want.add(p.pid); } return want; } // receive every broadcaster; and when I'm sending (or I'm the table), also connect to camera-off devices so they receive me — otherwise a camera-on phone never initiates to a camera-off PC and the handshake deadlocks
 const isPolite=(a,b)=>String(a)>String(b);
 const GRACE=10000;
-const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false,wantSince:{}};
+const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false,wantSince:{},relayOf:{}};
 // --- video diagnostics (v2.8.40): read-only; auto-reveals a small box when a wanted peer won't connect, force on/off with ?vdebug=1 / ?vdebug=0 ---
 if(qs.get('vdebug')==='1') set('gn-vdebug','1'); if(qs.get('vdebug')==='0') set('gn-vdebug','');
 const VDBG=get('gn-vdebug')==='1';
@@ -268,25 +268,28 @@ function syncPeers(){
   for(const id of Object.keys(rtc.peers)){ if(want.has(id)) rtc.peers[id].goneAt=0; else if(!rtc.peers[id].goneAt) rtc.peers[id].goneAt=now; else if(now-rtc.peers[id].goneAt>=GRACE) closePeer(id); }
   want.forEach(id=>{ if(!rtc.wantSince[id]) rtc.wantSince[id]=now; if(!rtc.peers[id]) makePeer(id); });
   for(const id in rtc.wantSince){ if(!want.has(id)) delete rtc.wantSince[id]; }
+  for(const id in rtc.relayOf){ if(!want.has(id)) delete rtc.relayOf[id]; }
   renderVideo();
 }
-setInterval(()=>{ if(rtc.on||isTbl()||((S&&S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid()))){ syncPeers(); vpollStats(); } },3000); // advance grace timers AND keep a camera-off device connecting to broadcasters (not just when its own camera is on)
+setInterval(()=>{ if(rtc.on||isTbl()||((S&&S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid()))){ syncPeers(); vwatchdog(); vpollStats(); } },3000); // advance grace timers AND keep a camera-off device connecting to broadcasters (not just when its own camera is on)
 function makePeer(id){
-  const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:isPolite(myPid(),id),stream:null,making:false,ignore:false,cands:[],goneAt:0,candType:''}; rtc.peers[id]=p;
-  vlog(vshort(id),'makePeer',p.polite?'polite':'impolite');
+  const relay=!!rtc.relayOf[id]; const cfg=relay?Object.assign({},rtc.ice,{iceTransportPolicy:'relay'}):rtc.ice;
+  const pc=new RTCPeerConnection(cfg); const p={pc,polite:isPolite(myPid(),id),stream:null,making:false,ignore:false,cands:[],goneAt:0,candType:'',since:Date.now(),relay}; rtc.peers[id]=p;
+  vlog(vshort(id),'makePeer',p.polite?'polite':'impolite',relay?'[relay]':'');
   if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
   else { try{ pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }catch(e){} } // camera off: still receive everyone else
   pc.onnegotiationneeded=async()=>{ const other=peerList().find(x=>x.pid===id); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; vlog(vshort(id),'offer'); await pc.setLocalDescription(); sendMsg({t:'rtc',to:id,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
   pc.onicecandidate=({candidate})=>{ if(candidate){ vlog(vshort(id),'cand',candidate.type||((candidate.candidate||'').split(' ')[7])); sendMsg({t:'rtc',to:id,data:{candidate}}); } };
   pc.ontrack=ev=>{ vlog(vshort(id),'ontrack'); p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };
   pc.oniceconnectionstatechange=()=>{ vlog(vshort(id),'ice',pc.iceConnectionState); renderVDebug(); };
-  pc.onconnectionstatechange=()=>{ vlog(vshort(id),'conn',pc.connectionState); if(pc.connectionState==='failed'){ closePeer(id); setTimeout(syncPeers,1500); } renderVideo(); };
+  pc.onconnectionstatechange=()=>{ vlog(vshort(id),'conn',pc.connectionState); if(pc.connectionState==='connected'||pc.connectionState==='completed') p.since=Date.now(); if(pc.connectionState==='failed'){ closePeer(id); setTimeout(syncPeers,1500); } renderVideo(); };
   return p;
 }
 function closePeer(id){ const p=rtc.peers[id]; if(!p) return; try{p.pc.close();}catch(e){} delete rtc.peers[id]; }
 async function onRtc(from,data){
   if(rtc.joining){ rtc.queue.push([from,data]); return; }
   if(!S||!peerList().some(x=>x.pid===from)) return;
+  if(data&&data.reset==='relay'){ const w=wantedPids(peerList(),myPid(),rtc.on,isTbl()).has(from), p0=rtc.peers[from]; if(w&&!(p0&&p0.relay&&Date.now()-p0.since<2000)){ rtc.relayOf[from]=true; vlog(vshort(from),'peer asked for relay'); closePeer(from); await loadIce(); makePeer(from); } return; } // the other side's watchdog gave up on the direct path — rebuild this one peer relay-only too, so both ends gather TURN candidates
   let p=rtc.peers[from]; if(!p){ if(!wantedPids(peerList(),myPid(),rtc.on,isTbl()).has(from)) return; await loadIce(); p=makePeer(from); } else p.goneAt=0; // accept an inbound connection from any peer we want (a camera-off device still wants every broadcaster)
   const pc=p.pc;
   try{
@@ -338,7 +341,17 @@ async function vpollStats(){
   for(const id in rtc.peers){ const p=rtc.peers[id]; try{ const s=await p.pc.getStats(); let pair=null; s.forEach(r=>{ if(r.type==='candidate-pair'&&r.state==='succeeded'){ if(!pair||r.nominated) pair=r; } }); if(pair){ const l=s.get(pair.localCandidateId), rm=s.get(pair.remoteCandidateId); p.candType=((l&&l.candidateType)||'?')+'/'+((rm&&rm.candidateType)||'?'); } }catch(e){} }
   renderVDebug();
 }
-function vpeerDiag(id){ const p=rtc.peers[id], nm=((peerList().find(x=>x.pid===id)||{}).name)||vshort(id); if(!p) return nm+': waiting…'; const pc=p.pc; return nm+' '+(p.polite?'P':'I')+' '+pc.connectionState+'/'+pc.iceConnectionState+' '+(p.stream?'📹':'·')+(p.candType?' '+p.candType:''); }
+function vpeerDiag(id){ const p=rtc.peers[id], r=rtc.relayOf[id]?' ⚡':'', nm=((peerList().find(x=>x.pid===id)||{}).name)||vshort(id); if(!p) return nm+': waiting…'+r; const pc=p.pc; return nm+' '+(p.polite?'P':'I')+' '+pc.connectionState+'/'+pc.iceConnectionState+' '+(p.stream?'📹':'·')+(p.candType?' '+p.candType:'')+r; }
+// watchdog (v2.8.41): a peer that won't reach "connected" on the direct/LAN path within ~8s (iOS↔iOS .local candidates don't resolve, and iOS parks at "disconnected" without ever hitting "failed") gets a coordinated relay-only rebuild. Healthy LAN pairs connect well under 8s and never touch this.
+function vwatchdog(){
+  const now=Date.now();
+  for(const id in rtc.peers){ const p=rtc.peers[id], cs=p.pc.connectionState;
+    if(cs==='connected'||cs==='completed'){ p.since=now; continue; }
+    if(cs==='closed') continue;
+    if(now-p.since>8000) kickPeer(id); // rebuilding resets p.since, so this self-limits to ~one retry per 8s
+  }
+}
+async function kickPeer(id){ rtc.relayOf[id]=true; vlog(vshort(id),'kick→relay'); try{ sendMsg({t:'rtc',to:id,data:{reset:'relay'}}); }catch(e){} closePeer(id); await loadIce(); makePeer(id); }
 function renderVDebug(){
   let box=document.getElementById('vdbg');
   const active=!!(room&&S)&&(rtc.on||isTbl()||((S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid())));

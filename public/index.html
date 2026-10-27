@@ -208,7 +208,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.55 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.56 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -485,7 +485,7 @@ function startHTML(){
   </div>
   <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
     <input class="code" id="code" placeholder="CODE" maxlength="16" value="" autocapitalize="characters" autocomplete="off">
-    <div class="row" style="margin-top:8px"><button class="ghost" id="joinroom">Join 4 Kings</button><button class="ghost" id="joinuno">Join Ultium UNO</button></div></div>
+    <button id="joingame" style="margin-top:8px;width:100%">Join game</button></div>
   <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Start video</b> to see each other.</div></div>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
@@ -508,7 +508,6 @@ async function shareInvite(btn,label){ const link=roomLink(); const base=label||
 function freshRoom(){ curGame=null; inLobby=false; stageGame=null; lastGotoAt=0; autoTried=false; S=null; }
 function startOwn(game){ room=newCode(); set(game==='uno'?'uno-room':'fk-room',room); set('fk-lhost',room); wantGame=game; wantLobby=false; wantStart=game==='uno'?[{t:'settings',layout:'phones'},{t:'switchgame',to:'uno'}]:[{t:'settings',layout:'phones'}]; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 function startRoom(){ room=newCode(); set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
-function joinCode(game,c){ if(c.length<3) return; room=c; set(game==='uno'?'uno-room':'fk-room',room); wantGame=game; wantLobby=false; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 // v2.8.51: named, persistent rooms — "EVERYONE" always reopens the same room (the DO is keyed by name). Saved rooms become one-tap buttons on the home screen.
 const normRoom=s=>(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
 function savedRooms(){ try{ return JSON.parse(get('gn-rooms')||'[]').filter(Boolean); }catch(e){ return []; } }
@@ -525,8 +524,7 @@ function bind(){
   if(q('#openroom')) q('#openroom').onclick=()=>openNamedRoom(q('#roomname').value);
   if(q('#roomname')) q('#roomname').onkeydown=e=>{ if(e.key==='Enter') openNamedRoom(q('#roomname').value); };
   app.querySelectorAll('.roomquick').forEach(b=>b.onclick=e=>{ const rm=e.target.closest('.rmroom'); if(rm){ e.stopPropagation(); rmSavedRoom(rm.dataset.rm); return; } if(b.dataset.switchroom){ location.href='/?room='+normRoom(b.dataset.switchroom)+'&mode=lounge'; return; } openNamedRoom(b.dataset.room); });
-  if(q('#joinroom')) q('#joinroom').onclick=()=>joinCode('fk',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
-  if(q('#joinuno')) q('#joinuno').onclick=()=>joinCode('uno',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
+  if(q('#joingame')){ const go=()=>{ const c=normRoom(q('#code').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } }; q('#joingame').onclick=go; q('#code').onkeydown=e=>{ if(e.key==='Enter') go(); }; }
   if(q('#iabx')) q('#iabx').onclick=()=>{ iabDismissed=true; render(); };
   if(q('#lgofk')) q('#lgofk').onclick=()=>{ const m=roomMessageFor('pick-fk'); if(m) sendMsg(m); };
   if(q('#lgouno')) q('#lgouno').onclick=()=>{ const m=roomMessageFor('pick-uno'); if(m) sendMsg(m); };

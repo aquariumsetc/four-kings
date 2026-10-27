@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><!-- installed app: dark status bar, content fills under it — no pale strip up top -->
+<meta name="apple-mobile-web-app-title" content="Game Night">
 <meta name="theme-color" content="#153f2a">
 <title>Game Night</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -190,7 +193,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.44 · 27 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.47 · 27 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};

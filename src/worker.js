@@ -234,11 +234,12 @@ export class Table extends DurableObject {
     const url = new URL(req.url);
     const pid = (url.searchParams.get("pid") || "").slice(0, 40);
     const want = url.searchParams.get("role"), role = want === "table" ? "table" : "hand", creator = want === "table" || want === "both"; // the device that set up the table runs it
+    const ios = url.searchParams.get("ios") === "1"; // the device advertises its platform so peers can pick relay-first for iOS↔iOS (whose .local candidates don't resolve)
     const sid = crypto.randomUUID().slice(0, 8);
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ pid, role, creator, sid, video: false });
+    server.serializeAttachment({ pid, role, creator, sid, video: false, ios });
     if (role === "table" && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // an iPad table device clears a stale goto; a reconnecting room host must NOT wipe the active game
     this.broadcast();
     await this.schedule(); // a device (re)connected — resume the loop if it was paused for an empty room
@@ -409,7 +410,7 @@ export class Table extends DurableObject {
   send(ws) {
     const { pid, role, sid, creator } = ws.deserializeAttachment() || {};
     const st = this.S, d = deadlines(st); const tablePresent = this.tablePresent();
-    const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, pid: a.pid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
+    const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, pid: a.pid, role: a.role, video: !!a.video, ios: !!a.ios, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined, swapAns: undefined, botAt: undefined,
       swapTurn: st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : null,

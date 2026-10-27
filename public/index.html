@@ -160,6 +160,12 @@ body.ingame #app{display:none}
 body.inroom #gohome{display:block}
 body.inroom.hasvid #vid{padding-left:112px} /* v2.8.40: clear the fixed 🏠 Home button (ends ~99px) so it no longer sits on top of the leftmost video tile in-game */
 .vctl .roomchip{background:rgba(201,162,39,.22);border-color:rgba(201,162,39,.6);color:#f0d98c;font-weight:600;white-space:nowrap}
+.vctl .roomrow{display:flex;gap:5px;align-items:stretch} /* v2.8.50: room link + QR as two buttons */
+.vctl .roomrow .roomchip{flex:1}
+.vctl .roomrow .qrbtn{flex:none;padding:.45rem .62rem;font-size:1.05rem;line-height:1}
+#qrmodal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#qrmodal .qrcard{background:var(--panel,#262a52);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:22px 22px 18px;text-align:center;max-width:300px}
+#qrmodal .qr{background:#fbf7ec;padding:12px;border-radius:12px;display:inline-block;line-height:0}
 .vctl .micoff{background:#e2453c;color:#fff;font-weight:700;border:1px solid rgba(255,255,255,.3)} /* v2.8.40: muted-state read-out, unmistakably red */
 #vdbg{position:fixed;left:6px;bottom:6px;z-index:55;max-width:min(92vw,360px);font:11px/1.35 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#cfe;background:rgba(0,0,0,.82);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:6px 8px;pointer-events:none} /* v2.8.40: video-connection diagnostics; auto-reveals when a peer stays unconnected, or force on with ?vdebug=1 */
 .emojirow{display:flex;flex-wrap:wrap;gap:7px}
@@ -193,7 +199,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.47 · 27 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.50 · 27 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -335,9 +341,9 @@ function renderVideo(){
   const showCtl=room&&S;
   if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
     const inGame=document.body.classList.contains('ingame'); // show the room code only while a game is on (the lobby already shows it)
-    const roomBtn=inGame?`<button class="ghost roomchip" id="roombtn" title="Tap to invite someone to this room">🔗 Room ${esc(room)}</button>`:'';
+    const roomBtn=inGame?`<div class="roomrow"><button class="ghost roomchip" id="roombtn" title="Invite — share / copy the join link">🔗 Room ${esc(room)}</button><button class="ghost roomchip qrbtn" id="qrbtn" title="Show the QR code to join" aria-label="Show QR code to join">▦</button></div>`:'';
     ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost${rtc.mic?'':' micoff'}" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Muted — tap to talk'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`);
-    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room);
+    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room); if(q('#qrbtn')) q('#qrbtn').onclick=showRoomQR;
   } else if(ctl) ctl.remove();
   document.body.classList.toggle('hasvid',vidEl.children.length>0);
   layoutForVideo();
@@ -474,6 +480,15 @@ function goHome(){ stopVideo(); if(ws){try{ws.onclose=null;ws.close();}catch(e){
 // The room's join link + share/copy. Used by the lobby's Invite button and the in-game room-code chip
 // so a latecomer can be sent the code/link while a game is in progress (it opens straight into the room).
 function roomLink(){ return location.origin+'/?room='+room+'&mode=lounge'; }
+function showRoomQR(){ // v2.8.50: the QR button next to the room chip pops a scannable overlay
+  let m=document.getElementById('qrmodal'); if(m){ m.remove(); return; }
+  m=document.createElement('div'); m.id='qrmodal';
+  m.innerHTML=`<div class="qrcard"><div class="small dim" style="margin-bottom:10px">Room ${esc(room)} · scan to join</div><div class="qr" id="qrbig"></div><div class="small dim" style="margin-top:8px">Opens straight into this room.</div><button class="ghost" id="qrclose" style="margin-top:14px">Close</button></div>`;
+  document.body.appendChild(m);
+  const qr=m.querySelector('#qrbig');
+  if(window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:roomLink(),width:220,height:220,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
+  m.onclick=e=>{ if(e.target===m||e.target.id==='qrclose') m.remove(); };
+}
 async function shareInvite(btn,label){ const link=roomLink(); const base=label||(btn&&btn.textContent)||'';
   try{ if(navigator.share){ await navigator.share({title:'Game Night room '+room,text:'Join my Game Night room',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
   try{ await navigator.clipboard.writeText(link); if(btn){ btn.textContent='Copied!'; setTimeout(()=>{ if(btn.isConnected&&base) btn.textContent=base; },1800); } }catch(e){ prompt('Copy this link:',link); } }

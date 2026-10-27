@@ -126,11 +126,16 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 .app.stripon .tl-round .round{width:min(100%,300px);height:92px;aspect-ratio:auto;margin:.3rem auto} /* v2.8.45: short single-row mat — pot · last-played · deck, no stacked pot */
 .app.stripon .round .felt{inset:0;border-radius:16px}
 .app.stripon .round .halo{display:none}
-.app.stripon .round .potchip{left:16%;top:50%;bottom:auto;transform:translate(-50%,-50%);text-align:center} /* pot on the LEFT */
+.app.stripon .round .potchip{left:13%;top:50%;bottom:auto;transform:translate(-50%,-50%);text-align:center} /* pot on the LEFT */
 .app.stripon .round .potchip .n{font-size:1.05rem}
-.app.stripon .round .pile{left:50%;top:50%} /* last-played card in the MIDDLE */
+.potchip .potcol{font-weight:800;text-transform:capitalize;font-size:.9rem;line-height:1.05;margin-top:2px;text-shadow:0 1px 3px rgba(0,0,0,.6)} /* v2.8.49: current colour after a wild/steal — the word, in that colour */
+.app.stripon .round .pile{left:37%;top:50%} /* last-played card in the MIDDLE */
 .app.stripon .round .pile .card.lg{transform:scale(.42)}
-.app.stripon .round .deck{left:84%;top:50%} /* deck on the RIGHT */
+.app.stripon .round .deck{left:60%;top:50%} /* deck RIGHT-of-centre; stacked Play/Draw tuck in on the far right */
+/* v2.8.48: stacked Play/Draw live INSIDE the mat (right) on every screen — phone AND desktop/iPad — not a separate row below the hand */
+.app.stripon .handwrap{position:relative}
+.app.stripon .handwrap .actions{position:absolute;top:34px;left:auto;right:calc((100% - 300px)/2 + 2px);bottom:auto;flex-direction:column;gap:5px;width:60px;margin:0;z-index:3;background:none;padding:0;max-width:none}
+.app.stripon .handwrap .actions button{flex:none;width:100%;padding:.42rem .15rem;font-size:.8rem;border-radius:9px;line-height:1.1}
 .app.stripon .round .deck .card{width:38px;height:55px}
 .app.stripon .round .deck .n{font-size:.56rem;margin-top:1px}
 .app.stripon .round .stackbadge{left:50%;top:2px;bottom:auto;transform:translateX(-50%);font-size:.95rem;padding:.12rem .55rem}
@@ -153,13 +158,6 @@ body.hasvid.tbl .app.stripon{padding-top:calc(248px + env(safe-area-inset-top,0p
   .app.stripon .hand .card{width:40px;height:60px;border-radius:7px} /* v2.8.47: hand cards match the mat's last-played card */
   .app.stripon .hand .card .v{font-size:1.15rem}
   .app.stripon .hand .card .cn{font-size:.5rem}
-  /* v2.8.47: iPhone-first — tuck the stacked Play/Draw into the mat (right); shift pot · last-played · deck left to make room, no separate action row */
-  .app.stripon .handwrap{position:relative}
-  .app.stripon .round .potchip{left:13%}
-  .app.stripon .round .pile{left:37%}
-  .app.stripon .round .deck{left:60%}
-  .app.stripon .handwrap .actions{position:absolute;top:34px;left:auto;right:calc((100% - 300px)/2 + 2px);bottom:auto;flex-direction:column;gap:5px;width:60px;margin:0;z-index:3;background:none;padding:0;max-width:none}
-  .app.stripon .handwrap .actions button{flex:none;width:100%;padding:.42rem .15rem;font-size:.8rem;border-radius:9px;line-height:1.1}
 }
 /* landscape / short height (incl. iPad Safari with the bookmarks bar): single column — compact mat on top, your hand below, side hidden */
 @media (orientation:landscape) and (max-height:560px){
@@ -269,7 +267,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.47 · 27 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.50 · 27 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -608,7 +606,7 @@ function roundHTML(st){
       <path d="M50 4 A46 46 0 0 1 96 50" fill="none" stroke="#ffd166" stroke-width="1.6" marker-end="url(#ah)"/><path d="M50 96 A46 46 0 0 1 4 50" fill="none" stroke="#ffd166" stroke-width="1.6" marker-end="url(#ah)"/></svg></div>
     ${st.phase==='play'||st.phase==='over'?`<div class="halo" style="--hc:${col}"></div><div class="dirlbl" id="dirlbl"></div><div class="pile">${pileHTML(st)}</div>
     <div class="deck">${backHTML()}<div class="n">${st.deckCount} left</div></div>
-    <div class="potchip"><div class="n">$${st.pot}</div><div class="l">in the pot</div></div>
+    <div class="potchip"><div class="n">$${st.pot}</div><div class="l">in the pot</div>${st.colour?`<div class="potcol" style="color:var(--${st.colour})">${CNAME[st.colour]}</div>`:''}</div>
     ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc"><div class="n">$${st.stake}</div><div class="l">stake each</div><div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div>${st.players.length<2?`<ol><li>${st.layout==='phones'?'Tap <b>Share join link</b> and send it to everyone':'Scan the code with a phone camera to join'}</li><li>Short of players? <b>Add a bot</b></li><li>Pick the rules, then <b>Deal</b></li></ol>`:`<p class="dim" style="margin-top:8px">Everyone in — tap <b>Deal</b> to start. More players, rules &amp; options are below.</p>`}</div>`}
     ${seatsHTML(st)}</div>`;
 }

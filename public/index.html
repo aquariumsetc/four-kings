@@ -155,8 +155,10 @@ body.ingame #stage{display:block}
 body.ingame #app{display:none}
 #gohome{position:fixed;top:env(safe-area-inset-top,0px);left:0;z-index:30;display:none;margin:6px;padding:7px 11px;border-radius:12px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;border:1px solid rgba(255,255,255,.2);font-size:1rem;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.45);cursor:pointer}
 body.inroom #gohome{display:block}
-body.inroom.hasvid #vid{padding-left:58px}
+body.inroom.hasvid #vid{padding-left:112px} /* v2.8.40: clear the fixed 🏠 Home button (ends ~99px) so it no longer sits on top of the leftmost video tile in-game */
 .vctl .roomchip{background:rgba(201,162,39,.22);border-color:rgba(201,162,39,.6);color:#f0d98c;font-weight:600;white-space:nowrap}
+.vctl .micoff{background:#e2453c;color:#fff;font-weight:700;border:1px solid rgba(255,255,255,.3)} /* v2.8.40: muted-state read-out, unmistakably red */
+#vdbg{position:fixed;left:6px;bottom:6px;z-index:55;max-width:min(92vw,360px);font:11px/1.35 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#cfe;background:rgba(0,0,0,.82);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:6px 8px;pointer-events:none} /* v2.8.40: video-connection diagnostics; auto-reveals when a peer stays unconnected, or force on with ?vdebug=1 */
 .emojirow{display:flex;flex-wrap:wrap;gap:7px}
 .emo{width:42px;height:42px;border:0;padding:0;border-radius:12px;background:rgba(255,255,255,.08);font-size:1.3rem;line-height:1;cursor:pointer;display:grid;place-items:center;color:#fff;font-weight:600}
 .emo.on{background:rgba(255,255,255,.18);box-shadow:0 0 0 2px #ffd166}
@@ -188,7 +190,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.38 · 26 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.40 · 27 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -236,7 +238,12 @@ function gameSrc(game,mode){
 function wantedPids(peers,me,on,tbl){ const want=new Set(); for(const p of peers||[]){ if(!p||!p.pid||p.pid===me) continue; if(p.video||on||tbl) want.add(p.pid); } return want; } // receive every broadcaster; and when I'm sending (or I'm the table), also connect to camera-off devices so they receive me — otherwise a camera-on phone never initiates to a camera-off PC and the handshake deadlocks
 const isPolite=(a,b)=>String(a)>String(b);
 const GRACE=10000;
-const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false};
+const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false,wantSince:{}};
+// --- video diagnostics (v2.8.40): read-only; auto-reveals a small box when a wanted peer won't connect, force on/off with ?vdebug=1 / ?vdebug=0 ---
+if(qs.get('vdebug')==='1') set('gn-vdebug','1'); if(qs.get('vdebug')==='0') set('gn-vdebug','');
+const VDBG=get('gn-vdebug')==='1';
+const vlog=(...a)=>{ if(VDBG){ try{ console.log('[vid]',...a); }catch(e){} } };
+const vshort=id=>(id||'').slice(0,4);
 const vidEl=document.getElementById('vid');
 const myPid=()=>S?S.you:pid;
 const iParticipate=()=>rtc.on||isTbl();
@@ -259,18 +266,21 @@ function syncPeers(){
   const want=wantedPids(peerList(),myPid(),rtc.on,isTbl());
   // keep a connection alive through a game change: a peer that drops off the room's list is only closed after the grace window
   for(const id of Object.keys(rtc.peers)){ if(want.has(id)) rtc.peers[id].goneAt=0; else if(!rtc.peers[id].goneAt) rtc.peers[id].goneAt=now; else if(now-rtc.peers[id].goneAt>=GRACE) closePeer(id); }
-  want.forEach(id=>{ if(!rtc.peers[id]) makePeer(id); });
+  want.forEach(id=>{ if(!rtc.wantSince[id]) rtc.wantSince[id]=now; if(!rtc.peers[id]) makePeer(id); });
+  for(const id in rtc.wantSince){ if(!want.has(id)) delete rtc.wantSince[id]; }
   renderVideo();
 }
-setInterval(()=>{ if(rtc.on||isTbl()||((S&&S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid()))) syncPeers(); },3000); // advance grace timers AND keep a camera-off device connecting to broadcasters (not just when its own camera is on)
+setInterval(()=>{ if(rtc.on||isTbl()||((S&&S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid()))){ syncPeers(); vpollStats(); } },3000); // advance grace timers AND keep a camera-off device connecting to broadcasters (not just when its own camera is on)
 function makePeer(id){
-  const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:isPolite(myPid(),id),stream:null,making:false,ignore:false,cands:[],goneAt:0}; rtc.peers[id]=p;
+  const pc=new RTCPeerConnection(rtc.ice); const p={pc,polite:isPolite(myPid(),id),stream:null,making:false,ignore:false,cands:[],goneAt:0,candType:''}; rtc.peers[id]=p;
+  vlog(vshort(id),'makePeer',p.polite?'polite':'impolite');
   if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
   else { try{ pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }catch(e){} } // camera off: still receive everyone else
-  pc.onnegotiationneeded=async()=>{ const other=peerList().find(x=>x.pid===id); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; await pc.setLocalDescription(); sendMsg({t:'rtc',to:id,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
-  pc.onicecandidate=({candidate})=>{ if(candidate) sendMsg({t:'rtc',to:id,data:{candidate}}); };
-  pc.ontrack=ev=>{ p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };
-  pc.onconnectionstatechange=()=>{ if(pc.connectionState==='failed'){ closePeer(id); setTimeout(syncPeers,1500); } renderVideo(); };
+  pc.onnegotiationneeded=async()=>{ const other=peerList().find(x=>x.pid===id); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; vlog(vshort(id),'offer'); await pc.setLocalDescription(); sendMsg({t:'rtc',to:id,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
+  pc.onicecandidate=({candidate})=>{ if(candidate){ vlog(vshort(id),'cand',candidate.type||((candidate.candidate||'').split(' ')[7])); sendMsg({t:'rtc',to:id,data:{candidate}}); } };
+  pc.ontrack=ev=>{ vlog(vshort(id),'ontrack'); p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };
+  pc.oniceconnectionstatechange=()=>{ vlog(vshort(id),'ice',pc.iceConnectionState); renderVDebug(); };
+  pc.onconnectionstatechange=()=>{ vlog(vshort(id),'conn',pc.connectionState); if(pc.connectionState==='failed'){ closePeer(id); setTimeout(syncPeers,1500); } renderVideo(); };
   return p;
 }
 function closePeer(id){ const p=rtc.peers[id]; if(!p) return; try{p.pc.close();}catch(e){} delete rtc.peers[id]; }
@@ -316,11 +326,28 @@ function renderVideo(){
   if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
     const inGame=document.body.classList.contains('ingame'); // show the room code only while a game is on (the lobby already shows it)
     const roomBtn=inGame?`<button class="ghost roomchip" id="roombtn" title="Tap to invite someone to this room">🔗 Room ${esc(room)}</button>`:'';
-    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Mic off'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`);
+    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost${rtc.mic?'':' micoff'}" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Muted — tap to talk'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`);
     const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room);
   } else if(ctl) ctl.remove();
   document.body.classList.toggle('hasvid',vidEl.children.length>0);
   layoutForVideo();
+  renderVDebug();
+}
+// --- video diagnostics (v2.8.40) ---
+async function vpollStats(){
+  for(const id in rtc.peers){ const p=rtc.peers[id]; try{ const s=await p.pc.getStats(); let pair=null; s.forEach(r=>{ if(r.type==='candidate-pair'&&r.state==='succeeded'){ if(!pair||r.nominated) pair=r; } }); if(pair){ const l=s.get(pair.localCandidateId), rm=s.get(pair.remoteCandidateId); p.candType=((l&&l.candidateType)||'?')+'/'+((rm&&rm.candidateType)||'?'); } }catch(e){} }
+  renderVDebug();
+}
+function vpeerDiag(id){ const p=rtc.peers[id], nm=((peerList().find(x=>x.pid===id)||{}).name)||vshort(id); if(!p) return nm+': waiting…'; const pc=p.pc; return nm+' '+(p.polite?'P':'I')+' '+pc.connectionState+'/'+pc.iceConnectionState+' '+(p.stream?'📹':'·')+(p.candType?' '+p.candType:''); }
+function renderVDebug(){
+  let box=document.getElementById('vdbg');
+  const active=!!(room&&S)&&(rtc.on||isTbl()||((S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid())));
+  const want=active?[...wantedPids(peerList(),myPid(),rtc.on,isTbl())]:[];
+  const now=Date.now();
+  const stuck=want.some(id=>{ const p=rtc.peers[id], since=rtc.wantSince[id]||now; return (now-since>7000)&&(!p||p.pc.connectionState!=='connected'||!p.stream); });
+  if(!(active&&(VDBG||stuck))){ if(box) box.remove(); return; }
+  if(!box){ box=document.createElement('div'); box.id='vdbg'; document.body.appendChild(box); }
+  box.textContent='video diag · you '+vshort(myPid())+(rtc.on?' 📷':'')+(isTbl()?' [table]':'')+'\n'+(want.length?want.map(vpeerDiag).join('\n'):'(no video peers expected)');
 }
 // Size the game frame to the space left under the video bar (its height varies by device,
 // orientation and notch), and pad the lobby/home the same way. Fixes the collapsed-frame bug.

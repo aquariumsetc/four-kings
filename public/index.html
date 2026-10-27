@@ -208,7 +208,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.54 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.55 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -273,7 +273,7 @@ async function loadIce(){ if(rtc.iceLoaded) return; try{ const r=await fetch('/i
 async function startVideo(){
   if(rtc.on||rtc.joining) return; rtc.joining=true;
   try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
-  catch(e){ rtc.joining=false; rtc.queue=[]; const nm=(e&&e.name)||''; viewMsg = (nm==='NotAllowedError'||nm==='SecurityError') ? 'Camera blocked — allow camera/mic access in your browser, then tap Join video again.' : (nm==='NotFoundError'||nm==='OverconstrainedError'||/not found/i.test((e&&e.message)||'')) ? 'No camera found on this device — you can still play without video.' : 'Camera/mic unavailable — you can still play without video.'; render(); return; }
+  catch(e){ rtc.joining=false; rtc.queue=[]; const nm=(e&&e.name)||''; viewMsg = (nm==='NotAllowedError'||nm==='SecurityError') ? 'Camera blocked — allow camera/mic access in your browser, then tap Start video again.' : (nm==='NotFoundError'||nm==='OverconstrainedError'||/not found/i.test((e&&e.message)||'')) ? 'No camera found on this device — you can still play without video.' : 'Camera/mic unavailable — you can still play without video.'; render(); return; }
   rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
   rtc.on=true; set('gn-video','1'); await loadIce();
   Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();
@@ -351,7 +351,7 @@ function renderVideo(){
   if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
     const inGame=document.body.classList.contains('ingame'); // show the room code only while a game is on (the lobby already shows it)
     const roomBtn=''; // v2.8.52: room link + QR removed from the top bar (named rooms join by name; invite a new person from the room/lounge). Controls now sit under Home.
-    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost${rtc.mic?'':' micoff'}" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Muted — tap to talk'}</button><button class="ghost" id="vidoff">Leave video</button>`:`<button id="vidon">📷 Join video</button>`);
+    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost${rtc.mic?'':' micoff'}" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Muted'}</button><button class="ghost" id="vidoff">⏹ Stop video</button>`:`<button id="vidon">📷 Start video</button>`);
     const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room); if(q('#qrbtn')) q('#qrbtn').onclick=showRoomQR;
   } else if(ctl) ctl.remove();
   document.body.classList.toggle('hasvid',vidEl.children.length>0);
@@ -446,7 +446,7 @@ function loungeHTML(st){
   const link=location.origin+'/?room='+room+'&mode=lounge';
   const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
   return `<div class="home">
-  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room <span class="roomtag" title="You're in room ${esc(room)}">${esc(room)}</span></h1><p class="muted small">Everyone here is shown above. Tap <b>Join video</b> to turn your camera on; the host picks a game when you're ready. <b>Everyone must be in room ${esc(room)}.</b></p></div></div>
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room <span class="roomtag" title="You're in room ${esc(room)}">${esc(room)}</span></h1><p class="muted small">Everyone here is shown above. Tap <b>Start video</b> to turn your camera on; the host picks a game when you're ready. <b>Everyone must be in room ${esc(room)}.</b></p></div></div>
   ${me
     ? `<div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
     : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
@@ -486,7 +486,7 @@ function startHTML(){
   <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
     <input class="code" id="code" placeholder="CODE" maxlength="16" value="" autocapitalize="characters" autocomplete="off">
     <div class="row" style="margin-top:8px"><button class="ghost" id="joinroom">Join 4 Kings</button><button class="ghost" id="joinuno">Join Ultium UNO</button></div></div>
-  <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Join video</b> to see each other.</div></div>
+  <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Start video</b> to see each other.</div></div>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function goHome(){ stopVideo(); if(ws){try{ws.onclose=null;ws.close();}catch(e){}} ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; stage.src='about:blank'; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); }

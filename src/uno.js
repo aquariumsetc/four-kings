@@ -8,6 +8,7 @@ const ACTION = ["skip", "rev", "d2", ...WILDS];
 const DRAWS = ["d2", "w4", "mirror"];
 const START_BAL = 1000;
 const NEXT_MS = 20000;   // game over: next game after this (if auto-next)
+const EMPTY_GRACE = 45000; // v2.8.54: all humans gone this long (bots have no sockets) -> reset the game to a fresh lobby, keeping the room (settings + season scores)
 const NUDGE_MS = 15000;  // idle player: phone nudges this long before auto-move
 const MAX_PLAYS = 800;   // safety net: a game this long finishes itself (fewest cards wins)
 // new tables start on the Party preset (see PRESETS below)
@@ -275,6 +276,7 @@ export class UnoTable extends DurableObject {
     const pair = new WebSocketPair(); const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server); server.serializeAttachment({ pid, role, creator, sid: crypto.randomUUID().slice(0, 8), video: false });
     if (creator && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // the table is here now
+    if (this.S.emptyAt) { delete this.S.emptyAt; await this.commit(); } // a human (re)joined -> cancel the empty-reset
     this.broadcast();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -344,7 +346,7 @@ export class UnoTable extends DurableObject {
     if (err) ws.send(JSON.stringify({ t: "err", msg: err }));
     if (changed) await this.commit();
   }
-  async webSocketClose(ws) { try { ws.close(); } catch {} this.broadcast(); }
+  async webSocketClose(ws) { try { ws.close(); } catch {} if (this.ctx.getWebSockets().filter((w) => w !== ws && w.readyState === 1).length === 0 && this.S.phase !== "lobby" && !this.S.emptyAt) { this.S.emptyAt = Date.now(); await this.commit(); } this.broadcast(); } // last human gone mid-game -> start the empty-reset countdown
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
   tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) if (ws.readyState === 1) this.send(ws); }
@@ -352,6 +354,7 @@ export class UnoTable extends DurableObject {
 
   // timers: bots, idle humans, auto-next
   due(st) {
+    if (st.emptyAt) return st.emptyAt + EMPTY_GRACE; // paused while empty; wake at the reset deadline
     if (st.phase === "over") return st.autoNext && st.overAt ? st.overAt + NEXT_MS : 0;
     if (st.phase !== "play") return 0;
     const p = st.players[st.turn];
@@ -360,6 +363,11 @@ export class UnoTable extends DurableObject {
   }
   async alarm() {
     const st = this.S;
+    if (st.emptyAt) {
+      const open = this.ctx.getWebSockets().filter((w) => w.readyState === 1).length;
+      if (open > 0) { delete st.emptyAt; await this.commit(); this.broadcast(); return; } // someone came back
+      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { stake: st.stake, turnMs: st.turnMs, autoNext: st.autoNext, rules: st.rules, customs: st.customs, ledger: st.ledger }); await this.commit(); this.broadcast(); return; } // empty long enough -> fresh lobby, room kept
+    }
     if (st.phase === "over" && st.autoNext && Date.now() >= st.overAt + NEXT_MS - 50) { if (st.players.filter((p) => p.balance >= st.stake || p.bot).length >= 2) startGame(st); else st.overAt = 0; }
     else if (st.phase === "play" && Date.now() >= (st.wakeAt || 0) - 50) {
       const p = st.players[st.turn];

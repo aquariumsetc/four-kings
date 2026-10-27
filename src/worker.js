@@ -18,6 +18,7 @@ const STRAGGLER_MS = 45000;    // some players still betting: deal without them 
 const JOIN_GRACE_MS = 20000;   // someone joins during betting: give them at least this long
 const SWAP_RACE_MS = 12000;    // fastest-finger swap window
 const NEXT_MS = 15000;         // game over: next game starts after this (if auto-next is on)
+const EMPTY_GRACE = 45000;      // v2.8.54: all humans gone this long -> reset the game to the room lounge (keep settings + season scores)
 const MIN_BET = 10, START_BAL = 1000;
 const rname = (r) => RN[r] || String(r);
 
@@ -241,6 +242,7 @@ export class Table extends DurableObject {
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ pid, role, creator, sid, video: false, ios });
     if (role === "table" && this.S.goto) { delete this.S.goto; await this.ctx.storage.put("state", this.S); } // an iPad table device clears a stale goto; a reconnecting room host must NOT wipe the active game
+    if (this.S.emptyAt) delete this.S.emptyAt;
     this.broadcast();
     await this.schedule(); // a device (re)connected — resume the loop if it was paused for an empty room
     return new Response(null, { status: 101, webSocket: client });
@@ -353,7 +355,7 @@ export class Table extends DurableObject {
     if (changed) await this.commit();
   }
 
-  async webSocketClose(ws) { try { ws.close(); } catch {} this.broadcast(); }
+  async webSocketClose(ws) { try { ws.close(); } catch {} if (this.ctx.getWebSockets().filter((w) => w !== ws && w.readyState === 1).length === 0 && this.S.phase !== "lobby" && !this.S.emptyAt) { this.S.emptyAt = Date.now(); await this.commit(); } this.broadcast(); }
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
   tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) { if (ws.readyState === 1) this.send(ws); } }
@@ -362,7 +364,12 @@ export class Table extends DurableObject {
   async stopAll() { const r = (await this.ctx.storage.get("rooms")) || []; let n = 0; for (const code of r) { try { await this.env.TABLE.get(this.env.TABLE.idFromName(code)).stop(); n++; } catch (e) {} try { await this.env.UNO.get(this.env.UNO.idFromName(code)).stop(); } catch (e) {} } await this.ctx.storage.put("rooms", []); return n; }
 
   async alarm() {
-    const st = this.S, now = Date.now(), d = deadlines(st), due = (t) => t && now >= t - 50; let changed = false;
+    const st = this.S;
+    if (st.emptyAt) {
+      if (this.ctx.getWebSockets().some((w) => w.readyState === 1)) { delete st.emptyAt; await this.commit(); return; }
+      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, ledger: st.ledger }); this.S.lounge = true; await this.commit(); return; }
+    }
+    const now = Date.now(), d = deadlines(st), due = (t) => t && now >= t - 50; let changed = false;
     if (due(d.claimBy)) { stopRun(st); changed = true; }
     else if (due(d.dealBy)) { if (canDeal(st)) dealInto(st); else st.dealAt = 0; changed = true; }
     else if (due(d.swapBy)) {
@@ -380,7 +387,7 @@ export class Table extends DurableObject {
   }
 
   async schedule() {
-    if (!this.ctx.getWebSockets().some((w) => w.readyState === 1)) { await this.ctx.storage.deleteAlarm(); return; } // nobody connected — don't run the game (or its bots) to an empty room
+    if (!this.ctx.getWebSockets().some((w) => w.readyState === 1)) { if (this.S.emptyAt) { await this.ctx.storage.setAlarm(this.S.emptyAt + EMPTY_GRACE); return; } await this.ctx.storage.deleteAlarm(); return; } // nobody connected — don't run the game (or its bots) to an empty room
     const st = this.S, times = Object.values(deadlines(st)).filter(Boolean);
     const bi = botPending(st);
     if (bi >= 0) { if (!st.botAt || st.botAt < Date.now() - 10000) st.botAt = Date.now() + botDelay(st); times.push(st.botAt); } else st.botAt = 0;

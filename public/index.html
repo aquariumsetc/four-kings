@@ -160,6 +160,10 @@ body.ingame #app{display:none}
 body.inroom #gohome{display:block}
 body.inroom.hasvid #vid{padding-left:112px} /* v2.8.40: clear the fixed 🏠 Home button (ends ~99px) so it no longer sits on top of the leftmost video tile in-game */
 .vctl .roomchip{background:rgba(201,162,39,.22);border-color:rgba(201,162,39,.6);color:#f0d98c;font-weight:600;white-space:nowrap}
+.roomquickwrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px} /* v2.8.51: saved named rooms as one-tap buttons */
+.roomquick{display:inline-flex;align-items:center;gap:8px;font-weight:600}
+.roomquick .rmroom{opacity:.5;font-size:1.1rem;line-height:1;padding:0 2px;border-radius:6px}
+.roomquick .rmroom:hover{opacity:1;background:rgba(255,255,255,.12)}
 .vctl .roomrow{display:flex;gap:5px;align-items:stretch} /* v2.8.50: room link + QR as two buttons */
 .vctl .roomrow .roomchip{flex:1}
 .vctl .roomrow .qrbtn{flex:none;padding:.45rem .62rem;font-size:1.05rem;line-height:1}
@@ -199,13 +203,13 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.50 · 27 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.51 · 27 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
 let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
 const qs=new URLSearchParams(location.search);
-let room=(qs.get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+let room=(qs.get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
 let nick=get('fk-nick');
 let emoji=get('fk-emoji')||'';
 let myPhoto=get('fk-photo')||''; const photos={}; if(myPhoto) photos[pid]=myPhoto;
@@ -446,7 +450,7 @@ function loungeHTML(st){
     <div class="irow" style="margin-top:10px"><button class="ghost" id="sharelink" data-link="${esc(link)}">🔗 Share link</button><button class="ghost" id="showqr">▦ Show QR</button></div>
     <div id="qrbox" hidden style="text-align:center;margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="margin-top:6px">Scan to join — opens straight into this room.</div></div>
     <button class="ghost small" id="entercode" style="width:100%;margin-top:8px;opacity:.78">Joining a different room? Enter a code</button>
-    <div id="codebox" hidden style="margin-top:8px"><div class="irow"><input id="joincode" placeholder="CODE" maxlength="6" style="text-transform:uppercase;letter-spacing:.2em;text-align:center"><button id="gocode" style="flex:0 0 auto">Join</button></div></div></div>
+    <div id="codebox" hidden style="margin-top:8px"><div class="irow"><input id="joincode" placeholder="CODE" maxlength="16" style="text-transform:uppercase;letter-spacing:.2em;text-align:center"><button id="gocode" style="flex:0 0 auto">Join</button></div></div></div>
   ${host?`<div class="games">
     <div class="game fk"><h2>4 Kings</h2><p class="small">Bet on the kings, play the cards in order, grab the queens.</p><button class="big" id="lgofk">Play 4 Kings</button></div>
     <div class="game uno"><h2>Ultium UNO</h2><p class="small">Match colours and numbers, stack the draws, flip the direction.</p><button class="big" id="lgouno">Play Ultium UNO</button></div>
@@ -461,7 +465,11 @@ function startHTML(){
   const u=(bg,t,rot,fg)=>`<span class="mini u" style="background:${bg};color:${fg||'#fff'};transform:rotate(${rot}deg)">${t}</span>`;
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
-  <div class="panel lounge"><div><h3 style="margin:0">📹 Start a Game Night room</h3><div class="small muted">Get everyone on video first, chat about what to play, then pick a game together.</div></div><button class="big" id="newlounge">📹 Start a video game room</button></div>
+  <div class="panel"><h3 style="margin:0">🎲 Your rooms</h3>
+    <div class="small muted" style="margin-top:4px">Name a room your family remembers — open the same one every time, no codes. (Add the app to your Home Screen and you're in with one tap.)</div>
+    <div class="irow" style="margin-top:12px"><input id="roomname" placeholder="e.g. EVERYONE" maxlength="16" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.06em"><button id="openroom" style="flex:0 0 auto">Open</button></div>
+    ${(()=>{ const sr=savedRooms(); return sr.length?`<div class="roomquickwrap">${sr.map(r=>`<button class="ghost roomquick" data-room="${esc(r)}">🎲 ${esc(r)}<span class="rmroom" data-rm="${esc(r)}" aria-label="Remove ${esc(r)}">×</span></button>`).join('')}</div>`:''; })()}</div>
+  <div class="panel lounge"><div><h3 style="margin:0">📹 Quick one-off room</h3><div class="small muted">A random-code room for a one-time game — no saved name.</div></div><button class="big" id="newlounge">📹 Start a video game room</button></div>
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
       <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
@@ -471,7 +479,7 @@ function startHTML(){
       <button class="big" id="unotable">Play with an iPad table</button><button class="big ghost" id="unophones">Play on our own devices</button></div>
   </div>
   <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
-    <input class="code" id="code" placeholder="CODE" maxlength="6" value="" autocapitalize="characters" autocomplete="off">
+    <input class="code" id="code" placeholder="CODE" maxlength="16" value="" autocapitalize="characters" autocomplete="off">
     <div class="row" style="margin-top:8px"><button class="ghost" id="joinroom">Join 4 Kings</button><button class="ghost" id="joinuno">Join Ultium UNO</button></div></div>
   <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Join video</b> to see each other.</div></div>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
@@ -496,6 +504,12 @@ function freshRoom(){ curGame=null; inLobby=false; stageGame=null; lastGotoAt=0;
 function startOwn(game){ room=newCode(); set(game==='uno'?'uno-room':'fk-room',room); set('fk-lhost',room); wantGame=game; wantLobby=false; wantStart=game==='uno'?[{t:'settings',layout:'phones'},{t:'switchgame',to:'uno'}]:[{t:'settings',layout:'phones'}]; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 function startRoom(){ room=newCode(); set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 function joinCode(game,c){ if(c.length<3) return; room=c; set(game==='uno'?'uno-room':'fk-room',room); wantGame=game; wantLobby=false; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
+// v2.8.51: named, persistent rooms — "EVERYONE" always reopens the same room (the DO is keyed by name). Saved rooms become one-tap buttons on the home screen.
+const normRoom=s=>(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
+function savedRooms(){ try{ return JSON.parse(get('gn-rooms')||'[]').filter(Boolean); }catch(e){ return []; } }
+function addSavedRoom(name){ if(!name) return; const l=savedRooms().filter(r=>r!==name); l.unshift(name); set('gn-rooms',JSON.stringify(l.slice(0,8))); }
+function rmSavedRoom(name){ set('gn-rooms',JSON.stringify(savedRooms().filter(r=>r!==name))); render(); }
+function openNamedRoom(name){ name=normRoom(name); if(name.length<2) return; room=name; set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; addSavedRoom(name); freshRoom(); history.replaceState(null,'','/?room='+room+'&mode=lounge'); render(); connect(); }
 function bind(){
   const q=s=>app.querySelector(s);
   if(q('#newtable')) q('#newtable').onclick=()=>{ location.href='/fk.html?setup=table'; };
@@ -503,6 +517,9 @@ function bind(){
   if(q('#unotable')) q('#unotable').onclick=()=>{ location.href='/uno.html?setup=table'; };
   if(q('#unophones')) q('#unophones').onclick=()=>startOwn('uno');
   if(q('#newlounge')) q('#newlounge').onclick=()=>startRoom();
+  if(q('#openroom')) q('#openroom').onclick=()=>openNamedRoom(q('#roomname').value);
+  if(q('#roomname')) q('#roomname').onkeydown=e=>{ if(e.key==='Enter') openNamedRoom(q('#roomname').value); };
+  app.querySelectorAll('.roomquick').forEach(b=>b.onclick=e=>{ const rm=e.target.closest('.rmroom'); if(rm){ e.stopPropagation(); rmSavedRoom(rm.dataset.rm); return; } openNamedRoom(b.dataset.room); });
   if(q('#joinroom')) q('#joinroom').onclick=()=>joinCode('fk',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
   if(q('#joinuno')) q('#joinuno').onclick=()=>joinCode('uno',(q('#code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,''));
   if(q('#iabx')) q('#iabx').onclick=()=>{ iabDismissed=true; render(); };
@@ -519,7 +536,7 @@ function bind(){
   if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Share link');
   if(q('#showqr')) q('#showqr').onclick=()=>{ const box=q('#qrbox'); if(!box) return; box.hidden=!box.hidden; const qr=q('#qr'); if(!box.hidden&&qr&&window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} } };
   if(q('#entercode')) q('#entercode').onclick=()=>{ const b=q('#codebox'); if(b) b.hidden=!b.hidden; };
-  if(q('#gocode')) q('#gocode').onclick=()=>{ const c=(q('#joincode').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6); if(c) location.href='/?room='+c+'&mode=lounge'; };
+  if(q('#gocode')) q('#gocode').onclick=()=>{ const c=normRoom(q('#joincode').value); if(c) location.href='/?room='+c+'&mode=lounge'; };
 }
 
 /* ---------- a game frame asks the shell to move the whole party ---------- */

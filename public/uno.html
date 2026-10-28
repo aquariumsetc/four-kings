@@ -22,6 +22,14 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;min-height:100%;background:radial-gradient(circle at 50% 30%,#2a2f5e 0%,var(--bg) 55%,var(--bg2) 100%);color:var(--fg);font:16px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg2)}
+/* v2.8.83: branded loading/setup hero so you can see which game you're in straight away */
+.setuphero{display:flex;flex-direction:column;align-items:center;gap:.55rem;margin:1.6rem 0 1.3rem}
+.setuphero .ghero-ring{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;font-size:2.6rem;background:radial-gradient(circle at 50% 35%,#3a3f78,#1b1e3a);box-shadow:0 0 0 3px rgba(255,255,255,.12),0 12px 34px rgba(0,0,0,.5);animation:gpulse 2.4s ease-in-out infinite}
+.setuphero .ghero-name{font-weight:800;font-size:1.7rem;letter-spacing:.02em;color:var(--fg)}
+.setuphero .ghero-name b{font-weight:800}.setuphero .u1{color:var(--R)}.setuphero .u2{color:var(--Y)}.setuphero .u3{color:var(--G)}
+@keyframes gpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+.dots i{animation:gdot 1.4s infinite;opacity:.25;font-style:normal}.dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
+@keyframes gdot{0%,80%,100%{opacity:.25}40%{opacity:1}}
 h1,h2,h3,.disp{font-family:"Fredoka","Arial Rounded MT Bold",-apple-system,sans-serif;font-weight:600;margin:0;letter-spacing:-.01em}
 h1{font-size:2.6rem;line-height:1} h2{font-size:1.5rem;line-height:1.15} h3{font-size:1.1rem}
 p{margin:.4rem 0}
@@ -276,7 +284,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.82 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.83 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:''};
@@ -586,12 +594,13 @@ const sfx={
 };
 
 /* ---------- rendering ---------- */
+function heroHTML(){ return `<div class="setuphero"><div class="ghero-ring">🃏</div><div class="ghero-name">Ultium <b class="u1">U</b><b class="u2">N</b><b class="u3">O</b></div></div>`; } // v2.8.83: game identity on the loading/setup screens
 function render(){
   if(!room||!mode){ if(framed){ tellShell('home'); return; } location.replace('/?home=1'); return; } // the Game Night home page has the game picker
-  if(!S){ app.innerHTML=`<div class="center dim" style="padding:3rem 0">Connecting to table ${esc(room)}…</div>`; return; }
+  if(!S){ app.innerHTML=`<div class="center" style="padding:1.6rem 0">${heroHTML()}<p class="dim">Connecting to table ${esc(room)}<span class="dots"><i>.</i><i>.</i><i>.</i></span></p></div>`; return; }
   if(framed&&S.phase==='lobby'){ const n=S.players.length; app.className='app';
     const esc=S.host?`<div class="row" style="max-width:420px;margin:16px auto 0"><button class="ghost small" id="toroom">📹 Back to the room</button><button class="ghost small" id="endsession" style="border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish · everyone out</button></div>`:''; // v2.8.44: always give the host a way out of the lobby/setup state — no more limbo after "Clear the table"
-    const main=n>=2?`<div class="center dim" style="padding:2.4rem 0 .4rem"><h2>Dealing you in…</h2></div>`:`<div class="center" style="padding:2.4rem 1rem .4rem"><h2>Setting up the table…</h2><p class="dim">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="dim">Waiting for the host to start.</p>`}</div>`;
+    const main=n>=2?`<div class="center" style="padding:1.4rem 0 .4rem">${heroHTML()}<h2>Dealing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2></div>`:`<div class="center" style="padding:1.4rem 1rem .4rem">${heroHTML()}<h2>Setting up the table<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2><p class="dim">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="dim">Waiting for the host to start.</p>`}</div>`;
     app.innerHTML=main+esc; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot and host escapes
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const stripOn=(S.phase==='play'||S.phase==='over')&&S.players.length>=2; // compact strip layout during play AND on the end screen, so the full-size round table doesn't take over after a game

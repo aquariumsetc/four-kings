@@ -223,7 +223,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.82 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.83 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -526,7 +526,7 @@ function openNameModal(){
   try{ q('#nmname').focus(); }catch(e){}
 }
 function closeNameModal(){ const m=document.getElementById('namemodal'); if(m) m.remove(); }
-function goHome(){ stopVideo(); if(ws){try{ws.onclose=null;ws.close();}catch(e){}} ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; stage.src='about:blank'; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); }
+function goHome(){ const oldWs=ws; ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; stage.src='about:blank'; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); setTimeout(()=>{ try{stopVideo();}catch(e){} if(oldWs){try{oldWs.onclose=null;oldWs.close();}catch(e){}} },0); } // v2.8.83: paint Home immediately, then tear down the camera + socket in the background so going Home doesn't feel sluggish
 // The room's join link + share/copy. Used by the lobby's Invite button and the in-game room-code chip
 // so a latecomer can be sent the code/link while a game is in progress (it opens straight into the room).
 function roomLink(){ return location.origin+'/?room='+room+'&mode=lounge'; }

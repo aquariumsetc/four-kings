@@ -223,7 +223,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.87 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.89 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -443,11 +443,12 @@ function onState(st){
   // appear in the room's people list once we're in a lounge and have a remembered name
   if(st.lounge&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); }
   // host chores: bring the room up, or kick off a game picked from the home page
-  if(wantLobby){ if(st.lounge||st.goto) wantLobby=false; else if(st.host) sendMsg({t:'toroom'}); } // v2.8.86: once the lounge is confirmed OR a game launch (goto) is in flight, stop forcing "back to the room" — it was fighting the game launch and leaving you on a blank "Back to the Game Night room…" page
+  if(wantLobby){ if(st.lounge){ wantLobby=false; } else if(st.goto&&Date.now()-st.goto.at<3000){ wantLobby=false; } else if(st.host){ sendMsg({t:'toroom'}); } } // v2.8.88: stop forcing the room when the lounge is confirmed OR a FRESH game launch is in flight (<3s) — but a STALE leftover goto still gets cleared so just opening the room lands you in the lounge, not a blank 4 Kings frame
   if(wantStart&&st.host){ wantStart.forEach(m=>sendMsg(m)); wantStart=null; }
   // decide what belongs on screen (mirrors test/shell-core.mjs screenFor)
   if(st.lounge){ inLobby=true; curGame=null; }
   else if(st.goto&&typeof st.goto.at==='number'&&st.goto.at>lastGotoAt){ lastGotoAt=st.goto.at; curGame=st.goto.to==='uno'?'uno':'fk'; inLobby=false; }
+  else if(wantLobby){ inLobby=true; curGame=null; } // v2.8.89: opening a room whose lounge isn't established yet (lounge:false, no goto) — show the room and let toroom settle it, instead of falling through to a blank 4 Kings frame (the actual cause of the "just joining shows a blank page" bug)
   else { inLobby=false; if(!curGame) curGame=wantGame||'fk'; }
 }
 function render(){

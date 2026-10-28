@@ -186,6 +186,8 @@ body.hasvid.tbl .app.stripon{padding-top:calc(248px + env(safe-area-inset-top,0p
 .hand button.cb.holding .card{animation:hold .6s linear forwards}
 @keyframes hold{to{box-shadow:0 0 0 4px var(--gold),0 0 22px rgba(255,209,102,.8),inset 0 0 0 3px rgba(255,255,255,.9),inset 0 0 0 5px var(--c);transform:translateY(-14px) scale(1.06)}}
 .actions .glow{background:var(--gold);color:#2b2200;animation:pulse 1s ease-in-out infinite alternate}
+@keyframes pickpulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,209,102,.7)}50%{transform:scale(1.14);box-shadow:0 0 24px 8px rgba(255,209,102,.95)}}
+.actions .pickup{background:var(--gold);color:#2b2200;font-weight:700;animation:pickpulse .7s ease-in-out infinite} /* v2.8.72: forced pick-up — pulse + glow so it's obvious you must tap to pick up */
 .unobtn{display:block;width:100%;margin:.5rem 0;padding:.9rem;font-family:"Fredoka",sans-serif;font-size:1.4rem;background:var(--R);color:#fff;border-radius:16px;animation:pulse 1s ease-in-out infinite alternate}
 .unobtn.called{background:rgba(255,255,255,.12);animation:none;font-size:1rem}
 .catchbtn{display:block;width:100%;margin:.5rem 0;padding:.8rem;font-family:"Fredoka",sans-serif;font-size:1.2rem;background:var(--gold);color:#2b2200;border-radius:16px}
@@ -267,7 +269,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.71 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.73 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -646,9 +648,13 @@ function settingsHTML(st){
   const pr=presetOf(rv), pb=(k,t,sub)=>`<button class="ghost ${pr===k?'on':''}" data-preset="${k}">${t}<small>${sub}</small></button>`;
   const rulesTabs=`<div class="presets" style="grid-template-columns:1fr 1fr">${pb('official','Official','printed rules')}${pb('party','Ultium','stack, steal &amp; more')}</div>`;
   const ruleTogs=RULES.map(([k,l])=>`<label class="tog"><input type="checkbox" data-rule="${k}" ${rv[k]?'checked':''}><span>${l}</span></label>`).join('');
-  // mid-game: rules are editable and take effect immediately for this game; stake/layout/custom cards stay between-games only
-  if(st.phase==='play') return `<div class="panel settings"><h3>Rules &amp; options</h3>${rulesTabs}<div class="small dim" style="margin-top:6px">Changes take effect right away. (New Steal/Pass/Mirror/Custom cards only appear from the next game.)</div><div class="small dim" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>${ruleTogs}${timerRow}${nextRow}<p class="small dim" style="margin-top:6px">Turn timer <b>Off</b> = no auto draw-and-pass.</p></div>`;
   const cd=customDraft||st.customs;
+  const customBlock=`<details class="more" ${rv.useCustoms?'open':''}><summary>Custom wild cards</summary>
+  <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><div class="small">Custom wild cards: type a rule and 2 cards with it go in the deck. When one is played, the rule shows on the table for everyone to do.</div>
+  ${[0,1,2,3].map(k=>`<input data-custom="${k}" maxlength="60" placeholder="${['e.g. Tell a joke','e.g. Take a shot','e.g. Everyone stands up','e.g. Swap seats'][k]}" value="${esc(cd[k]||'')}" style="margin-top:6px">`).join('')}
+  <button class="ghost small" id="savecustom" style="margin-top:8px" ${customDraft?'':'disabled'}>Save custom cards</button></div></details>`;
+  // mid-game: rules + custom cards are editable and take effect from the next game (new cards enter the deck at the next deal); stake/layout stay between-games only
+  if(st.phase==='play') return `<div class="panel settings"><h3>Rules &amp; options</h3>${rulesTabs}<div class="small dim" style="margin-top:6px">Changes take effect right away. (New Steal/Pass/Mirror/Custom cards appear from the next game.)</div><div class="small dim" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>${ruleTogs}${customBlock}${timerRow}${nextRow}<p class="small dim" style="margin-top:6px">Turn timer <b>Off</b> = no auto draw-and-pass.</p></div>`;
   return `<div class="panel settings"><h3>Rules for the next game</h3>
   ${rulesTabs}
   <div class="small dim">${pr?'':'Custom rules — tap a tab to reset.'}</div>
@@ -658,10 +664,7 @@ function settingsHTML(st){
   ${nextRow}
   <div class="small dim" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>
   ${ruleTogs}
-  <details class="more"><summary>Custom wild cards</summary>
-  <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><div class="small">Custom wild cards: type a rule and 2 cards with it go in the deck. When one is played, the rule shows on the table for everyone to do.</div>
-  ${[0,1,2,3].map(k=>`<input data-custom="${k}" maxlength="60" placeholder="${['e.g. Tell a joke','e.g. Take a shot','e.g. Everyone stands up','e.g. Swap seats'][k]}" value="${esc(cd[k]||'')}" style="margin-top:6px">`).join('')}
-  <button class="ghost small" id="savecustom" style="margin-top:8px" ${customDraft?'':'disabled'}>Save custom cards</button></div></details>
+  ${customBlock}
   <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to 4 Kings</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the Game Night room</button>`:''}</span></div></div>`;
 }
 function handHTML(st){ return handMain(st)+(st.phase!=='play'?scoresHTML(st):''); }
@@ -687,7 +690,7 @@ function handMain(st,embedded){
   const pkDone=st.picking?st.pickTotal-st.drawStack:0, pkTot=st.picking?st.pickTotal:st.drawStack; // v2.8.66: pickup progress shown compactly on the mat button (N/M) — no separate big deck card, the mat already has a deck
   if(mine){
     const stuck=!can.size; // nothing playable: make the next step obvious
-    acts=`<div class="actions"><button class="play" id="play" ${okPlay?'':'disabled'}>${sel.length>1?`Play ${sel.length} cards`:'Play'}</button>${st.drawStack?`<button class="ghost ${stuck?'glow':''}" id="draw" aria-label="Pick up a card">${pkDone}/${pkTot}</button>`:st.drew?`<button class="ghost ${stuck?'glow':''}" id="pass">Pass</button>`:`<button class="ghost ${stuck?'glow':''}" id="draw">Draw</button>`}</div>`;
+    acts=`<div class="actions"><button class="play" id="play" ${okPlay?'':'disabled'}>${sel.length>1?`Play ${sel.length} cards`:'Play'}</button>${st.drawStack?`<button class="ghost ${stuck?'pickup':''}" id="draw" aria-label="Pick up a card">${pkDone}/${pkTot}</button>`:st.drew?`<button class="ghost ${stuck?'glow':''}" id="pass">Pass</button>`:`<button class="ghost ${stuck?'glow':''}" id="draw">Draw</button>`}</div>`;
   } else {
     acts=`<div class="actions"><button class="play" disabled>Play</button><button class="ghost" disabled>Draw</button></div>`; // v2.8.57: Play/Draw stay put in the mat on every turn — greyed out when it isn't yours — so the controls never jump around
   }

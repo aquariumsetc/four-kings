@@ -6,6 +6,7 @@ const CNAME = { R: "red", Y: "yellow", G: "green", B: "blue" };
 const WILDS = ["wild", "w4", "steal", "pass", "mirror", "cust"];
 const ACTION = ["skip", "rev", "d2", ...WILDS];
 const DRAWS = ["d2", "w4", "mirror"];
+const STAR = ["steal", "pass", "mirror", "cust"]; // v2.8.82: the non-official "star" wild cards — playable any time it's your turn
 const START_BAL = 1000;
 const NEXT_MS = 20000;   // game over: next game after this (if auto-next)
 const EMPTY_GRACE = 45000; // v2.8.54: all humans gone this long (bots have no sockets) -> reset the game to a fresh lobby, keeping the room (settings + season scores)
@@ -58,6 +59,7 @@ function playable(st, c) {
   if (st.picking) return false;
   // after a pickup you may play one of those cards, but not a draw card (it would just bounce straight back)
   if (st.picked && (!st.picked.includes(c.id) || DRAWS.includes(c.v))) return false;
+  if (STAR.includes(c.v)) return true; // v2.8.82: a star wild card can always be played on your turn — even to answer a pending draw stack
   if (st.drawStack > 0) {
     if (!st.rules.stack) return false;
     return c.v === "w4" || (c.v === "d2" && t && t.v === "d2");
@@ -151,6 +153,7 @@ function play(st, i, ids, opts = {}) {
   st.colour = isWild(c0) ? opts.colour : c0.c;
   const ev = { t: "play", who: i, v: c0.v, c: c0.c, k, colour: st.colour, dirFrom: st.dir, at: Date.now() };
   let skips = 0, note = "";
+  if (st.drawStack > 0 && (c0.v === "steal" || c0.v === "pass" || c0.v === "cust")) st.drawStack = 0; // v2.8.82: a non-draw star card answers a pending draw stack — you escape picking up (mirror still stacks, below)
 
   if (c0.v === "skip") { skips = k; note = k > 1 ? `${k} players skipped.` : "Next player skipped."; }
   if (c0.v === "rev") {

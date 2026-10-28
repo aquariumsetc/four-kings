@@ -134,7 +134,7 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 .app.stripon .round .deck{left:60%;top:50%} /* deck RIGHT-of-centre; stacked Play/Draw tuck in on the far right */
 /* v2.8.48: stacked Play/Draw live INSIDE the mat (right) on every screen — phone AND desktop/iPad — not a separate row below the hand */
 .app.stripon .handwrap{position:relative}
-.app.stripon .handwrap .actions{position:absolute;top:34px;left:auto;right:calc((100% - 300px)/2 + 2px);bottom:auto;flex-direction:column;gap:5px;width:60px;margin:0;z-index:3;background:none;padding:0;max-width:none}
+.app.stripon .handwrap .actions{position:absolute;top:34px;left:auto;right:calc((100% - 300px)/2 + 20px);bottom:auto;flex-direction:column;gap:5px;width:60px;margin:0;z-index:3;background:none;padding:0;max-width:none} /* v2.8.70: nudged in from the mat's right edge so Play/Draw sit inside with space on both sides */
 .app.stripon .handwrap .actions button{flex:none;width:100%;padding:.42rem .15rem;font-size:.8rem;border-radius:9px;line-height:1.1}
 .app.stripon .round .deck .card{width:38px;height:55px}
 .app.stripon .round .deck .n{font-size:.56rem;margin-top:1px}
@@ -267,7 +267,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.68 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.71 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -642,19 +642,22 @@ function settingsHTML(st){
   const pick=(attr,val,cur,label)=>`<button class="ghost small ${cur?'on':''}" data-${attr}="${val}">${label}</button>`;
   const timerRow=`<div class="srow"><span>Turn timer</span><span>${[[30000,'30 s'],[60000,'60 s'],[0,'Off']].map(([v,l])=>pick('turnms',v,st.turnMs===v,l)).join(' ')}</span></div>`;
   const nextRow=`<div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext,'By itself')} ${pick('autonext','0',!st.autoNext,'When someone taps')}</span></div>`;
-  // mid-game: only the settings the server honours during a hand (turn timer off = no auto draw-and-pass); everything else changes between games
-  if(st.phase==='play') return `<div class="panel settings"><h3>Options</h3>${timerRow}${nextRow}<p class="small dim" style="margin-top:6px">Turn timer <b>Off</b> = no auto draw-and-pass. Stake, presets &amp; card rules change between games.</p></div>`;
+  const rv=st.rules; // rule changes take effect right away, even mid-hand
+  const pr=presetOf(rv), pb=(k,t,sub)=>`<button class="ghost ${pr===k?'on':''}" data-preset="${k}">${t}<small>${sub}</small></button>`;
+  const rulesTabs=`<div class="presets" style="grid-template-columns:1fr 1fr">${pb('official','Official','printed rules')}${pb('party','Ultium','stack, steal &amp; more')}</div>`;
+  const ruleTogs=RULES.map(([k,l])=>`<label class="tog"><input type="checkbox" data-rule="${k}" ${rv[k]?'checked':''}><span>${l}</span></label>`).join('');
+  // mid-game: rules are editable and take effect immediately for this game; stake/layout/custom cards stay between-games only
+  if(st.phase==='play') return `<div class="panel settings"><h3>Rules &amp; options</h3>${rulesTabs}<div class="small dim" style="margin-top:6px">Changes take effect right away. (New Steal/Pass/Mirror/Custom cards only appear from the next game.)</div><div class="small dim" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>${ruleTogs}${timerRow}${nextRow}<p class="small dim" style="margin-top:6px">Turn timer <b>Off</b> = no auto draw-and-pass.</p></div>`;
   const cd=customDraft||st.customs;
-  const pr=presetOf(st.rules), pb=(k,t,sub)=>`<button class="ghost ${pr===k?'on':''}" data-preset="${k}">${t}<small>${sub}</small></button>`;
   return `<div class="panel settings"><h3>Rules for the next game</h3>
-  <div class="presets" style="grid-template-columns:1fr 1fr">${pb('official','Official','printed rules')}${pb('party','Ultium','stack, steal &amp; more')}</div>
+  ${rulesTabs}
   <div class="small dim">${pr?'':'Custom rules — tap a tab to reset.'}</div>
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   <div class="srow"><span>Stake per player</span><span>${[10,20,50,100].map(v=>pick('stake',v,st.stake===v,'$'+v)).join(' ')}</span></div>
   ${timerRow}
   ${nextRow}
   <div class="small dim" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>
-  ${RULES.map(([k,l])=>`<label class="tog"><input type="checkbox" data-rule="${k}" ${st.rules[k]?'checked':''}><span>${l}</span></label>`).join('')}
+  ${ruleTogs}
   <details class="more"><summary>Custom wild cards</summary>
   <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><div class="small">Custom wild cards: type a rule and 2 cards with it go in the deck. When one is played, the rule shows on the table for everyone to do.</div>
   ${[0,1,2,3].map(k=>`<input data-custom="${k}" maxlength="60" placeholder="${['e.g. Tell a joke','e.g. Take a shot','e.g. Everyone stands up','e.g. Swap seats'][k]}" value="${esc(cd[k]||'')}" style="margin-top:6px">`).join('')}

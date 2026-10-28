@@ -267,13 +267,13 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.58 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.66 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
 const WNAME={wild:'Wild',w4:'Wild +4',steal:'Steal',pass:'Pass left',mirror:'Copy hand',cust:'Custom'};
 const RULES=[['multi','Play several identical cards at once'],['stack','Stack +2s and +4s onto the next player'],['playPicked','After picking up, you can play one of the cards you picked up (not a draw card)'],['steal','Add 2 “Steal a hand” wild cards'],['pass','Add 2 “Everyone pass left” wild cards'],['mirror','Add 2 “Copy my hand” wild cards: the next player picks up as many cards as you hold'],['drawUntil','Keep drawing until you can play'],['official','Official draw rules: after drawing you may only play the card you drew, and a +4 only when you have no card of the current colour'],['callUno','Call UNO! on your second-last card, or anyone can catch you and you pick up 2'],['useCustoms','Use the custom wild cards below']];
-const PRESETS={official:{multi:false,stack:false,playPicked:false,steal:false,pass:false,mirror:false,drawUntil:false,official:true,callUno:true,useCustoms:false},party:{multi:true,stack:true,playPicked:true,steal:true,pass:true,mirror:false,drawUntil:false,official:false,callUno:false,useCustoms:true},chaos:{multi:true,stack:true,playPicked:true,steal:true,pass:true,mirror:true,drawUntil:false,official:false,callUno:false,useCustoms:true}};
+const PRESETS={official:{multi:false,stack:false,playPicked:false,steal:false,pass:false,mirror:false,drawUntil:false,official:true,callUno:true,useCustoms:false},party:{multi:true,stack:true,playPicked:true,steal:true,pass:true,mirror:false,drawUntil:false,official:false,callUno:false,useCustoms:true}};
 const presetOf=r=>Object.keys(PRESETS).find(k=>Object.keys(PRESETS[k]).every(x=>!!r[x]===PRESETS[k][x]))||'';
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}}, set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -647,14 +647,15 @@ function settingsHTML(st){
   const cd=customDraft||st.customs;
   const pr=presetOf(st.rules), pb=(k,t,sub)=>`<button class="ghost ${pr===k?'on':''}" data-preset="${k}">${t}<small>${sub}</small></button>`;
   return `<div class="panel settings"><h3>Rules for the next game</h3>
-  <div class="presets">${pb('official','Official','the printed rules')}${pb('party','Party','stack, steal, pass')}${pb('chaos','Chaos','everything on')}</div>
-  <div class="small dim">${pr?'':'Custom rules: tap a preset to reset.'}</div>
+  <div class="presets" style="grid-template-columns:1fr 1fr">${pb('official','Official','printed rules')}${pb('party','Ultium','stack, steal &amp; more')}</div>
+  <div class="small dim">${pr?'':'Custom rules — tap a tab to reset.'}</div>
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   <div class="srow"><span>Stake per player</span><span>${[10,20,50,100].map(v=>pick('stake',v,st.stake===v,'$'+v)).join(' ')}</span></div>
   ${timerRow}
   ${nextRow}
-  <details class="more"><summary>Customise rules and custom cards</summary>
+  <div class="small dim" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>
   ${RULES.map(([k,l])=>`<label class="tog"><input type="checkbox" data-rule="${k}" ${st.rules[k]?'checked':''}><span>${l}</span></label>`).join('')}
+  <details class="more"><summary>Custom wild cards</summary>
   <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><div class="small">Custom wild cards: type a rule and 2 cards with it go in the deck. When one is played, the rule shows on the table for everyone to do.</div>
   ${[0,1,2,3].map(k=>`<input data-custom="${k}" maxlength="60" placeholder="${['e.g. Tell a joke','e.g. Take a shot','e.g. Everyone stands up','e.g. Swap seats'][k]}" value="${esc(cd[k]||'')}" style="margin-top:6px">`).join('')}
   <button class="ghost small" id="savecustom" style="margin-top:8px" ${customDraft?'':'disabled'}>Save custom cards</button></div></details>
@@ -679,19 +680,16 @@ function handMain(st,embedded){
   const cs=hand.length<=10?1:hand.length<=16?.86:hand.length<=24?.74:.64; // v2.8.57: a bigger hand (chaos can be half the pack) shrinks the cards so they still fit
   const handH=`<div class="hand" style="--cs:${cs}">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${unoHints&&mine&&st.rules.multi&&selCard&&!sel.includes(c.id)&&same(selCard,c)&&can.has(c.id)?'addable':''} ${unoHints&&st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
   const first=selCard, okPlay=mine&&first&&(!unoHints||can.has(first.id));
-  let acts='', deck='';
-  if(mine&&st.drawStack){
-    const done=st.picking?st.pickTotal-st.drawStack:0, tot=st.picking?st.pickTotal:st.drawStack;
-    deck=`<div class="center" style="margin:.6rem 0"><button class="cb deckbtn" id="drawdeck" aria-label="Pick up a card">${backHTML('lg')}</button><div class="disp" style="font-size:1.2rem;margin-top:6px">${st.picking?`Tap the deck: ${st.drawStack} to go`:`Tap the deck to pick up ${tot}`}</div><div class="small dim">${st.picking?`${done} of ${tot} picked up`:can.size?'…or stack a draw card on it.':''}</div></div>`;
-  }
+  let acts='';
+  const pkDone=st.picking?st.pickTotal-st.drawStack:0, pkTot=st.picking?st.pickTotal:st.drawStack; // v2.8.66: pickup progress shown compactly on the mat button (N/M) — no separate big deck card, the mat already has a deck
   if(mine){
     const stuck=!can.size; // nothing playable: make the next step obvious
-    acts=`<div class="actions"><button class="play" id="play" ${okPlay?'':'disabled'}>${sel.length>1?`Play ${sel.length} cards`:'Play'}</button>${st.drawStack?`<button class="ghost ${stuck?'glow':''}" id="draw">Pick up 1 (${st.drawStack} left)</button>`:st.drew?`<button class="ghost ${stuck?'glow':''}" id="pass">Pass</button>`:`<button class="ghost ${stuck?'glow':''}" id="draw">Draw</button>`}</div>`;
+    acts=`<div class="actions"><button class="play" id="play" ${okPlay?'':'disabled'}>${sel.length>1?`Play ${sel.length} cards`:'Play'}</button>${st.drawStack?`<button class="ghost ${stuck?'glow':''}" id="draw" aria-label="Pick up a card">${pkDone}/${pkTot}</button>`:st.drew?`<button class="ghost ${stuck?'glow':''}" id="pass">Pass</button>`:`<button class="ghost ${stuck?'glow':''}" id="draw">Draw</button>`}</div>`;
   } else {
     acts=`<div class="actions"><button class="play" disabled>Play</button><button class="ghost" disabled>Draw</button></div>`; // v2.8.57: Play/Draw stay put in the mat on every turn — greyed out when it isn't yours — so the controls never jump around
   }
   const nudge=mine&&st.turnBy?`<p class="nudge small" data-showbelow="15" data-for="${local(st.turnBy)}">Your turn! Auto draw-and-pass in <span data-until="${local(st.turnBy)}"></span> s</p>`:'';
-  const hint=st.picked?'Play one of the cards you just picked up, or pass.':st.picking?'Keep tapping the deck.':st.drawStack?(can.size?`Stack a draw card, or tap the deck to pick up ${st.drawStack}.`:`Tap the deck to pick up ${st.drawStack}, one card at a time.`):st.drew?'Play a card or pass.':null;
+  const hint=st.picked?'Play one of the cards you just picked up, or pass.':st.picking?'Keep tapping to pick up — one card at a time.':st.drawStack?(can.size?`Stack a draw card, or tap to pick up the ${st.drawStack}.`:`Tap to pick up the ${st.drawStack}, one card at a time.`):st.drew?'Play a card or pass.':null;
   const called=(st.unoCalled||{})[pid], unoB=st.rules.callUno&&hand.length<=2&&(mine||st.catchable===i)?`<button class="unobtn ${called?'called':''}" id="calluno">${called?'UNO! called ✓':'Call UNO!'}</button>`:'';
   const catchB=st.catchable>=0&&st.catchable!==i&&st.players[st.catchable]?`<button class="catchbtn" id="catchuno">Catch ${esc(st.players[st.catchable].name)}! They didn't call UNO</button>`:'';
   let playHint;
@@ -700,7 +698,7 @@ function handMain(st,embedded){
   else if(sel.length>1) playHint=`Playing ${sel.length} cards — press Play.`;
   else if(sel.length===1&&unoHints&&st.rules.multi){ const more=hand.filter(c=>!sel.includes(c.id)&&same(c,selCard)&&can.has(c.id)).length; playHint=more?`Tap your other matching ${more===1?'card':'cards'} to play them together, then press Play.`:'Press Play to play it — or tap a different card.'; }
   else playHint=st.rules.multi?'Tap a card, then press Play. Tap more of the exact same card to play them together. (Or hold a card to play it fast.)':'Tap a card then press Play, or hold it to play.';
-  return `${statusHTML(st,i)}${nudge}${catchB}${deck}${handH}${unoB}${mine?`<p class="small dim center">${playHint}</p>`:''}${acts}
+  return `${statusHTML(st,i)}${nudge}${catchB}${handH}${unoB}${mine?`<p class="small dim center">${playHint}</p>`:''}${acts}
     <p class="center" style="margin-top:1.4rem"><button class="ghost small" id="quit">Leave this game</button></p>`;
 }
 function statusHTML(st,i){

@@ -216,7 +216,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.63 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.66 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -481,7 +481,7 @@ function startHTML(){
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
   <div class="panel"><h3 style="margin:0">🎲 Your rooms</h3>
     <div class="small muted" style="margin-top:4px">Name a room your family remembers — open the same one every time, no codes. (Add the app to your Home Screen and you're in with one tap.)</div>
-    ${(()=>{ const sr=savedRooms(); if(!sr.length) return ''; return `<div class="irow" style="margin-top:12px"><select id="roompick" class="roomsel"><option value="">— pick a saved room —</option>${sr.map(r=>`<option value="${esc(r)}">🎲 ${esc(r)}</option>`).join('')}</select><button id="openpick" style="flex:0 0 auto">Open</button></div><div style="margin-top:6px"><button class="linkbtn small" id="editrooms">${roomsEdit?'✓ Done':'Edit list'}</button></div>${roomsEdit?`<div class="roomedit">${sr.map(r=>`<span class="roomchip2">🎲 ${esc(r)} <button class="rmroom2" data-rm="${esc(r)}" aria-label="Remove ${esc(r)}">Remove</button></span>`).join('')}</div>`:''}`; })()}
+    ${(()=>{ const sr=savedRooms(); if(!sr.length) return ''; return `<div class="irow" style="margin-top:12px"><select id="roompick" class="roomsel"><option value="">— pick a saved room —</option>${sr.map(r=>`<option value="${esc(r)}">🎲 ${esc(r)}</option>`).join('')}</select></div><div style="margin-top:6px"><button class="linkbtn small" id="editrooms">${roomsEdit?'✓ Done':'Edit list'}</button></div>${roomsEdit?`<div class="roomedit">${sr.map(r=>`<span class="roomchip2">🎲 ${esc(r)} <button class="rmroom2" data-rm="${esc(r)}" aria-label="Remove ${esc(r)}">Remove</button></span>`).join('')}</div>`:''}`; })()}
     <div class="small muted" style="margin-top:14px">${savedRooms().length?'Or make a new room — type a name:':'Type a room name your family will remember:'}</div>
     <div class="irow" style="margin-top:6px"><input id="roomname" placeholder="e.g. EVERYONE" maxlength="16" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.06em"><button id="openroom" style="flex:0 0 auto">Open</button></div></div>
   <div class="panel lounge"><div><h3 style="margin:0">📹 Quick one-off room</h3><div class="small muted">A random-code room for a one-time game — no saved name.</div></div><button class="big" id="newlounge">📹 Start a video game room</button></div>
@@ -534,7 +534,6 @@ function bind(){
   if(q('#newlounge')) q('#newlounge').onclick=()=>startRoom();
   if(q('#openroom')) q('#openroom').onclick=()=>openNamedRoom(q('#roomname').value);
   if(q('#roomname')) q('#roomname').onkeydown=e=>{ if(e.key==='Enter') openNamedRoom(q('#roomname').value); };
-  if(q('#openpick')) q('#openpick').onclick=()=>{ const v=q('#roompick').value; if(v) openNamedRoom(v); };
   if(q('#roompick')) q('#roompick').onchange=()=>{ const v=q('#roompick').value; if(v) openNamedRoom(v); }; // pick to open
   if(q('#editrooms')) q('#editrooms').onclick=()=>{ roomsEdit=!roomsEdit; render(); };
   app.querySelectorAll('.rmroom2').forEach(b=>b.onclick=()=>{ if(confirm('Remove "'+b.dataset.rm+'" from this device\'s saved-room list? It won\'t end anyone\'s game — it just stops showing here.')) rmSavedRoom(b.dataset.rm); });

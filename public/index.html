@@ -143,6 +143,8 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 #vid:empty{display:none}
 .tile{position:relative;flex:none;width:78px;height:104px;border-radius:10px;overflow:hidden;background:#111;box-shadow:0 2px 6px rgba(0,0,0,.4)}
 .app.table ~ #vid .tile, body.tbl .tile{width:150px;height:112px}
+body.ingame:not(.tbl) #vid{flex-wrap:nowrap}
+body.ingame:not(.tbl) #vid .tile{flex:1 1 0;min-width:0;max-width:92px;width:auto;height:auto;aspect-ratio:3/4} /* v2.8.57: on a phone in a game, tiles shrink to fit everyone across the width — no sideways scrolling */
 .tile video{width:100%;height:100%;object-fit:cover;display:block}
 .tile.me video{transform:scaleX(-1)}
 .tile .nm{position:absolute;left:0;right:0;bottom:0;font-size:.68rem;padding:2px 5px;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -196,6 +198,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 .tile .ava{width:100%;height:100%;display:grid;place-items:center;font-size:2rem;background:#1c3b52}
 .tile.me .ava{background:#1f4a34}
 .tile .tgear{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);border:0;color:#fff;font-size:.72rem;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;z-index:2}
+body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only exists in the room — hide the gear in-game so it isn't a dead control */
 </style>
 </head>
 <body>
@@ -208,7 +211,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.56 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.58 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -451,7 +454,7 @@ function loungeHTML(st){
     ? `<div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
     : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
   }
-  <div class="panel"><div class="small muted" style="margin-bottom:6px">${st.players.filter(p=>!p.bot).length} in the room · invite more</div>
+  <div class="panel"><div class="small muted" style="margin-bottom:6px">${st.players.filter(p=>!p.bot).length} in the room · invite more</div>${st.players.filter(p=>!p.bot).length<=1?`<div class="small" style="margin:2px 0 10px;padding:8px 10px;border-radius:10px;background:rgba(201,162,39,.14);border:1px solid rgba(201,162,39,.4);color:#f0d98c">👋 Just you here so far. If anyone else is waiting, check everyone opened the <b>same</b> room — this one is spelled <b>${esc(room)}</b>. Easiest: use <b>Share link</b> or <b>Show QR</b> below so no one has to type it.</div>`:''}
     <div class="irow" style="margin-top:10px"><button class="ghost" id="sharelink" data-link="${esc(link)}">🔗 Share link</button><button class="ghost" id="showqr">▦ Show QR</button></div>
     <div id="qrbox" hidden style="text-align:center;margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="margin-top:6px">Scan to join — opens straight into this room.</div></div>
     <button class="ghost small" id="entercode" style="width:100%;margin-top:8px;opacity:.78">Switch to another room ▾</button>

@@ -140,7 +140,7 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 .app.stripon .round .deck .n{font-size:.56rem;margin-top:1px}
 .app.stripon .round .stackbadge{left:50%;top:2px;bottom:auto;transform:translateX(-50%);font-size:.95rem;padding:.12rem .55rem}
 .app.stripon .hand{flex-direction:row;flex-wrap:wrap;justify-content:center;align-content:flex-start} /* v2.8.45: pack colour-groups into centered rows on EVERY screen (phone + wide/PC) so the hand is never a tall sparse column */
-.app.stripon .hand .card{width:42px;height:62px;border-radius:8px}.app.stripon .hand .card .v{font-size:1.3rem}.app.stripon .hand .card .cn{font-size:.56rem}
+.app.stripon .hand .card{width:calc(32px*var(--cs,1));height:calc(46px*var(--cs,1));border-radius:8px}.app.stripon .hand .card .v{font-size:calc(1rem*var(--cs,1))}.app.stripon .hand .card .cn{font-size:.56rem} /* v2.8.57: base ~25% smaller than before; --cs (set per hand-size) shrinks them further as the hand grows */
 .app.stripon{padding-top:calc(116px + env(safe-area-inset-top,0px))}
 body.hasvid .app.stripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
 body.hasvid.tbl .ustrip{top:calc(136px + env(safe-area-inset-top,0px))} /* iPad table video bar is a touch taller */
@@ -155,8 +155,8 @@ body.hasvid.tbl .app.stripon{padding-top:calc(248px + env(safe-area-inset-top,0p
   .app.stripon .status{margin:.3rem 0;padding:7px 10px}
   .app.stripon .hand{margin:.4rem 0;gap:6px;flex-direction:row;flex-wrap:wrap;justify-content:center;align-content:flex-start} /* v2.8.43: pack colour-groups into ~2 centered rows (was one tall column of per-colour rows) so mat + whole hand + Play/Draw fit without scrolling */
   .app.stripon .hrow{gap:5px}
-  .app.stripon .hand .card{width:40px;height:60px;border-radius:7px} /* v2.8.47: hand cards match the mat's last-played card */
-  .app.stripon .hand .card .v{font-size:1.15rem}
+  .app.stripon .hand .card{width:calc(30px*var(--cs,1));height:calc(45px*var(--cs,1));border-radius:7px}
+  .app.stripon .hand .card .v{font-size:calc(.86rem*var(--cs,1))}
   .app.stripon .hand .card .cn{font-size:.5rem}
 }
 /* landscape / short height (incl. iPad Safari with the bookmarks bar): single column — compact mat on top, your hand below, side hidden */
@@ -172,8 +172,8 @@ body.hasvid.tbl .app.stripon{padding-top:calc(248px + env(safe-area-inset-top,0p
   .app.stripon .tlayout.withhand .tl-side{display:none}
   .app.stripon .status{margin:.25rem 0;padding:6px 10px}
   .app.stripon .hand{margin:.3rem 0;gap:5px;flex-direction:row;flex-wrap:wrap;justify-content:center;align-content:flex-start} /* v2.8.43: pack the hand here too — short landscape has little height */
-  .app.stripon .hand .card{width:42px;height:62px;border-radius:7px}
-  .app.stripon .hand .card .v{font-size:1.3rem}
+  .app.stripon .hand .card{width:calc(32px*var(--cs,1));height:calc(46px*var(--cs,1));border-radius:7px}
+  .app.stripon .hand .card .v{font-size:calc(1rem*var(--cs,1))}
 }
 /* phone */
 .status{display:flex;align-items:center;gap:12px;background:var(--panel);border-radius:18px;padding:10px 12px;margin:.5rem 0}
@@ -267,7 +267,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.56 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.58 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -676,7 +676,8 @@ function handMain(st,embedded){
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
   const selCard=sel.length?hand.find(c=>c.id===sel[0]):null;
   const rows={}; hand.forEach(c=>{ (rows[c.c]=rows[c.c]||[]).push(c); });
-  const handH=`<div class="hand">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${unoHints&&mine&&st.rules.multi&&selCard&&!sel.includes(c.id)&&same(selCard,c)&&can.has(c.id)?'addable':''} ${unoHints&&st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
+  const cs=hand.length<=10?1:hand.length<=16?.86:hand.length<=24?.74:.64; // v2.8.57: a bigger hand (chaos can be half the pack) shrinks the cards so they still fit
+  const handH=`<div class="hand" style="--cs:${cs}">${['R','Y','G','B','W'].filter(k=>rows[k]).map(k=>`<div class="hrow">${rows[k].map(c=>`<button class="cb ${sel.includes(c.id)?'sel':''} ${unoHints&&mine&&!can.has(c.id)&&!sel.length?'no':''} ${unoHints&&mine&&st.rules.multi&&selCard&&!sel.includes(c.id)&&same(selCard,c)&&can.has(c.id)?'addable':''} ${unoHints&&st.picked&&mine&&st.picked.includes(c.id)?'new':''}" data-card="${c.id}" aria-label="${c.c==='W'?WNAME[c.v]:CNAME[c.c]+' '+c.v}">${cardHTML(c)}</button>`).join('')}</div>`).join('')}</div>`;
   const first=selCard, okPlay=mine&&first&&(!unoHints||can.has(first.id));
   let acts='', deck='';
   if(mine&&st.drawStack){
@@ -686,6 +687,8 @@ function handMain(st,embedded){
   if(mine){
     const stuck=!can.size; // nothing playable: make the next step obvious
     acts=`<div class="actions"><button class="play" id="play" ${okPlay?'':'disabled'}>${sel.length>1?`Play ${sel.length} cards`:'Play'}</button>${st.drawStack?`<button class="ghost ${stuck?'glow':''}" id="draw">Pick up 1 (${st.drawStack} left)</button>`:st.drew?`<button class="ghost ${stuck?'glow':''}" id="pass">Pass</button>`:`<button class="ghost ${stuck?'glow':''}" id="draw">Draw</button>`}</div>`;
+  } else {
+    acts=`<div class="actions"><button class="play" disabled>Play</button><button class="ghost" disabled>Draw</button></div>`; // v2.8.57: Play/Draw stay put in the mat on every turn — greyed out when it isn't yours — so the controls never jump around
   }
   const nudge=mine&&st.turnBy?`<p class="nudge small" data-showbelow="15" data-for="${local(st.turnBy)}">Your turn! Auto draw-and-pass in <span data-until="${local(st.turnBy)}"></span> s</p>`:'';
   const hint=st.picked?'Play one of the cards you just picked up, or pass.':st.picking?'Keep tapping the deck.':st.drawStack?(can.size?`Stack a draw card, or tap the deck to pick up ${st.drawStack}.`:`Tap the deck to pick up ${st.drawStack}, one card at a time.`):st.drew?'Play a card or pass.':null;

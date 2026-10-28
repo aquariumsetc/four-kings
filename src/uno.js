@@ -335,8 +335,8 @@ export class UnoTable extends DurableObject {
         if ([10, 20, 50, 100].includes(+m.stake) && st.phase !== "play") st.stake = +m.stake;
         if ([30000, 60000, 0].includes(m.turnMs)) st.turnMs = m.turnMs;
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); }
-        if (m.rule && m.rule in RULES && st.phase !== "play") st.rules[m.rule] = !!m.on;
-        if (m.preset && PRESETS[m.preset] && st.phase !== "play") st.rules = { ...PRESETS[m.preset] };
+        if (m.rule && m.rule in RULES) st.rules[m.rule] = !!m.on; // v2.8.71: rule/preset changes take effect immediately, even mid-hand — change a rule "for this go" and keep playing (cards added by Steal/Pass/Mirror/Custom only enter the deck at the next deal)
+        if (m.preset && PRESETS[m.preset]) st.rules = { ...PRESETS[m.preset] };
         if (["table", "phones"].includes(m.layout)) st.layout = m.layout; // iPad in the middle, or everyone on their own device
         if (Array.isArray(m.customs) && st.phase !== "play") st.customs = [0, 1, 2, 3].map((k) => String(m.customs[k] || "").slice(0, 60));
         break;

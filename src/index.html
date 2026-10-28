@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><!-- installed app: dark status bar, content fills under it — no pale strip up top -->
+<meta name="apple-mobile-web-app-title" content="Game Night">
+<meta name="theme-color" content="#153f2a">
+<title>Game Night</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --felt:#1f5a3a; --felt-deep:#153f2a; --felt-light:#2a7049;
+  --ivory:#fbf7ec; --ink:#1b1a17; --red:#b8232a; --brass:#c9a227; --brass-deep:#8c6d12;
+  --bg:var(--felt); --fg:#fbf7ec; --panel:rgba(0,0,0,.28);
+  --btn:var(--ivory); --btn-fg:var(--ink); --btn-2:rgba(251,247,236,.14);
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){ :root{ --felt:#163f2a; --felt-deep:#0f2b1d; --bg:#163f2a; color-scheme:dark; } }
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg) radial-gradient(ellipse at 50% 20%,var(--felt-light) 0%,var(--felt) 45%,var(--felt-deep) 100%);color:var(--fg);font:16px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--felt-deep)}
+h1,h2,h3,.serif{font-family:"Fraunces",Georgia,serif;font-weight:500;letter-spacing:-.01em;margin:0}
+h1{font-size:2.4rem;line-height:1.05} h2{font-size:1.6rem;line-height:1.15} h3{font-size:1.15rem}
+p{margin:.4rem 0}
+.app{max-width:560px;margin:0 auto;padding:12px 14px 40px}
+.app.table{max-width:1100px}
+button{font:inherit;border:0;border-radius:12px;padding:.8rem 1.1rem;cursor:pointer;background:var(--btn);color:var(--btn-fg);font-weight:600}
+button.ghost{background:var(--btn-2);color:var(--fg);font-weight:500}
+button.big{width:100%;padding:1rem;font-size:1.1rem;margin-top:.6rem}
+button.huge{width:100%;padding:1.6rem;font-size:1.5rem;margin-top:.8rem;background:var(--brass);color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+input{font:inherit;padding:.7rem .8rem;border-radius:10px;border:1px solid rgba(0,0,0,.25);background:var(--ivory);color:var(--ink);width:100%}
+input.code{text-transform:uppercase;letter-spacing:.3em;font-family:"Fraunces",Georgia,serif;font-size:1.6rem;text-align:center}
+.muted{opacity:.78}.small{font-size:.86rem}
+.row{display:flex;gap:.6rem;align-items:center}.row>*{flex:1}
+.notice{background:rgba(201,162,39,.16);border:1px solid rgba(201,162,39,.5);border-radius:12px;padding:.7rem .9rem;margin:.6rem 0}
+.panel{background:var(--panel);border-radius:14px;padding:.7rem .9rem;margin:.6rem 0}
+.kings{display:grid;grid-template-columns:repeat(4,1fr) 1.3fr;gap:6px;background:var(--panel);border-radius:16px;padding:10px 8px 8px;align-items:end}
+.spot{text-align:center}
+.spot .k{display:block;width:100%;aspect-ratio:5/7;max-width:70px;margin:0 auto;border-radius:6px;background:var(--ivory);color:var(--ink);font-family:"Fraunces",Georgia,serif;font-size:1.4rem;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.spot .k.red{color:var(--red)}
+.coins{margin-top:4px;font-size:.95rem;font-weight:600;color:var(--brass)}
+.pot{text-align:center;border-left:1px solid rgba(251,247,236,.18);padding-left:6px}
+.pot .n{font-family:"Fraunces",Georgia,serif;font-size:2.2rem;line-height:1;color:var(--brass)}.pot .l{font-size:.78rem;opacity:.8}
+/* compact kings on phones */
+.app:not(.table) .kings{padding:6px 8px 5px;gap:4px;border-radius:12px}
+.app:not(.table) .spot .k{max-width:30px;font-size:.78rem;border-radius:4px;gap:0;aspect-ratio:5/7}
+.app:not(.table) .coins{margin-top:2px;font-size:.78rem}
+.app:not(.table) .pot .n{font-size:1.3rem}.app:not(.table) .pot .l{font-size:.68rem}
+.card{width:38px;height:52px;border-radius:5px;background:var(--ivory);color:var(--ink);font-family:"Fraunces",Georgia,serif;font-size:1.05rem;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 0 rgba(0,0,0,.4);position:relative}
+.card.red{color:var(--red)}.card.q{background:linear-gradient(160deg,#fff8dc,var(--ivory))}
+.card small{font-size:.7rem;font-weight:500}
+.card.lead{outline:3px solid var(--brass);outline-offset:1px}
+.card.lg{width:84px;height:116px;font-size:2.2rem;border-radius:9px;box-shadow:0 4px 10px rgba(0,0,0,.4)}.card.lg small{font-size:1.4rem}
+.hand{display:flex;flex-direction:column;gap:6px;margin:.8rem 0}
+.suitrow{display:flex;align-items:center;gap:4px;min-height:52px}
+.suitrow .tag{width:22px;font-family:"Fraunces",Georgia,serif;font-size:1.3rem;text-align:center}.suitrow .tag.red{color:#ff9d99}
+.cards{display:flex;gap:4px;flex-wrap:wrap}
+button.cardbtn{padding:0;background:none;border-radius:5px}
+.tgrid{display:grid;grid-template-columns:1fr 300px;gap:14px;align-items:start}
+@media (max-width:760px){.tgrid{grid-template-columns:1fr}}
+/* table + your cards on one screen: cards right under the table, side panel after (phones) or alongside (wide) */
+.tgrid.withhand{grid-template-areas:"round side" "hand side"}.tgrid.withhand>.tl-round{grid-area:round}.tgrid.withhand>.tl-side{grid-area:side}.tgrid.withhand>.tl-hand{grid-area:hand}
+@media (max-width:760px){.tgrid.withhand{grid-template-areas:"round" "hand" "side"}}
+.pile{position:relative;height:280px;background:rgba(0,0,0,.18);border-radius:20px;margin:12px 0;overflow:hidden}
+.pile .card{position:absolute;left:50%;top:50%;margin:-58px 0 0 -42px}
+.pile .card.who::after{content:attr(data-who);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font:600 .72rem -apple-system,"Segoe UI",sans-serif;color:var(--fg);background:rgba(0,0,0,.45);padding:2px 6px;border-radius:6px;white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){.pile .card.new{animation:land .45s cubic-bezier(.2,.9,.3,1.2)}@keyframes land{from{transform:translate(0,-320px) rotate(-30deg) scale(1.3);opacity:0}}}
+.call{text-align:center;font-family:"Fraunces",Georgia,serif;font-size:1.9rem;margin:.4rem 0}
+.count{font-size:3.2rem;color:var(--brass);font-family:"Fraunces",Georgia,serif;text-align:center;line-height:1}
+.scores table{width:100%;border-collapse:collapse}.scores td{padding:5px 0;border-top:1px solid rgba(251,247,236,.12)}
+.scores td:last-child{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.scores tr.lead td:first-child::before{content:"★ ";color:var(--brass)}
+.scores tr.on td:first-child{color:var(--brass)}
+.kbtns{display:flex;gap:6px}.kbtns button{flex:1;padding:.7rem 0;font-family:"Fraunces",Georgia,serif;font-size:1.5rem;font-weight:700;background:var(--btn-2);color:var(--fg)}
+.kbtns button.red{color:#ff9d99}.kbtns button.on{background:var(--ivory);color:var(--ink)}.kbtns button.on.red{color:var(--red)}
+.center{text-align:center}
+.wait{text-align:center;padding:2rem 0;opacity:.85}
+.tick{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--brass);margin-right:6px}
+.codebig{font-family:"Fraunces",Georgia,serif;font-size:3rem;letter-spacing:.25em;color:var(--brass);text-align:center;line-height:1}
+.qrwrap{display:flex;gap:18px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.qr{background:#fbf7ec;padding:10px;border-radius:12px;line-height:0}
+.qr img,.qr canvas{display:block}
+.settings .srow{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-top:1px solid rgba(251,247,236,.1)}
+.settings button{padding:.35rem .6rem}
+.nudge{animation:pulse 1s ease-in-out infinite alternate}@keyframes pulse{to{transform:scale(1.04);color:var(--brass)}}
+#sndhint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:40;background:rgba(0,0,0,.72);color:#fff;font-size:.85rem;padding:.45rem .9rem;border-radius:999px;pointer-events:none}
+.home{max-width:820px;margin:0 auto;padding-top:1.2rem}
+.hhead{display:flex;gap:16px;align-items:center;margin-bottom:.6rem}.hhead img{border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.35);flex:none}
+.games{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:.8rem 0}@media (max-width:640px){.games{grid-template-columns:1fr}}
+.game{border-radius:20px;padding:1rem 1.1rem 1.1rem;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.game.fk{background:radial-gradient(circle at 30% 0%,#2a7049,#153f2a)}
+.game.uno{background:radial-gradient(circle at 30% 0%,#2f3570,#1b1e3a)}
+.game h2{margin-top:.4rem}.game p{margin:.3rem 0}
+.art{height:86px;display:flex;justify-content:center;align-items:center;gap:0}
+.mini{display:inline-flex;align-items:center;justify-content:center;text-align:center;width:46px;height:66px;margin:0 -6px;border-radius:8px;background:var(--ivory);color:var(--ink);font:700 1.05rem/1.05 Georgia,serif;box-shadow:0 4px 10px rgba(0,0,0,.35)}
+.mini.red{color:var(--red)}.mini.u{font-family:-apple-system,sans-serif;font-size:1.25rem;box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,255,255,.85)}
+.lounge{display:flex;gap:14px;align-items:center;justify-content:space-between}.lounge .big{width:auto;flex:none;margin:0;padding:.8rem 1.4rem}@media (max-width:640px){.lounge{flex-direction:column;align-items:stretch}.lounge .big{width:100%}}
+.lp{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.ways{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:.88rem;line-height:1.35}@media (max-width:640px){.ways{grid-template-columns:1fr}}
+.rj{display:block;width:100%;text-align:left;margin-top:6px}.rj span{opacity:.7;font-size:.85rem}
+.conn{position:fixed;right:10px;bottom:10px;font-size:.75rem;opacity:.6}
+.minirun{display:flex;gap:22px;align-items:center;justify-content:center;padding:10px 6px 24px;background:rgba(0,0,0,.18);border-radius:14px;margin:.6rem 0;min-height:96px}
+.fan{position:relative;height:80px;flex:1;max-width:260px}
+.fan .card{position:absolute;top:50%;width:40px;height:56px;margin-top:-28px;font-size:1.55rem;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.fan .card small{font-size:1.1rem}
+.fan .card.last{outline:2px solid var(--brass);outline-offset:1px}
+.minirun .card.ghost{width:44px;height:60px;font-size:1.5rem}.minirun .card.ghost small{font-size:1.05rem}
+.minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
+.card.ghost{background:transparent;border:2px dashed rgba(251,247,236,.65);color:rgba(251,247,236,.8);box-shadow:none}
+.card.ghost.red{color:#ff9d99}
+.dealin{font-family:"Fraunces",Georgia,serif;font-size:1.4rem;color:var(--brass);text-align:center}
+.won{display:inline-flex;align-items:center;gap:8px;background:rgba(201,162,39,.18);border:1px solid rgba(201,162,39,.55);border-radius:14px;padding:6px 12px;margin:.3rem auto;font-size:1.05rem}
+.won .card{width:34px;height:46px;font-size:1rem;flex:none}.won .card small{font-size:.65rem}
+.won .amt{font-family:"Fraunces",Georgia,serif;font-size:1.5rem;color:var(--brass);line-height:1}
+.app.table .won{font-size:1.3rem;padding:8px 16px}.app.table .won .card{width:46px;height:62px;font-size:1.3rem}.app.table .won .amt{font-size:2rem}
+.leadcall{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;line-height:1.1;text-align:center;margin:.4rem 0}
+.leadcall .col{display:inline-block;padding:.05em .35em;border-radius:8px;background:var(--ivory);color:var(--ink);text-transform:uppercase;letter-spacing:.06em}
+.leadcall .col.red{color:var(--red)}
+#howto{position:fixed;inset:0;z-index:60;background:rgba(10,20,14,.75);display:flex;align-items:center;justify-content:center;padding:20px}
+#howto .sheet{background:var(--felt-deep);border-radius:20px;padding:1.2rem;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+#howto .step{display:flex;gap:12px;margin:10px 0}#howto .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brass);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center}
+#banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:50}
+#banner:empty{display:none}
+.fanfare{background:linear-gradient(160deg,#fff4c2,#e9c54a);color:#2a2410;border-radius:22px;padding:1.2rem 1.6rem;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 6px rgba(201,162,39,.35);max-width:88vw;animation:pop .5s cubic-bezier(.2,1.4,.4,1),fade .6s 3.6s forwards}
+.fanfare h2{font-size:1.9rem;color:#2a2410}.fanfare .big{font-family:"Fraunces",Georgia,serif;font-size:3rem;line-height:1;margin:.2rem 0}
+.fanfare .sub{font-size:.95rem;opacity:.8}
+.fanfare .card{display:inline-flex;width:56px;height:78px;font-size:1.6rem;margin:.3rem 0;box-shadow:0 4px 12px rgba(0,0,0,.3)}.fanfare .card small{font-size:1rem}
+@keyframes pop{from{transform:scale(.4) rotate(-6deg);opacity:0}}
+@keyframes fade{to{opacity:0;transform:scale(.9)}}
+.spark{position:absolute;font-size:1.6rem;animation:spark 1.4s ease-out forwards}
+@keyframes spark{from{transform:translate(0,0) scale(.4);opacity:1}to{transform:translate(var(--dx),var(--dy)) scale(1.3);opacity:0}}
+#vid{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:6px 10px;overflow-x:auto;min-height:0}
+#vid:empty{display:none}
+.tile{position:relative;flex:none;width:78px;height:104px;border-radius:10px;overflow:hidden;background:#111;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.app.table ~ #vid .tile, body.tbl .tile{width:150px;height:112px}
+body.ingame:not(.tbl) #vid{flex-wrap:nowrap}
+body.ingame:not(.tbl) #vid .tile{flex:1 1 0;min-width:0;max-width:92px;width:auto;height:auto;aspect-ratio:3/4} /* v2.8.57: on a phone in a game, tiles shrink to fit everyone across the width — no sideways scrolling */
+.tile video{width:100%;height:100%;object-fit:cover;display:block}
+.tile.me video{transform:scaleX(-1)}
+.tile .nm{position:absolute;left:0;right:0;bottom:0;font-size:.68rem;padding:2px 5px;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .mic{position:absolute;top:4px;right:4px;font-size:.7rem;background:rgba(0,0,0,.5);border-radius:6px;padding:1px 4px}
+.vctl{flex:none;display:flex;flex-direction:column;gap:5px;margin-left:auto}
+/* v2.8.52: in-game, Muted + video controls live in a left column under the Home button (the room link/QR were dropped) */
+/* v2.8.75: Muted + Stop-vid sized to the Home button — Home and the column share one width (--ctlw) and align their edges, so the left controls are a tidy same-width stack instead of a wide 158px column */
+body.ingame{--ctlw:118px}
+body.ingame #gohome{width:var(--ctlw);padding-left:0;padding-right:0;text-align:center}
+body.ingame #vid .vctl{position:fixed;left:6px;top:calc(env(safe-area-inset-top,0px) + 44px);margin:0;z-index:12;width:var(--ctlw);align-items:stretch}
+body.ingame #vid .vctl button{padding:.32rem .5rem;font-size:.76rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.inroom.ingame.hasvid #vid{padding-left:132px;min-height:118px}
+.vctl button{padding:.45rem .7rem;font-size:.82rem;border-radius:9px}
+body.hasvid .app{padding-top:128px}
+body.hasvid.tbl .app{padding-top:136px}
+
+/* --- Game Night shell: the game runs in a frame beneath the video bar; the shell (and its video mesh) never reloads --- */
+#stage{position:fixed;left:0;right:0;top:0;width:100%;height:100%;border:0;display:none;background:transparent}
+body.ingame #stage{display:block}
+body.ingame #app{display:none}
+#gohome{position:fixed;top:env(safe-area-inset-top,0px);left:0;z-index:30;display:none;margin:6px;padding:7px 11px;border-radius:12px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;border:1px solid rgba(255,255,255,.2);font-size:1rem;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.45);cursor:pointer}
+body.inroom #gohome{display:block}
+body.inroom.hasvid #vid{padding-left:112px} /* v2.8.40: clear the fixed 🏠 Home button (ends ~99px) so it no longer sits on top of the leftmost video tile in-game */
+.vctl .roomchip{background:rgba(201,162,39,.22);border-color:rgba(201,162,39,.6);color:#f0d98c;font-weight:600;white-space:nowrap}
+.roomtag{display:inline-block;background:rgba(201,162,39,.22);border:1px solid rgba(201,162,39,.6);color:#f0d98c;font-weight:700;font-size:.6em;letter-spacing:.05em;padding:.22em .6em;border-radius:9px;vertical-align:middle;margin-left:.35em} /* v2.8.53: show which room you're in */
+.roomquickwrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px} /* v2.8.51: saved named rooms as one-tap buttons */
+.roomquick{display:inline-flex;align-items:center;gap:8px;font-weight:600}
+.roomquick .rmroom{opacity:.5;font-size:1.1rem;line-height:1;padding:0 2px;border-radius:6px}
+.roomquick .rmroom:hover{opacity:1;background:rgba(255,255,255,.12)}
+.roomsel{font:inherit;font-weight:600;padding:.7rem .8rem;border-radius:10px;border:1px solid rgba(0,0,0,.25);background:var(--ivory);color:var(--ink);min-width:0} /* v2.8.59: saved rooms picked from a dropdown, not deletable pills */
+.roomedit{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.roomchip2{display:inline-flex;align-items:center;gap:10px;font-weight:600;background:var(--btn-2);border:1px solid rgba(251,247,236,.18);border-radius:999px;padding:5px 6px 5px 14px}
+.roomchip2 .rmroom2{font:inherit;font-size:.82rem;font-weight:600;background:rgba(184,35,42,.22);border:1px solid rgba(184,35,42,.5);color:#ffb3ad;border-radius:999px;padding:4px 12px;width:auto}
+.linkbtn{background:none;border:0;padding:4px 2px;width:auto;font-weight:600;text-decoration:underline;color:var(--fg);opacity:.72}
+.vctl .roomrow{display:flex;gap:5px;align-items:stretch} /* v2.8.50: room link + QR as two buttons */
+.vctl .roomrow .roomchip{flex:1}
+.vctl .roomrow .qrbtn{flex:none;padding:.45rem .62rem;font-size:1.05rem;line-height:1}
+#qrmodal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+/* v2.8.76: in-game "✏️ Name" editor overlay (same look as the QR modal) */
+#namemodal{position:fixed;inset:0;z-index:62;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#namemodal .nmcard{background:var(--panel,#262a52);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:20px;max-width:340px;width:100%}
+#namemodal .nmcard input{width:100%}
+#qrmodal .qrcard{background:var(--panel,#262a52);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:22px 22px 18px;text-align:center;max-width:300px}
+#qrmodal .qr{background:#fbf7ec;padding:12px;border-radius:12px;display:inline-block;line-height:0}
+.vctl .micoff{background:#e2453c;color:#fff;font-weight:700;border:1px solid rgba(255,255,255,.3)} /* v2.8.40: muted-state read-out, unmistakably red */
+#vdbg{position:fixed;left:6px;bottom:6px;z-index:55;max-width:min(92vw,360px);font:11px/1.35 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#cfe;background:rgba(0,0,0,.82);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:6px 8px;pointer-events:none} /* v2.8.40: video-connection diagnostics; auto-reveals when a peer stays unconnected, or force on with ?vdebug=1 */
+.emojirow{display:flex;flex-wrap:wrap;gap:7px}
+.emo{width:42px;height:42px;border:0;padding:0;border-radius:12px;background:rgba(255,255,255,.08);font-size:1.3rem;line-height:1;cursor:pointer;display:grid;place-items:center;color:#fff;font-weight:600}
+.emo.on{background:rgba(255,255,255,.18);box-shadow:0 0 0 2px #ffd166}
+/* v2.8.20 room polish */
+.games .game{display:flex;flex-direction:column}
+.games .game button.big:first-of-type{margin-top:auto}
+.irow{display:flex;gap:8px}.irow>*{flex:1}.irow input{min-width:0}
+#qr{display:inline-block;background:#fbf7ec;padding:8px;border-radius:10px;line-height:0}
+#updbar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#c9a227;color:#1b1a17;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,.45)}
+#updbar button{background:#1b1a17;color:#fbf7ec;border:0;border-radius:10px;padding:8px 16px;font-weight:600;cursor:pointer}
+/* v2.8.23 room tile grid (video when on, avatar when off) */
+body.inroom:not(.ingame) #vid{flex-wrap:wrap;justify-content:center;align-content:flex-start;overflow:visible;gap:8px;padding:12px 10px;max-width:600px;margin:0 auto;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+body.inroom:not(.ingame).hasvid #vid{padding-left:10px}
+body.inroom:not(.ingame) .tile{width:92px;height:92px}
+body.inroom:not(.ingame) #vid .vctl{flex-basis:100%;justify-content:center;margin-top:2px}
+body.inroom:not(.ingame) #gohome{display:none}
+.tile .ava{width:100%;height:100%;display:grid;place-items:center;font-size:2rem;background:#1c3b52}
+.tile.me .ava{background:#1f4a34}
+.tile .tgear{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);border:0;color:#fff;font-size:.72rem;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;z-index:2}
+body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only exists in the room — hide the gear in-game so it isn't a dead control */
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div id="vid"></div>
+<iframe id="stage" allow="camera;microphone;autoplay;fullscreen" title="Game"></iframe>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<div class="conn" id="conn"></div>
+<button id="gohome" title="Home" aria-label="Back to Home">🏠 Home</button>
+<input type="file" accept="image/*" capture="user" id="selfiein" hidden>
+<script>
+(function(){
+const VERSION='v2.8.87 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
+const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
+const qs=new URLSearchParams(location.search);
+let room=(qs.get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
+let nick=get('fk-nick');
+let emoji=get('fk-emoji')||'';
+let myPhoto=get('fk-photo')||''; const photos={}; if(myPhoto) photos[pid]=myPhoto;
+const EMOJIS=['🦊','🐯','🐼','🦄','🦁','🐸','🐵','🦉','🐙','🐨','👑','🚀','⚽','🎸','🌈','😎'];
+// Nudge people out of Messenger/WhatsApp's in-app browser (where video is flaky, names aren't remembered, and popups get clipped) into real Safari or the home-screen app.
+let iabDismissed=false;
+const inAppBrowser=/FBAN|FBAV|FB_IAB|Instagram|Messenger|WhatsApp|Line\//i.test(navigator.userAgent||'') || (/iPhone|iPad|iPod/.test(navigator.userAgent||'') && window.navigator.standalone!==true && !/Safari/.test(navigator.userAgent||''));
+function iabBanner(){ if(!inAppBrowser||iabDismissed) return ''; return `<div class="panel" id="iab" style="border:1px solid #c9a227;background:rgba(201,162,39,.14)"><div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start"><div class="small">📱 <b>Open in Safari for the best experience</b> — video works properly and it remembers your name. Tap <b>•••</b> (top-right) → <b>Open in Safari</b>, or <b>Share → Add to Home Screen</b> for an app icon.</div><button class="ghost small" id="iabx" aria-label="dismiss">✕</button></div></div>`; }
+let S=null, ws=null, reconnectIn=800, skew=0, viewMsg='', meOpen=false, roomsEdit=false;
+let curGame=null, inLobby=false, lastGotoAt=+(qs.get('from')||0), wantGame='', wantLobby=false, wantStart=null, autoTried=false;
+const app=document.getElementById('app'), connEl=document.getElementById('conn'), stage=document.getElementById('stage');
+let stageGame=null;
+// v2.8.85: Back button fix. Framing a game used to set stage.src, which stacks an iframe history entry, so the browser Back button walked into a blank/old game while the shell stayed stuck in-game. Now games load with location.replace() (no iframe history), and entering a room/game arms a one-shot Back trap so Back returns to the home page.
+let backTrapSet=false;
+function armBackTrap(){ if(backTrapSet) return; backTrapSet=true; try{ history.pushState({gnback:1},''); }catch(e){} }
+function frameSrc(url){ let abs=url; try{ abs=/^(https?:|about:)/.test(url)?url:new URL(url,location.href).href; }catch(e){} try{ if(stage.contentWindow) stage.contentWindow.location.replace(abs); else stage.src=abs; }catch(e){ stage.src=abs; } } // v2.8.86: always load an ABSOLUTE url — an about:blank iframe has no base to resolve "/fk.html" against
+window.addEventListener('popstate',()=>{ backTrapSet=false; if(room) goHome(); });
+const isTbl=()=>false; // the shell is never an iPad table; the camera lives here regardless of the game on screen
+function newCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
+let wake=null;
+async function keepAwake(){ try{ if(room&&'wakeLock' in navigator&&!document.hidden&&(!wake||wake.released)) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) keepAwake(); });
+['touchend','click'].forEach(ev=>document.addEventListener(ev,keepAwake,{passive:true}));
+
+/* ---------- which game a host action starts (mirrors test/shell-core.mjs) ---------- */
+function roomMessageFor(action){
+  if(!(S&&S.host)) return null;
+  switch(action){
+    case 'pick-fk': case 'switch-fk': return {t:'switchgame',to:'fk'};
+    case 'pick-uno': case 'switch-uno': return {t:'switchgame',to:'uno'};
+    case 'back-to-room': return {t:'toroom',force:true}; // v2.8.87: a deliberate "Back to the room" always wins (vs the auto nag, which the server ignores during a launch)
+    default: return null;
+  }
+}
+function gameSrc(game,mode){
+  const p=new URLSearchParams(); p.set('room',room); p.set('mode',mode||'hand'); p.set('framed','1');
+  if(lastGotoAt) p.set('from',String(lastGotoAt));
+  if(S&&S.host&&S.goto&&S.goto.bots) p.set('bots',String(S.goto.bots));
+  if(S&&S.host) p.set('layout','phones');
+  return (game==='uno'?'/uno.html':'/fk.html')+'?'+p.toString();
+}
+
+/* ---------- video: WebRTC mesh keyed by the stable device id (pid), so it survives a game change ---------- */
+function wantedPids(peers,me,on,tbl){ const want=new Set(); for(const p of peers||[]){ if(!p||!p.pid||p.pid===me) continue; if(p.video||on||tbl) want.add(p.pid); } return want; } // receive every broadcaster; and when I'm sending (or I'm the table), also connect to camera-off devices so they receive me — otherwise a camera-on phone never initiates to a camera-off PC and the handshake deadlocks
+const isPolite=(a,b)=>String(a)>String(b);
+const GRACE=10000;
+const rtc={on:false,mic:false,joining:false,queue:[],stream:null,peers:{},ice:{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]},iceLoaded:false,wantSince:{},relayOf:{}};
+// --- video diagnostics (v2.8.40): read-only; auto-reveals a small box when a wanted peer won't connect, force on/off with ?vdebug=1 / ?vdebug=0 ---
+if(qs.get('vdebug')==='1') set('gn-vdebug','1'); if(qs.get('vdebug')==='0') set('gn-vdebug','');
+const VDBG=get('gn-vdebug')==='1';
+const vlog=(...a)=>{ if(VDBG){ try{ console.log('[vid]',...a); }catch(e){} } };
+const vshort=id=>(id||'').slice(0,4);
+const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); // Safari on iPadOS reports as desktop — the touch-point check catches it
+function peerIOS(id){ const pr=peerList().find(x=>x.pid===id); return !!(pr&&pr.ios); }
+const vidEl=document.getElementById('vid');
+const myPid=()=>S?S.you:pid;
+const iParticipate=()=>rtc.on||isTbl();
+// a device may hold two sockets to the room during 4 Kings (this shell + its game frame); show one tile per device, preferring the video-on entry
+function peerList(){ const m=new Map(); for(const p of (S&&S.peers)||[]){ if(!p||!p.pid) continue; const cur=m.get(p.pid); if(!cur||(!cur.video&&p.video)) m.set(p.pid,p); } return [...m.values()]; }
+async function loadIce(){ if(rtc.iceLoaded) return; try{ const r=await fetch('/ice'); if(r.ok) rtc.ice=await r.json(); }catch(e){} rtc.iceLoaded=true; }
+async function startVideo(){
+  if(rtc.on||rtc.joining) return; rtc.joining=true;
+  try{ rtc.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:15},facingMode:'user'},audio:true}); }
+  catch(e){ rtc.joining=false; rtc.queue=[]; const nm=(e&&e.name)||''; viewMsg = (nm==='NotAllowedError'||nm==='SecurityError') ? 'Camera blocked — allow camera/mic access in your browser, then tap Start video again.' : (nm==='NotFoundError'||nm==='OverconstrainedError'||/not found/i.test((e&&e.message)||'')) ? 'No camera found on this device — you can still play without video.' : 'Camera/mic unavailable — you can still play without video.'; render(); return; }
+  rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic);
+  rtc.on=true; set('gn-video','1'); await loadIce();
+  Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:true}); syncPeers();
+  rtc.joining=false; const held=rtc.queue; rtc.queue=[]; held.forEach(([f,d])=>onRtc(f,d)); renderVideo();
+}
+function stopVideo(){ if(!rtc.on) return; rtc.on=false; set('gn-video','0'); rtc.stream.getTracks().forEach(t=>t.stop()); rtc.stream=null; Object.keys(rtc.peers).forEach(closePeer); sendMsg({t:'video',on:false}); syncPeers(); renderVideo(); }
+function toggleMic(){ rtc.mic=!rtc.mic; if(rtc.stream) rtc.stream.getAudioTracks().forEach(t=>t.enabled=rtc.mic); renderVideo(); }
+function syncPeers(){
+  if(!S) return; const now=Date.now();
+  const want=wantedPids(peerList(),myPid(),rtc.on,isTbl());
+  // keep a connection alive through a game change: a peer that drops off the room's list is only closed after the grace window
+  for(const id of Object.keys(rtc.peers)){ if(want.has(id)) rtc.peers[id].goneAt=0; else if(!rtc.peers[id].goneAt) rtc.peers[id].goneAt=now; else if(now-rtc.peers[id].goneAt>=GRACE) closePeer(id); }
+  want.forEach(id=>{ if(!rtc.wantSince[id]) rtc.wantSince[id]=now; if(!rtc.peers[id]) makePeer(id); });
+  for(const id in rtc.wantSince){ if(!want.has(id)) delete rtc.wantSince[id]; }
+  for(const id in rtc.relayOf){ if(!want.has(id)) delete rtc.relayOf[id]; }
+  renderVideo();
+}
+setInterval(()=>{ if(rtc.on||isTbl()||((S&&S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid()))){ syncPeers(); vwatchdog(); vpollStats(); } },3000); // advance grace timers AND keep a camera-off device connecting to broadcasters (not just when its own camera is on)
+function makePeer(id){
+  const relay=!!rtc.relayOf[id]||(IOS&&peerIOS(id)); // iOS↔iOS: skip the doomed .local direct attempt and go straight to the TURN relay — no 8s stall, no dropout for a late joiner
+  if(relay&&!rtc.iceLoaded){ loadIce().then(()=>{ if(!rtc.peers[id]&&wantedPids(peerList(),myPid(),rtc.on,isTbl()).has(id)) makePeer(id); }); return null; } // a relay-only peer needs TURN; load it (cached) then build — never start a relay peer STUN-only
+  const cfg=relay?Object.assign({},rtc.ice,{iceTransportPolicy:'relay'}):rtc.ice;
+  const pc=new RTCPeerConnection(cfg); const p={pc,polite:isPolite(myPid(),id),stream:null,making:false,ignore:false,cands:[],goneAt:0,candType:'',since:Date.now(),relay}; rtc.peers[id]=p;
+  vlog(vshort(id),'makePeer',p.polite?'polite':'impolite',relay?'[relay]':'');
+  if(rtc.stream) rtc.stream.getTracks().forEach(t=>pc.addTrack(t,rtc.stream));
+  else { try{ pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }catch(e){} } // camera off: still receive everyone else
+  pc.onnegotiationneeded=async()=>{ const other=peerList().find(x=>x.pid===id); if(p.polite&&other&&other.video&&!pc.remoteDescription) return; try{ p.making=true; vlog(vshort(id),'offer'); await pc.setLocalDescription(); sendMsg({t:'rtc',to:id,data:{description:pc.localDescription}}); }catch(e){ console.warn(e); } finally{ p.making=false; } };
+  pc.onicecandidate=({candidate})=>{ if(candidate){ vlog(vshort(id),'cand',candidate.type||((candidate.candidate||'').split(' ')[7])); sendMsg({t:'rtc',to:id,data:{candidate}}); } };
+  pc.ontrack=ev=>{ vlog(vshort(id),'ontrack'); p.stream=ev.streams[0]||new MediaStream([ev.track]); renderVideo(); };
+  pc.oniceconnectionstatechange=()=>{ vlog(vshort(id),'ice',pc.iceConnectionState); renderVDebug(); };
+  pc.onconnectionstatechange=()=>{ vlog(vshort(id),'conn',pc.connectionState); if(pc.connectionState==='connected'||pc.connectionState==='completed') p.since=Date.now(); if(pc.connectionState==='failed'){ closePeer(id); setTimeout(syncPeers,1500); } renderVideo(); };
+  return p;
+}
+function closePeer(id){ const p=rtc.peers[id]; if(!p) return; try{p.pc.close();}catch(e){} delete rtc.peers[id]; }
+async function onRtc(from,data){
+  if(rtc.joining){ rtc.queue.push([from,data]); return; }
+  if(!S||!peerList().some(x=>x.pid===from)) return;
+  if(data&&data.reset==='relay'){ const w=wantedPids(peerList(),myPid(),rtc.on,isTbl()).has(from), p0=rtc.peers[from]; if(w&&!(p0&&p0.relay&&Date.now()-p0.since<2000)){ rtc.relayOf[from]=true; vlog(vshort(from),'peer asked for relay'); closePeer(from); await loadIce(); makePeer(from); } return; } // the other side's watchdog gave up on the direct path — rebuild this one peer relay-only too, so both ends gather TURN candidates
+  let p=rtc.peers[from]; if(!p){ if(!wantedPids(peerList(),myPid(),rtc.on,isTbl()).has(from)) return; await loadIce(); p=makePeer(from); } else p.goneAt=0; // accept an inbound connection from any peer we want (a camera-off device still wants every broadcaster)
+  const pc=p.pc;
+  try{
+    if(data.description){
+      const collision=data.description.type==='offer'&&(p.making||pc.signalingState!=='stable');
+      p.ignore=!p.polite&&collision; if(p.ignore) return;
+      await pc.setRemoteDescription(data.description);
+      for(const c of p.cands.splice(0)){ try{ await pc.addIceCandidate(c); }catch(e){} }
+      if(data.description.type==='offer'){ await pc.setLocalDescription(); sendMsg({t:'rtc',to:from,data:{description:pc.localDescription}}); }
+    } else if(data.candidate){ if(!pc.remoteDescription){ p.cands.push(data.candidate); return; } try{ await pc.addIceCandidate(data.candidate); }catch(e){ if(!p.ignore) console.warn(e); } }
+  }catch(e){ console.warn(e); }
+}
+function renderVideo(){
+  const tiles=[]; document.body.classList.toggle('tbl',isTbl());
+  const inRoom=!!(room&&S&&S.lounge)&&!document.body.classList.contains('ingame'); // only the room shows avatar tiles for everyone; in-game stays video-only
+  if(rtc.on) tiles.push({key:'me',stream:rtc.stream,name:'You',me:true});
+  const pl=peerList();
+  for(const id in rtc.peers){ const peer=pl.find(x=>x.pid===id); if(peer&&peer.video&&rtc.peers[id].stream) tiles.push({key:id,stream:rtc.peers[id].stream,name:peer.name}); }
+  if(inRoom){ const shown=new Set(tiles.map(t=>t.key));
+    if(!shown.has('me')){ tiles.push({key:'me',name:'You',me:true,avatar:emoji||'🙂',photoId:pid}); shown.add('me'); }
+    for(const p of S.players){ if(p.bot||p.id===pid||shown.has(p.id)) continue; tiles.push({key:p.id,name:p.name,avatar:p.emoji||'🙂',photoId:p.id}); shown.add(p.id); } }
+  const keep=new Set(tiles.map(t=>t.key));
+  [...vidEl.querySelectorAll('.tile')].forEach(el=>{ if(!keep.has(el.dataset.key)) el.remove(); });
+  tiles.forEach(t=>{ const kind=t.stream?'video':'avatar'; let el=vidEl.querySelector(`.tile[data-key="${t.key}"]`);
+    if(el&&el.dataset.kind!==kind){ el.remove(); el=null; }
+    if(!el){ el=document.createElement('div'); el.className='tile'+(t.me?' me':''); el.dataset.key=t.key; el.dataset.kind=kind;
+      if(kind==='video'){ const v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.setAttribute('playsinline',''); v.muted=!!t.me; el.appendChild(v); }
+      else { const a=document.createElement('div'); a.className='ava'; el.appendChild(a); }
+      const n=document.createElement('div'); n.className='nm'; el.appendChild(n);
+      if(t.me){ const g=document.createElement('button'); g.type='button'; g.className='tgear'; g.textContent='⚙️'; g.title='Edit your name or emoji'; g.setAttribute('aria-label','Edit your name or emoji'); g.onclick=(e)=>{ e.stopPropagation(); meOpen=true; render(); const m=document.getElementById('meedit'); if(m){ m.hidden=false; m.scrollIntoView({block:'nearest'}); } }; el.appendChild(g); }
+      vidEl.insertBefore(el,vidEl.querySelector('.vctl')); }
+    if(kind==='video'){ const v=el.querySelector('video'); if(v.srcObject!==t.stream){ v.srcObject=t.stream; v.play().catch(()=>{}); } }
+    else { const ava=el.querySelector('.ava'); const ph=t.photoId&&photos[t.photoId]; if(ph){ ava.textContent=''; ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundSize='cover'; ava.style.backgroundPosition='center'; } else { ava.style.backgroundImage=''; ava.textContent=t.avatar||'🙂'; } }
+    el.querySelector('.nm').textContent=t.name; });
+  let ctl=vidEl.querySelector('.vctl');
+  const showCtl=room&&S;
+  if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
+    const inGame=document.body.classList.contains('ingame'); // show the room code only while a game is on (the lobby already shows it)
+    const roomBtn=''; // v2.8.52: room link + QR removed from the top bar (named rooms join by name; invite a new person from the room/lounge). Controls now sit under Home.
+    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost${rtc.mic?'':' micoff'}" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Muted'}</button><button class="ghost" id="vidoff">⏹ Stop vid</button>`:`<button id="vidon">📷 Start vid</button>`)+(inGame?`<button class="ghost" id="editname">✏️ Name</button>`:''); // v2.8.76: set/change your name in-game too (the room has its own editor)
+    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#editname')) q('#editname').onclick=openNameModal; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room); if(q('#qrbtn')) q('#qrbtn').onclick=showRoomQR;
+  } else if(ctl) ctl.remove();
+  document.body.classList.toggle('hasvid',vidEl.children.length>0);
+  layoutForVideo();
+  renderVDebug();
+}
+// --- video diagnostics (v2.8.40) ---
+async function vpollStats(){
+  for(const id in rtc.peers){ const p=rtc.peers[id]; try{ const s=await p.pc.getStats(); let pair=null; s.forEach(r=>{ if(r.type==='candidate-pair'&&r.state==='succeeded'){ if(!pair||r.nominated) pair=r; } }); if(pair){ const l=s.get(pair.localCandidateId), rm=s.get(pair.remoteCandidateId); p.candType=((l&&l.candidateType)||'?')+'/'+((rm&&rm.candidateType)||'?'); } }catch(e){} }
+  renderVDebug();
+}
+function vpeerDiag(id){ const p=rtc.peers[id], r=((p&&p.relay)||rtc.relayOf[id])?' ⚡':'', nm=((peerList().find(x=>x.pid===id)||{}).name)||vshort(id); if(!p) return nm+': waiting…'+r; const pc=p.pc; return nm+' '+(p.polite?'P':'I')+' '+pc.connectionState+'/'+pc.iceConnectionState+' '+(p.stream?'📹':'·')+(p.candType?' '+p.candType:'')+r; }
+// watchdog (v2.8.41): a peer that won't reach "connected" on the direct/LAN path within ~5s gets a coordinated relay-only rebuild (backstop for non-iOS stalls; iOS↔iOS is relay-first and never waits here). Healthy pairs connect well under 5s and never touch this.
+function vwatchdog(){
+  const now=Date.now();
+  for(const id in rtc.peers){ const p=rtc.peers[id], cs=p.pc.connectionState;
+    if(cs==='connected'||cs==='completed'){ p.since=now; continue; }
+    if(cs==='closed') continue;
+    if(now-p.since>5000) kickPeer(id); // backstop for a non-iOS pair that stalls (iOS↔iOS now goes relay-first and never waits here); rebuilding resets p.since, so this self-limits to ~one retry per 5s
+  }
+}
+async function kickPeer(id){ rtc.relayOf[id]=true; vlog(vshort(id),'kick→relay'); try{ sendMsg({t:'rtc',to:id,data:{reset:'relay'}}); }catch(e){} closePeer(id); await loadIce(); makePeer(id); }
+function renderVDebug(){
+  let box=document.getElementById('vdbg');
+  const active=!!(room&&S)&&(rtc.on||isTbl()||((S.peers||[]).some(p=>p&&p.video&&p.pid!==myPid())));
+  const want=active?[...wantedPids(peerList(),myPid(),rtc.on,isTbl())]:[];
+  const now=Date.now();
+  const stuck=want.some(id=>{ const p=rtc.peers[id], since=rtc.wantSince[id]||now; return (now-since>7000)&&(!p||p.pc.connectionState!=='connected'||!p.stream); });
+  if(!(active&&(VDBG||stuck))){ if(box) box.remove(); return; }
+  if(!box){ box=document.createElement('div'); box.id='vdbg'; document.body.appendChild(box); }
+  box.textContent='video diag · you '+vshort(myPid())+(rtc.on?' 📷':'')+(isTbl()?' [table]':'')+'\n'+(want.length?want.map(vpeerDiag).join('\n'):'(no video peers expected)');
+}
+// Size the game frame to the space left under the video bar (its height varies by device,
+// orientation and notch), and pad the lobby/home the same way. Fixes the collapsed-frame bug.
+function layoutForVideo(){
+  const barBottom = (vidEl && vidEl.children.length) ? Math.ceil(vidEl.getBoundingClientRect().bottom) : 0;
+  if(document.body.classList.contains('ingame')){
+    stage.style.top = barBottom + 'px';
+    stage.style.height = (barBottom ? 'calc(100% - ' + barBottom + 'px)' : '100%');
+    app.style.paddingTop = '';
+  } else {
+    stage.style.top = ''; stage.style.height = '';
+    app.style.paddingTop = barBottom ? barBottom + 'px' : '';
+  }
+}
+['resize','orientationchange'].forEach(ev=>window.addEventListener(ev,layoutForVideo));
+
+/* ---------- connection: one socket to the room (Table DO) for the whole night — presence + video ---------- */
+function connect(){
+  if(!room) return;
+  if(ws){ try{ws.onclose=null;ws.close();}catch(e){} }
+  const proto=location.protocol==='https:'?'wss':'ws';
+  const role=get('fk-lhost')===room?'both':'hand';
+  ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${role}${IOS?'&ios=1':''}`);
+  connEl.textContent='connecting…';
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); autoTried=false; ws.send(JSON.stringify({t:'hello'})); if(rtc.on){ ws.send(JSON.stringify({t:'video',on:true})); loadIce(); } };
+  ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
+    if(m.t==='err'){ return; }
+    if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
+    if(m.t==='closed'){ goHome(); return; } // the session was finished for everyone
+    if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; renderVideo(); return; }
+    if(m.t==='state'){ S=m.s; onState(S); render(); syncPeers(); } };
+  ws.onclose=()=>{ connEl.textContent='reconnecting…'; setTimeout(connect,reconnectIn); reconnectIn=Math.min(reconnectIn*1.6,8000); };
+  ws.onerror=()=>{ try{ws.close();}catch(e){} };
+}
+function sendMsg(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+function onState(st){
+  skew=st.serverNow-Date.now();
+  // appear in the room's people list once we're in a lounge and have a remembered name
+  if(st.lounge&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); }
+  // host chores: bring the room up, or kick off a game picked from the home page
+  if(wantLobby){ if(st.lounge||st.goto) wantLobby=false; else if(st.host) sendMsg({t:'toroom'}); } // v2.8.86: once the lounge is confirmed OR a game launch (goto) is in flight, stop forcing "back to the room" — it was fighting the game launch and leaving you on a blank "Back to the Game Night room…" page
+  if(wantStart&&st.host){ wantStart.forEach(m=>sendMsg(m)); wantStart=null; }
+  // decide what belongs on screen (mirrors test/shell-core.mjs screenFor)
+  if(st.lounge){ inLobby=true; curGame=null; }
+  else if(st.goto&&typeof st.goto.at==='number'&&st.goto.at>lastGotoAt){ lastGotoAt=st.goto.at; curGame=st.goto.to==='uno'?'uno':'fk'; inLobby=false; }
+  else { inLobby=false; if(!curGame) curGame=wantGame||'fk'; }
+}
+function render(){
+  if(room) armBackTrap(); // v2.8.85: in a room/game, Back returns to home instead of a blank iframe
+  document.body.classList.toggle('inroom',!!room);
+  if(!room){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ frameSrc('about:blank'); stageGame=null; } app.innerHTML=iabBanner()+startHTML(); bind(); renderVideo(); return; }
+  if(!S){ document.body.classList.remove('ingame'); app.style.display=''; app.innerHTML=`<div class="wait">Joining ${esc(room)}…</div>`; renderVideo(); return; }
+  if(inLobby||!curGame){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ frameSrc('about:blank'); stageGame=null; } app.innerHTML=iabBanner()+loungeHTML(S)+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:''); bind(); renderVideo(); return; }
+  // a game is on: show it in the frame; the shell (and video) stay put
+  const mode2=S.host?'both':'hand';
+  if(stageGame!==curGame){ frameSrc(gameSrc(curGame,mode2)); stageGame=curGame; }
+  document.body.classList.add('ingame'); app.style.display='none'; renderVideo();
+}
+function loungeHTML(st){
+  // Game Night room: everyone on video first, then the host picks a game and the room moves into it
+  const me=st.players.find(p=>p.id===pid), host=st.host, hostP=st.players[0], onVid=new Set((st.peers||[]).filter(p=>p.video).map(p=>p.name));
+  const link=location.origin+'/?room='+room+'&mode=lounge';
+  const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
+  return `<div class="home">
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room <span class="roomtag" title="You're in room ${esc(room)}">${esc(room)}</span></h1><p class="muted small">Everyone here is shown above. Tap <b>Start video</b> to turn your camera on; the host picks a game when you're ready. <b>Everyone must be in room ${esc(room)}.</b></p></div></div>
+  ${me
+    ? `<button class="ghost small" id="editme" style="margin-bottom:8px">✏️ Edit your name &amp; emoji</button><div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
+    : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
+  }
+  <div class="panel"><div class="small muted" style="margin-bottom:6px">${st.players.filter(p=>!p.bot).length} in the room · invite more</div>
+    <div class="irow" style="margin-top:10px"><button class="ghost" id="sharelink" data-link="${esc(link)}">🔗 Share link</button><button class="ghost" id="showqr">▦ Show QR</button></div>
+    <div id="qrbox" hidden style="text-align:center;margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="margin-top:6px">Scan to join — opens straight into this room.</div></div>
+    <button class="ghost small" id="entercode" style="width:100%;margin-top:8px;opacity:.78">Switch to another room ▾</button>
+    <div id="codebox" hidden style="margin-top:8px">${(()=>{ const sr=savedRooms().filter(r=>normRoom(r)!==normRoom(room)); return sr.length?`<div class="small muted" style="margin-bottom:6px">Your saved rooms:</div><div class="roomquickwrap" style="margin-bottom:10px">${sr.map(r=>`<button class="ghost roomquick" data-switchroom="${esc(r)}">🎲 ${esc(r)}</button>`).join('')}</div>`:''; })()}<div class="irow"><input id="joincode" placeholder="TYPE A ROOM NAME" maxlength="16" style="text-transform:uppercase;letter-spacing:.08em;text-align:center"><button id="gocode" style="flex:0 0 auto">Go</button></div></div></div>
+  ${host?`<div class="games">
+    <div class="game fk"><h2>4 Kings</h2><p class="small">Bet on the kings, play the cards in order, grab the queens.</p><button class="big" id="lgofk">Play 4 Kings</button></div>
+    <div class="game uno"><h2>Ultium UNO</h2><p class="small">Match colours and numbers, stack the draws, flip the direction.</p><button class="big" id="lgouno">Play Ultium UNO</button></div>
+  </div><p class="small muted center">Everyone plays on their own device and stays on video. Bots can fill empty seats once you're in the game.</p>`
+  :`<div class="panel center"><p class="muted">Waiting for ${esc(hostP?hostP.name:'the host')} to pick a game…</p></div>`}
+  <p class="center"><button class="ghost small" id="leaveRoom">Leave the room</button></p>
+  <p class="center" style="margin-top:10px"><button class="ghost small" id="stopallbtn" style="opacity:.7">🛑 Stop all games &amp; activity</button></p>
+  <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+}
+function startHTML(){
+  // Game Night home: both games side by side (no "resume" — leaving a game closes it; you start a new one from here)
+  const k=(t,red,rot)=>`<span class="mini ${red?'red':''}" style="transform:rotate(${rot}deg)">${t}</span>`;
+  const u=(bg,t,rot,fg)=>`<span class="mini u" style="background:${bg};color:${fg||'#fff'};transform:rotate(${rot}deg)">${t}</span>`;
+  return `<div class="home">
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
+  <div class="panel"><h3 style="margin:0">🎲 Your rooms</h3>
+    <div class="small muted" style="margin-top:4px">Name a room your family remembers — open the same one every time, no codes. (Add the app to your Home Screen and you're in with one tap.)</div>
+    ${(()=>{ const sr=savedRooms(); if(!sr.length) return ''; return `<div class="irow" style="margin-top:12px"><select id="roompick" class="roomsel"><option value="">— pick a saved room —</option>${sr.map(r=>`<option value="${esc(r)}">🎲 ${esc(r)}</option>`).join('')}</select></div><div style="margin-top:6px"><button class="linkbtn small" id="editrooms">${roomsEdit?'✓ Done':'Edit list'}</button></div>${roomsEdit?`<div class="roomedit">${sr.map(r=>`<span class="roomchip2">🎲 ${esc(r)} <button class="rmroom2" data-rm="${esc(r)}" aria-label="Remove ${esc(r)}">Remove</button></span>`).join('')}</div>`:''}`; })()}
+    <div class="small muted" style="margin-top:14px">${savedRooms().length?'Or make a new room — type a name:':'Type a room name your family will remember:'}</div>
+    <div class="irow" style="margin-top:6px"><input id="roomname" placeholder="e.g. EVERYONE" maxlength="16" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.06em"><button id="openroom" style="flex:0 0 auto">Open</button></div></div>
+  <div class="panel lounge"><div><h3 style="margin:0">📹 Quick one-off room</h3><div class="small muted">A random-code room for a one-time game — no saved name.</div></div><button class="big" id="newlounge">📹 Start a video game room</button></div>
+  <div class="games">
+    <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
+      <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
+      <button class="big" id="newtable">Play with an iPad table</button><button class="big ghost" id="newphones">Play on our own devices</button></div>
+    <div class="game uno"><div class="art">${u('#e2453c','7',-12)}${u('conic-gradient(#e2453c 0 25%,#f5c02e 0 50%,#2fa866 0 75%,#2c7be5 0)','+4',0)}${u('#2c7be5','⇄',12)}</div>
+      <h2>Ultium UNO</h2><p>Match colours and numbers, stack the draws, flip the direction. Play the official rules or full house chaos.</p><div class="small muted">2–10 players · bots can fill in</div>
+      <button class="big" id="unotable">Play with an iPad table</button><button class="big ghost" id="unophones">Play on our own devices</button></div>
+  </div>
+  <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
+    <input class="code" id="code" placeholder="CODE" maxlength="16" value="" autocapitalize="characters" autocomplete="off">
+    <button id="joingame" style="margin-top:8px;width:100%">Join game</button></div>
+  <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Start video</b> to see each other.</div></div>
+  <p class="center" style="margin-top:10px"><button class="ghost small" id="stopallbtn" style="opacity:.7">🛑 Stop all games &amp; activity</button></p>
+  <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+}
+// v2.8.76: in-game name editor. Saves to the shared identity (fk-nick/fk-emoji), re-joins on the room socket (so the room/4 Kings DO and the video tile show the name — no more "Guest"), and tells the active game frame to re-join its own DO (UNO is a separate DO, so it must self-update).
+function openNameModal(){
+  closeNameModal();
+  const wrap=document.createElement('div'); wrap.id='namemodal';
+  wrap.innerHTML=`<div class="nmcard"><h3 style="margin:0 0 10px">Your name &amp; emoji</h3>`
+    +`<input id="nmname" maxlength="18" value="${esc(nick||'')}" placeholder="Your name" autocomplete="off">`
+    +`<div class="small muted" style="margin:12px 0 7px">Your avatar</div>`
+    +`<div class="emojirow" id="nmemoji">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div>`
+    +`<div class="irow" style="margin-top:16px"><button class="ghost" id="nmcancel">Cancel</button><button id="nmsave">Save</button></div></div>`;
+  wrap.addEventListener('click',e=>{ if(e.target===wrap) closeNameModal(); });
+  document.body.appendChild(wrap);
+  const q=s=>wrap.querySelector(s);
+  wrap.querySelectorAll('#nmemoji button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; wrap.querySelectorAll('#nmemoji button').forEach(x=>x.classList.toggle('on',(x.dataset.emoji||'')===emoji)); });
+  q('#nmcancel').onclick=closeNameModal;
+  const save=()=>{ const v=(q('#nmname').value||'').trim().slice(0,18); nick=v||nick||'Player'; set('fk-nick',nick); set('fk-emoji',emoji); sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); try{ stage&&stage.contentWindow&&stage.contentWindow.postMessage({gn:'setname',name:nick,emoji},'*'); }catch(e){} closeNameModal(); render(); };
+  q('#nmsave').onclick=save; q('#nmname').onkeydown=e=>{ if(e.key==='Enter') save(); };
+  try{ q('#nmname').focus(); }catch(e){}
+}
+function closeNameModal(){ const m=document.getElementById('namemodal'); if(m) m.remove(); }
+function goHome(){ const oldWs=ws; ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; frameSrc('about:blank'); backTrapSet=false; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); setTimeout(()=>{ try{stopVideo();}catch(e){} if(oldWs){try{oldWs.onclose=null;oldWs.close();}catch(e){}} },0); } // v2.8.83: paint Home immediately, then tear down the camera + socket in the background so going Home doesn't feel sluggish
+// The room's join link + share/copy. Used by the lobby's Invite button and the in-game room-code chip
+// so a latecomer can be sent the code/link while a game is in progress (it opens straight into the room).
+function roomLink(){ return location.origin+'/?room='+room+'&mode=lounge'; }
+function showRoomQR(){ // v2.8.50: the QR button next to the room chip pops a scannable overlay
+  let m=document.getElementById('qrmodal'); if(m){ m.remove(); return; }
+  m=document.createElement('div'); m.id='qrmodal';
+  m.innerHTML=`<div class="qrcard"><div class="small dim" style="margin-bottom:10px">Room ${esc(room)} · scan to join</div><div class="qr" id="qrbig"></div><div class="small dim" style="margin-top:8px">Opens straight into this room.</div><button class="ghost" id="qrclose" style="margin-top:14px">Close</button></div>`;
+  document.body.appendChild(m);
+  const qr=m.querySelector('#qrbig');
+  if(window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:roomLink(),width:220,height:220,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
+  m.onclick=e=>{ if(e.target===m||e.target.id==='qrclose') m.remove(); };
+}
+async function shareInvite(btn,label){ const link=roomLink(); const base=label||(btn&&btn.textContent)||'';
+  try{ if(navigator.share){ await navigator.share({title:'Game Night room '+room,text:'Join my Game Night room',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(link); if(btn){ btn.textContent='Copied!'; setTimeout(()=>{ if(btn.isConnected&&base) btn.textContent=base; },1800); } }catch(e){ prompt('Copy this link:',link); } }
+function freshRoom(){ curGame=null; inLobby=false; stageGame=null; lastGotoAt=0; autoTried=false; S=null; }
+function startOwn(game){ room=newCode(); set(game==='uno'?'uno-room':'fk-room',room); set('fk-lhost',room); wantGame=game; wantLobby=false; wantStart=game==='uno'?[{t:'settings',layout:'phones'},{t:'switchgame',to:'uno'}]:[{t:'settings',layout:'phones'}]; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
+function startRoom(){ room=newCode(); set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
+// v2.8.51: named, persistent rooms — "EVERYONE" always reopens the same room (the DO is keyed by name). Saved rooms become one-tap buttons on the home screen.
+const normRoom=s=>(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
+function savedRooms(){ try{ return JSON.parse(get('gn-rooms')||'[]').filter(Boolean); }catch(e){ return []; } }
+function addSavedRoom(name){ if(!name) return; const l=savedRooms().filter(r=>r!==name); l.unshift(name); set('gn-rooms',JSON.stringify(l.slice(0,8))); }
+function rmSavedRoom(name){ set('gn-rooms',JSON.stringify(savedRooms().filter(r=>r!==name))); render(); }
+function openNamedRoom(name){ name=normRoom(name); if(name.length<2) return; room=name; set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; addSavedRoom(name); freshRoom(); history.replaceState(null,'','/?room='+room+'&mode=lounge'); render(); connect(); }
+function bind(){
+  const q=s=>app.querySelector(s);
+  if(q('#newtable')) q('#newtable').onclick=()=>{ location.href='/fk.html?setup=table'; };
+  if(q('#newphones')) q('#newphones').onclick=()=>startOwn('fk');
+  if(q('#unotable')) q('#unotable').onclick=()=>{ location.href='/uno.html?setup=table'; };
+  if(q('#unophones')) q('#unophones').onclick=()=>startOwn('uno');
+  if(q('#newlounge')) q('#newlounge').onclick=()=>startRoom();
+  if(q('#openroom')) q('#openroom').onclick=()=>openNamedRoom(q('#roomname').value);
+  if(q('#roomname')) q('#roomname').onkeydown=e=>{ if(e.key==='Enter') openNamedRoom(q('#roomname').value); };
+  if(q('#roompick')) q('#roompick').onchange=()=>{ const v=q('#roompick').value; if(v) openNamedRoom(v); }; // pick to open
+  if(q('#editrooms')) q('#editrooms').onclick=()=>{ roomsEdit=!roomsEdit; render(); };
+  app.querySelectorAll('.rmroom2').forEach(b=>b.onclick=()=>{ if(confirm('Remove "'+b.dataset.rm+'" from this device\'s saved-room list? It won\'t end anyone\'s game — it just stops showing here.')) rmSavedRoom(b.dataset.rm); });
+  app.querySelectorAll('.roomquick').forEach(b=>b.onclick=e=>{ const rm=e.target.closest('.rmroom'); if(rm){ e.stopPropagation(); rmSavedRoom(rm.dataset.rm); return; } if(b.dataset.switchroom){ location.href='/?room='+normRoom(b.dataset.switchroom)+'&mode=lounge'; return; } openNamedRoom(b.dataset.room); });
+  if(q('#joingame')){ const go=()=>{ const c=normRoom(q('#code').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } }; q('#joingame').onclick=go; q('#code').onkeydown=e=>{ if(e.key==='Enter') go(); }; }
+  if(q('#iabx')) q('#iabx').onclick=()=>{ iabDismissed=true; render(); };
+  if(q('#lgofk')) q('#lgofk').onclick=()=>{ const m=roomMessageFor('pick-fk'); if(m) sendMsg(m); };
+  if(q('#lgouno')) q('#lgouno').onclick=()=>{ const m=roomMessageFor('pick-uno'); if(m) sendMsg(m); };
+  if(q('#join')) q('#join').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); };
+  q('#emojirow') && q('#emojirow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); if(S&&S.players&&S.players.some(p=>p.id===pid)&&nick) sendMsg({t:'join',name:nick,emoji}); render(); });
+  q('#emojirow2') && q('#emojirow2').querySelectorAll('button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; set('fk-emoji',emoji); q('#emojirow2').querySelectorAll('button').forEach(x=>x.classList.toggle('on',(x.dataset.emoji||'')===emoji)); if(nick) sendMsg({t:'join',name:nick,emoji}); });
+  if(q('#editme')) q('#editme').onclick=()=>{ meOpen=!meOpen; const d=q('#meedit'); if(d) d.hidden=!meOpen; };
+  if(q('#saveme')) q('#saveme').onclick=()=>{ nick=(q('#nick').value||'').trim().slice(0,18)||nick||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,emoji}); meOpen=false; const d=q('#meedit'); if(d) d.hidden=true; };
+  if(q('#takeselfie')){ const inp=document.getElementById('selfiein'); if(inp) q('#takeselfie').onclick=()=>inp.click(); }
+  if(q('#rmselfie')) q('#rmselfie').onclick=()=>{ myPhoto=''; set('fk-photo',''); delete photos[pid]; sendMsg({t:'photo',photo:''}); render(); };
+  if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>goHome();
+  if(q('#stopallbtn')) q('#stopallbtn').onclick=async()=>{ if(!confirm('Stop ALL games in every room and reset them to an empty lobby? Any game in progress ends for everyone.')) return; try{ await fetch('/stopall',{cache:'no-store'}); }catch(e){} location.reload(); };
+  if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Share link');
+  if(q('#showqr')) q('#showqr').onclick=()=>{ const box=q('#qrbox'); if(!box) return; box.hidden=!box.hidden; const qr=q('#qr'); if(!box.hidden&&qr&&window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} } };
+  if(q('#entercode')) q('#entercode').onclick=()=>{ const b=q('#codebox'); if(b) b.hidden=!b.hidden; };
+  if(q('#gocode')) q('#gocode').onclick=()=>{ const c=normRoom(q('#joincode').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } };
+}
+
+/* ---------- a game frame asks the shell to move the whole party ---------- */
+window.addEventListener('message',e=>{ const d=e&&e.data; if(!d||d.gn!=='action') return;
+  if(d.action==='home'){ goHome(); return; }
+  if(d.action==='endsession'){ sendMsg({t:'endsession'}); return; } // finish the whole session for everyone
+  const m=roomMessageFor(d.action); if(m) sendMsg(m);
+});
+
+/* ---------- test hook (read-only; lets the end-to-end check that the camera survives a game change) ---------- */
+window.__gn={stream:()=>rtc.stream,streamId:()=>rtc.stream&&rtc.stream.id,peers:()=>Object.keys(rtc.peers),on:()=>rtc.on,screen:()=>({room,curGame,inLobby,host:!!(S&&S.host)})};
+
+document.getElementById('gohome').onclick=()=>{ if(confirm('Leave this game and go back to the Game Night home page?')) goHome(); };
+/* ---------- boot ---------- */
+if(qs.get('home')) history.replaceState(null,'','/'); // the home-screen icon opens the home page once
+if(room){ wantGame = qs.get('game')==='uno'?'uno':(qs.get('mode')==='lounge'?'':'fk'); if(qs.get('room')) history.replaceState(null,'','/'); }
+render();
+if(room) connect();
+
+/* ---------- auto-update: catch a newer deploy (past any cache) and offer a one-tap refresh ---------- */
+let updateSeen=false;
+async function checkVersion(){
+  if(updateSeen||document.hidden) return;
+  try{ const r=await fetch(location.pathname+'?_v='+Date.now(),{cache:'no-store'}); if(!r.ok) return;
+    const t=await r.text(); const m=t.match(/const VERSION='([^']+)'/);
+    if(m&&m[1]&&m[1]!==VERSION){ updateSeen=true; showUpdateBar(); }
+  }catch(e){}
+}
+function showUpdateBar(){
+  if(document.getElementById('updbar')) return;
+  const bar=document.createElement('div'); bar.id='updbar';
+  bar.innerHTML='<span>A new version of Game Night is ready.</span><button id="updnow">Refresh</button>';
+  document.body.appendChild(bar);
+  document.getElementById('updnow').onclick=()=>location.reload();
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkVersion(); });
+window.addEventListener('focus',checkVersion);
+setTimeout(checkVersion,4000);
+
+/* ---------- selfie avatar: snap, square-crop, shrink to ~128px, share on the photo channel ---------- */
+function onSelfie(file){ const img=new Image(); img.onload=()=>{ try{ const s=Math.min(img.width,img.height), c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'); g.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,128,128); let d=c.toDataURL('image/jpeg',0.72); if(d.length>60000) d=c.toDataURL('image/jpeg',0.5); myPhoto=d; set('fk-photo',d); photos[pid]=d; if(ws&&ws.readyState===1) sendMsg({t:'photo',photo:d}); render(); }catch(e){} try{URL.revokeObjectURL(img.src);}catch(e){} }; img.onerror=()=>{ try{URL.revokeObjectURL(img.src);}catch(e){} }; img.src=URL.createObjectURL(file); }
+{ const inp=document.getElementById('selfiein'); if(inp) inp.onchange=()=>{ const f=inp.files&&inp.files[0]; inp.value=''; if(f) onSelfie(f); }; }
+})();
+</script>
+</body>
+</html>

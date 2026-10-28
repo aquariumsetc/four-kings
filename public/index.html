@@ -223,7 +223,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.86 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.87 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -260,7 +260,7 @@ function roomMessageFor(action){
   switch(action){
     case 'pick-fk': case 'switch-fk': return {t:'switchgame',to:'fk'};
     case 'pick-uno': case 'switch-uno': return {t:'switchgame',to:'uno'};
-    case 'back-to-room': return {t:'toroom'};
+    case 'back-to-room': return {t:'toroom',force:true}; // v2.8.87: a deliberate "Back to the room" always wins (vs the auto nag, which the server ignores during a launch)
     default: return null;
   }
 }

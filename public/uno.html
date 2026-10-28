@@ -138,7 +138,7 @@ body.hasvid .ustrip{top:calc(124px + env(safe-area-inset-top,0px))} /* standalon
 .app.stripon .handwrap .actions button{flex:none;width:100%;padding:.42rem .15rem;font-size:.8rem;border-radius:9px;line-height:1.1}
 .app.stripon .round .deck .card{width:38px;height:55px}
 .app.stripon .round .deck .n{font-size:.56rem;margin-top:1px}
-.app.stripon .round .stackbadge{left:50%;top:2px;bottom:auto;transform:translateX(-50%);font-size:.95rem;padding:.12rem .55rem}
+.app.stripon .round .stackbadge{display:none} /* v2.8.68: the +N pending badge overlapped the cards in the compact mat; the count already shows in the status line and on the pick-up (N/M) button */
 .app.stripon .hand{flex-direction:row;flex-wrap:wrap;justify-content:center;align-content:flex-start} /* v2.8.45: pack colour-groups into centered rows on EVERY screen (phone + wide/PC) so the hand is never a tall sparse column */
 .app.stripon .hand .card{width:calc(32px*var(--cs,1));height:calc(46px*var(--cs,1));border-radius:8px}.app.stripon .hand .card .v{font-size:calc(1rem*var(--cs,1))}.app.stripon .hand .card .cn{font-size:.56rem} /* v2.8.57: base ~25% smaller than before; --cs (set per hand-size) shrinks them further as the hand grows */
 .app.stripon{padding-top:calc(116px + env(safe-area-inset-top,0px))}
@@ -267,7 +267,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.67 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.68 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};

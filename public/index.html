@@ -216,7 +216,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.62 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.63 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -470,6 +470,7 @@ function loungeHTML(st){
   </div><p class="small muted center">Everyone plays on their own device and stays on video. Bots can fill empty seats once you're in the game.</p>`
   :`<div class="panel center"><p class="muted">Waiting for ${esc(hostP?hostP.name:'the host')} to pick a game…</p></div>`}
   <p class="center"><button class="ghost small" id="leaveRoom">Leave the room</button></p>
+  <p class="center" style="margin-top:10px"><button class="ghost small" id="stopallbtn" style="opacity:.7">🛑 Stop all games &amp; activity</button></p>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function startHTML(){
@@ -496,6 +497,7 @@ function startHTML(){
     <input class="code" id="code" placeholder="CODE" maxlength="16" value="" autocapitalize="characters" autocomplete="off">
     <button id="joingame" style="margin-top:8px;width:100%">Join game</button></div>
   <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Start video</b> to see each other.</div></div>
+  <p class="center" style="margin-top:10px"><button class="ghost small" id="stopallbtn" style="opacity:.7">🛑 Stop all games &amp; activity</button></p>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
 function goHome(){ stopVideo(); if(ws){try{ws.onclose=null;ws.close();}catch(e){}} ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; stage.src='about:blank'; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); }
@@ -549,6 +551,7 @@ function bind(){
   if(q('#takeselfie')){ const inp=document.getElementById('selfiein'); if(inp) q('#takeselfie').onclick=()=>inp.click(); }
   if(q('#rmselfie')) q('#rmselfie').onclick=()=>{ myPhoto=''; set('fk-photo',''); delete photos[pid]; sendMsg({t:'photo',photo:''}); render(); };
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>goHome();
+  if(q('#stopallbtn')) q('#stopallbtn').onclick=async()=>{ if(!confirm('Stop ALL games in every room and reset them to an empty lobby? Any game in progress ends for everyone.')) return; try{ await fetch('/stopall',{cache:'no-store'}); }catch(e){} location.reload(); };
   if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Share link');
   if(q('#showqr')) q('#showqr').onclick=()=>{ const box=q('#qrbox'); if(!box) return; box.hidden=!box.hidden; const qr=q('#qr'); if(!box.hidden&&qr&&window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} } };
   if(q('#entercode')) q('#entercode').onclick=()=>{ const b=q('#codebox'); if(b) b.hidden=!b.hidden; };

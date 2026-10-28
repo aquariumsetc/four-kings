@@ -267,7 +267,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.66 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.67 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:'★'};
@@ -596,7 +596,7 @@ function seatsHTML(st){
     return `<div class="${cls}" style="left:${x}%;top:${y}%"><div class="nm">${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.bot?' 🤖':''}</div><div class="ct">${ct}</div></div>`; }).join('');
 }
 function pileHTML(st){
-  const pile=st.pile||[], n=pile.length;
+  const pile=(st.pile||[]).slice(-3), n=pile.length; // v2.8.67: only the last 3 played cards fan out, not the whole spiralling pile
   return pile.map((x,j)=>{ const back=n-1-j, ang=-back*20, dx=-back*6, dy=back*3; return `<div class="pc" style="transform:translate(${dx}px,${dy}px) rotate(${ang}deg);z-index:${j}">${cardHTML(x.c,'lg')}</div>`; }).join('');
 }
 function roundHTML(st){

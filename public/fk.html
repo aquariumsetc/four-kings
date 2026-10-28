@@ -200,7 +200,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.83 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.84 · 28 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -532,7 +532,10 @@ function heroHTML(){ return `<div class="setuphero"><div class="ghero-ring">👑
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   if(framed&&S&&S.lounge){ app.className='app'; app.innerHTML='<div class="wait">Back to the Game Night room…</div>'; return; } // the shell is about to show the lobby
-  if(framed&&S&&S.phase==='lobby'){ const n=S.players.length; app.className='app'; app.innerHTML=n>=2?`<div class="wait">${heroHTML()}<h2>Dealing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2></div>`:`<div class="wait">${heroHTML()}<h2>Setting up the table<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2><p class="muted">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="muted">Waiting for the host to start.</p>`}</div>`; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot when you're on your own
+  if(framed&&S&&S.phase==='lobby'){ const n=S.players.length; app.className='app';
+    const hostbar=S.host?`<div class="row" style="max-width:420px;margin:16px auto 0"><button class="ghost small" id="toroom">📹 Back to the room</button><button class="ghost small" id="endsession" style="border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish · everyone out</button></div>`:''; // v2.8.84: give 4 Kings setup the same host escapes UNO has — no need for the browser back button
+    const main=n>=2?`<div class="wait">${heroHTML()}<h2>Dealing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2></div>`:`<div class="wait">${heroHTML()}<h2>Setting up the table<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2><p class="muted">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="muted">Waiting for the host to start.</p>`}</div>`;
+    app.innerHTML=main+hostbar; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot when you're on your own
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); document.getElementById('banner').innerHTML=''; bind(); renderVideo(); return; }
   if(!S){ app.innerHTML=`<div class="wait">${heroHTML()}<p class="muted">Connecting to table ${esc(room)}<span class="dots"><i>.</i><i>.</i><i>.</i></span></p></div>`; return; }

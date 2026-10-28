@@ -216,7 +216,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.59 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.60 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -415,7 +415,7 @@ function connect(){
   const role=get('fk-lhost')===room?'both':'hand';
   ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${role}${IOS?'&ios=1':''}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(rtc.on){ ws.send(JSON.stringify({t:'video',on:true})); loadIce(); } };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); autoTried=false; ws.send(JSON.stringify({t:'hello'})); if(rtc.on){ ws.send(JSON.stringify({t:'video',on:true})); loadIce(); } };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }

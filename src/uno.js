@@ -12,12 +12,12 @@ const EMPTY_GRACE = 45000; // v2.8.54: all humans gone this long (bots have no s
 const NUDGE_MS = 15000;  // idle player: phone nudges this long before auto-move
 const MAX_PLAYS = 800;   // safety net: a game this long finishes itself (fewest cards wins)
 // new tables start on the Party preset (see PRESETS below)
-const RULES = { multi: true, stack: true, playPicked: true, drawUntil: false, official: false, callUno: false, useCustoms: true }; // v2.8.74: steal/pass/mirror removed — make those custom wild cards instead
+const RULES = { multi: true, stack: true, playPicked: true, drawUntil: false, official: false, callUno: false, useCustoms: true, steal: true, pass: true, mirror: true }; // v2.8.77: steal/pass/mirror are coded on/off rules again (the engine always kept their logic); the type-your-own custom wild cards stay alongside them
 // one-tap rule sets. "official" follows the printed rules: draw one and only that card may be played,
 // no stacking, +4 only without a card of the current colour, and call UNO or get caught for 2.
 const PRESETS = {
-  official: { multi: false, stack: false, playPicked: false, drawUntil: false, official: true, callUno: true, useCustoms: false },
-  party: { multi: true, stack: true, playPicked: true, drawUntil: false, official: false, callUno: false, useCustoms: true },
+  official: { multi: false, stack: false, playPicked: false, drawUntil: false, official: true, callUno: true, useCustoms: false, steal: false, pass: false, mirror: false },
+  party: { multi: true, stack: true, playPicked: true, drawUntil: false, official: false, callUno: false, useCustoms: true, steal: true, pass: true, mirror: true },
 };
 const BOT_NAMES = ["Robo Rita", "Dealer Dan", "Lucky Lou", "Queenie", "Ace Alvarez", "Blackjack Bea", "Shuffle Sam"];
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -38,6 +38,9 @@ function buildDeck(st) {
     for (const v of ["skip", "rev", "d2"]) { add(c, v); add(c, v); }
   }
   for (let k = 0; k < 4; k++) { add("W", "wild"); add("W", "w4"); }
+  if (st.rules.steal)  { add("W", "steal");  add("W", "steal"); }   // v2.8.77: 2 of each special wild when its rule is on
+  if (st.rules.pass)   { add("W", "pass");   add("W", "pass"); }
+  if (st.rules.mirror) { add("W", "mirror"); add("W", "mirror"); }
   if (st.rules.useCustoms !== false) (st.customs || []).forEach((txt, i) => { if (txt && txt.trim()) { add("W", "cust", i); add("W", "cust", i); } }); // 2 of each custom wild card you've added
   return shuffle(d);
 }
@@ -202,8 +205,8 @@ function draw(st, i) {
     st.picking = false; st.event = { t: "pickup", who: i, n: st.pickTotal, at: Date.now() }; st.note = `${p.name} picked up ${st.pickTotal}${got.length ? "" : " (the deck ran out)"}.`;
     const picked = st.pickedSoFar.filter((id) => p.hand.some((c) => c.id === id)); st.pickedSoFar = [];
     if (st.rules.playPicked) {
-      st.picked = picked; st.drew = true;
-      if (p.hand.some((c) => playable(st, c))) { st.note += " They can play one of them."; return ""; }
+      st.drew = true; // v2.8.77: Ultium — after a forced pick-up you may play ANY of your cards (draw cards included), not just the ones you drew. Leaving st.picked unset removes the restriction (playable() no longer limits to the picked set).
+      if (p.hand.some((c) => playable(st, c))) { st.note += " They can play any card."; return ""; }
     }
     setTurn(st, step(st, i)); return "";
   }

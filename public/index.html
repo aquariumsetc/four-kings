@@ -216,7 +216,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.60 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.61 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -415,7 +415,7 @@ function connect(){
   const role=get('fk-lhost')===room?'both':'hand';
   ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${role}${IOS?'&ios=1':''}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); autoTried=false; ws.send(JSON.stringify({t:'hello'})); if(rtc.on){ ws.send(JSON.stringify({t:'video',on:true})); loadIce(); } };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(rtc.on){ ws.send(JSON.stringify({t:'video',on:true})); loadIce(); } };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='err'){ return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
@@ -459,7 +459,7 @@ function loungeHTML(st){
     ? `<div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
     : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
   }
-  <div class="panel"><div class="small muted" style="margin-bottom:6px">${st.players.filter(p=>!p.bot).length} in the room · invite more</div>${st.players.filter(p=>!p.bot).length<=1?`<div class="small" style="margin:2px 0 10px;padding:8px 10px;border-radius:10px;background:rgba(201,162,39,.14);border:1px solid rgba(201,162,39,.4);color:#f0d98c">👋 Just you here so far. If anyone else is waiting, check everyone opened the <b>same</b> room — this one is spelled <b>${esc(room)}</b>. Easiest: use <b>Share link</b> or <b>Show QR</b> below so no one has to type it.</div>`:''}
+  <div class="panel"><div class="small muted" style="margin-bottom:6px">${st.players.filter(p=>!p.bot).length} in the room · invite more</div>
     <div class="irow" style="margin-top:10px"><button class="ghost" id="sharelink" data-link="${esc(link)}">🔗 Share link</button><button class="ghost" id="showqr">▦ Show QR</button></div>
     <div id="qrbox" hidden style="text-align:center;margin-top:10px"><div class="qr" id="qr" data-link="${esc(link)}"></div><div class="small muted" style="margin-top:6px">Scan to join — opens straight into this room.</div></div>
     <button class="ghost small" id="entercode" style="width:100%;margin-top:8px;opacity:.78">Switch to another room ▾</button>

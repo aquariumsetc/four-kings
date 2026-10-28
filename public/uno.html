@@ -272,14 +272,14 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.74 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.78 · 28 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:''};
 const WNAME={wild:'Wild',w4:'Wild +4',steal:'Steal',pass:'Pass left',mirror:'Copy hand',cust:'Custom'};
-const RULES=[['multi','Play several identical cards at once'],['stack','Stack +2s and +4s onto the next player'],['playPicked','After picking up, you can play one of the cards you picked up (not a draw card)'],['drawUntil','Keep drawing until you can play'],['official','Official draw rules: after drawing you may only play the card you drew, and a +4 only when you have no card of the current colour'],['callUno','Call UNO! on your second-last card, or anyone can catch you and you pick up 2'],['useCustoms','Use the custom wild cards below — switch for all of them on/off']];
-const PRESETS={official:{multi:false,stack:false,playPicked:false,drawUntil:false,official:true,callUno:true,useCustoms:false},party:{multi:true,stack:true,playPicked:true,drawUntil:false,official:false,callUno:false,useCustoms:true}};
-const presetOf=r=>Object.keys(PRESETS).find(k=>Object.keys(PRESETS[k]).every(x=>!!r[x]===PRESETS[k][x]))||'';
+const RULES=[['multi','Play several identical cards at once'],['stack','Stack +2s and +4s onto the next player'],['playPicked','After picking up, you can play any of your cards (draw cards too)'],['drawUntil','Keep drawing until you can play'],['official','Official draw rules: after drawing you may only play the card you drew, and a +4 only when you have no card of the current colour'],['callUno','Call UNO! on your second-last card, or anyone can catch you and you pick up 2'],['steal','⇆ Steal a hand — adds a wild card that swaps your hand with a player you choose'],['pass','⇢ Everyone swaps — adds a wild card that shifts everyone\u2019s hand one seat'],['mirror','+✋ Copy my hand — adds a wild card making the next player pick up as many cards as you hold'],['useCustoms','Use the type-your-own custom wild cards below — switch for all of them on/off']];
+const PRESETS={official:{multi:false,stack:false,playPicked:false,drawUntil:false,official:true,callUno:true,useCustoms:false,steal:false,pass:false,mirror:false},party:{multi:true,stack:true,playPicked:true,drawUntil:false,official:false,callUno:false,useCustoms:true,steal:true,pass:true,mirror:true}};
+const presetOf=r=>(r&&r.official)?'official':'party'; // v2.8.78: Official vs Ultium are two modes, told apart by the "Official draw rules" switch. Tweaking any other rule now keeps your current mode lit instead of making both tabs go dark.
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}}, set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
 let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
@@ -287,6 +287,8 @@ let myPhoto=get('fk-photo')||''; const photos={}; if(myPhoto) photos[pid]=myPhot
 const qs=new URLSearchParams(location.search);
 const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game Night shell: the shell owns the camera + video bar, so this frame runs video-free and never navigates away
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
+// v2.8.76: the shell's in-game "✏️ Name" editor renames this player — UNO is a separate DO, so re-join it so the strip/scoreboard update live
+window.addEventListener('message',e=>{ const d=e&&e.data; if(!d||d.gn!=='setname') return; const nm=(d.name||'').toString().trim().slice(0,18); if(nm) nick=nm; set('fk-nick',nick); emoji=d.emoji||''; set('fk-emoji',emoji); if(ws&&ws.readyState===1) send({t:'join',name:nick,emoji}); });
 let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('mode')||get('uno-mode')||'';
 let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', unoHints=get('uno-hints')==='1', showRules=false;

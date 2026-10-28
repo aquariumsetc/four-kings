@@ -193,7 +193,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.56 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.76 · 28 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -212,6 +212,8 @@ let myPhoto=get('fk-photo')||''; const photos={}; if(myPhoto) photos[pid]=myPhot
 const qs=new URLSearchParams(location.search);
 const framed=qs.get('framed')==='1'||window.parent!==window; // inside the Game Night shell: the shell owns the camera + video bar, so this frame runs video-free and never navigates away
 function tellShell(action){ try{ window.parent.postMessage({gn:'action',action},'*'); }catch(e){} }
+// v2.8.76: the shell's in-game "✏️ Name" editor renames this player — adopt it and re-join so the table/strip update live
+window.addEventListener('message',e=>{ const d=e&&e.data; if(!d||d.gn!=='setname') return; const nm=(d.name||'').toString().trim().slice(0,18); if(nm) nick=nm; set('fk-nick',nick); emoji=d.emoji||''; set('fk-emoji',emoji); if(ws&&ws.readyState===1) sendMsg({t:'join',name:nick,auto:autoOn,emoji}); });
 let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
 let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;

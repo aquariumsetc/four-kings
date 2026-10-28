@@ -151,9 +151,12 @@ body.ingame:not(.tbl) #vid .tile{flex:1 1 0;min-width:0;max-width:92px;width:aut
 .tile .mic{position:absolute;top:4px;right:4px;font-size:.7rem;background:rgba(0,0,0,.5);border-radius:6px;padding:1px 4px}
 .vctl{flex:none;display:flex;flex-direction:column;gap:5px;margin-left:auto}
 /* v2.8.52: in-game, Muted + video controls live in a left column under the Home button (the room link/QR were dropped) */
-body.ingame #vid .vctl{position:fixed;left:6px;top:calc(env(safe-area-inset-top,0px) + 44px);margin:0;z-index:12;width:158px;align-items:stretch}
-body.ingame #vid .vctl button{padding:.32rem .5rem;font-size:.76rem;line-height:1.15}
-body.inroom.ingame.hasvid #vid{padding-left:170px;min-height:118px}
+/* v2.8.75: Muted + Stop-vid sized to the Home button — Home and the column share one width (--ctlw) and align their edges, so the left controls are a tidy same-width stack instead of a wide 158px column */
+body.ingame{--ctlw:118px}
+body.ingame #gohome{width:var(--ctlw);padding-left:0;padding-right:0;text-align:center}
+body.ingame #vid .vctl{position:fixed;left:6px;top:calc(env(safe-area-inset-top,0px) + 44px);margin:0;z-index:12;width:var(--ctlw);align-items:stretch}
+body.ingame #vid .vctl button{padding:.32rem .5rem;font-size:.76rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.inroom.ingame.hasvid #vid{padding-left:132px;min-height:118px}
 .vctl button{padding:.45rem .7rem;font-size:.82rem;border-radius:9px}
 body.hasvid .app{padding-top:128px}
 body.hasvid.tbl .app{padding-top:136px}
@@ -180,6 +183,10 @@ body.inroom.hasvid #vid{padding-left:112px} /* v2.8.40: clear the fixed 🏠 Hom
 .vctl .roomrow .roomchip{flex:1}
 .vctl .roomrow .qrbtn{flex:none;padding:.45rem .62rem;font-size:1.05rem;line-height:1}
 #qrmodal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+/* v2.8.76: in-game "✏️ Name" editor overlay (same look as the QR modal) */
+#namemodal{position:fixed;inset:0;z-index:62;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#namemodal .nmcard{background:var(--panel,#262a52);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:20px;max-width:340px;width:100%}
+#namemodal .nmcard input{width:100%}
 #qrmodal .qrcard{background:var(--panel,#262a52);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:22px 22px 18px;text-align:center;max-width:300px}
 #qrmodal .qr{background:#fbf7ec;padding:12px;border-radius:12px;display:inline-block;line-height:0}
 .vctl .micoff{background:#e2453c;color:#fff;font-weight:700;border:1px solid rgba(255,255,255,.3)} /* v2.8.40: muted-state read-out, unmistakably red */
@@ -216,7 +223,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.74 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.78 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -359,8 +366,8 @@ function renderVideo(){
   if(showCtl){ if(!ctl){ ctl=document.createElement('div'); ctl.className='vctl'; vidEl.appendChild(ctl); }
     const inGame=document.body.classList.contains('ingame'); // show the room code only while a game is on (the lobby already shows it)
     const roomBtn=''; // v2.8.52: room link + QR removed from the top bar (named rooms join by name; invite a new person from the room/lounge). Controls now sit under Home.
-    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost${rtc.mic?'':' micoff'}" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Muted'}</button><button class="ghost" id="vidoff">⏹ Stop video</button>`:`<button id="vidon">📷 Start video</button>`);
-    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room); if(q('#qrbtn')) q('#qrbtn').onclick=showRoomQR;
+    ctl.innerHTML=roomBtn+(rtc.on?`<button class="ghost${rtc.mic?'':' micoff'}" id="micbtn">${rtc.mic?'🎤 Mic on':'🔇 Muted'}</button><button class="ghost" id="vidoff">⏹ Stop vid</button>`:`<button id="vidon">📷 Start vid</button>`)+(inGame?`<button class="ghost" id="editname">✏️ Name</button>`:''); // v2.8.76: set/change your name in-game too (the room has its own editor)
+    const q=s=>ctl.querySelector(s); if(q('#vidon')) q('#vidon').onclick=startVideo; if(q('#vidoff')) q('#vidoff').onclick=stopVideo; if(q('#micbtn')) q('#micbtn').onclick=toggleMic; if(q('#editname')) q('#editname').onclick=openNameModal; if(q('#roombtn')) q('#roombtn').onclick=()=>shareInvite(q('#roombtn'),'🔗 Room '+room); if(q('#qrbtn')) q('#qrbtn').onclick=showRoomQR;
   } else if(ctl) ctl.remove();
   document.body.classList.toggle('hasvid',vidEl.children.length>0);
   layoutForVideo();
@@ -456,7 +463,7 @@ function loungeHTML(st){
   return `<div class="home">
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room <span class="roomtag" title="You're in room ${esc(room)}">${esc(room)}</span></h1><p class="muted small">Everyone here is shown above. Tap <b>Start video</b> to turn your camera on; the host picks a game when you're ready. <b>Everyone must be in room ${esc(room)}.</b></p></div></div>
   ${me
-    ? `<div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
+    ? `<button class="ghost small" id="editme" style="margin-bottom:8px">✏️ Edit your name &amp; emoji</button><div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
     : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
   }
   <div class="panel"><div class="small muted" style="margin-bottom:6px">${st.players.filter(p=>!p.bot).length} in the room · invite more</div>
@@ -500,6 +507,25 @@ function startHTML(){
   <p class="center" style="margin-top:10px"><button class="ghost small" id="stopallbtn" style="opacity:.7">🛑 Stop all games &amp; activity</button></p>
   <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
 }
+// v2.8.76: in-game name editor. Saves to the shared identity (fk-nick/fk-emoji), re-joins on the room socket (so the room/4 Kings DO and the video tile show the name — no more "Guest"), and tells the active game frame to re-join its own DO (UNO is a separate DO, so it must self-update).
+function openNameModal(){
+  closeNameModal();
+  const wrap=document.createElement('div'); wrap.id='namemodal';
+  wrap.innerHTML=`<div class="nmcard"><h3 style="margin:0 0 10px">Your name &amp; emoji</h3>`
+    +`<input id="nmname" maxlength="18" value="${esc(nick||'')}" placeholder="Your name" autocomplete="off">`
+    +`<div class="small muted" style="margin:12px 0 7px">Your avatar</div>`
+    +`<div class="emojirow" id="nmemoji">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div>`
+    +`<div class="irow" style="margin-top:16px"><button class="ghost" id="nmcancel">Cancel</button><button id="nmsave">Save</button></div></div>`;
+  wrap.addEventListener('click',e=>{ if(e.target===wrap) closeNameModal(); });
+  document.body.appendChild(wrap);
+  const q=s=>wrap.querySelector(s);
+  wrap.querySelectorAll('#nmemoji button').forEach(b=>b.onclick=()=>{ emoji=b.dataset.emoji||''; wrap.querySelectorAll('#nmemoji button').forEach(x=>x.classList.toggle('on',(x.dataset.emoji||'')===emoji)); });
+  q('#nmcancel').onclick=closeNameModal;
+  const save=()=>{ const v=(q('#nmname').value||'').trim().slice(0,18); nick=v||nick||'Player'; set('fk-nick',nick); set('fk-emoji',emoji); sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); try{ stage&&stage.contentWindow&&stage.contentWindow.postMessage({gn:'setname',name:nick,emoji},'*'); }catch(e){} closeNameModal(); render(); };
+  q('#nmsave').onclick=save; q('#nmname').onkeydown=e=>{ if(e.key==='Enter') save(); };
+  try{ q('#nmname').focus(); }catch(e){}
+}
+function closeNameModal(){ const m=document.getElementById('namemodal'); if(m) m.remove(); }
 function goHome(){ stopVideo(); if(ws){try{ws.onclose=null;ws.close();}catch(e){}} ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; stage.src='about:blank'; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); }
 // The room's join link + share/copy. Used by the lobby's Invite button and the in-game room-code chip
 // so a latecomer can be sent the code/link while a game is in progress (it opens straight into the room).

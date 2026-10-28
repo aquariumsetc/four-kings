@@ -338,7 +338,7 @@ export class UnoTable extends DurableObject {
         if (m.rule && m.rule in RULES) st.rules[m.rule] = !!m.on; // v2.8.71: rule/preset changes take effect immediately, even mid-hand — change a rule "for this go" and keep playing (cards added by Steal/Pass/Mirror/Custom only enter the deck at the next deal)
         if (m.preset && PRESETS[m.preset]) st.rules = { ...PRESETS[m.preset] };
         if (["table", "phones"].includes(m.layout)) st.layout = m.layout; // iPad in the middle, or everyone on their own device
-        if (Array.isArray(m.customs) && st.phase !== "play") st.customs = [0, 1, 2, 3].map((k) => String(m.customs[k] || "").slice(0, 60));
+        if (Array.isArray(m.customs)) st.customs = [0, 1, 2, 3].map((k) => String(m.customs[k] || "").slice(0, 60)); // v2.8.73: custom cards editable any time; they enter the deck at the next deal
         break;
       }
       default: changed = false;
@@ -350,7 +350,7 @@ export class UnoTable extends DurableObject {
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
   tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) if (ws.readyState === 1) this.send(ws); }
-  async stop() { this.S = fresh(); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); }
+  async stop() { const keep = { stake: this.S.stake, turnMs: this.S.turnMs, autoNext: this.S.autoNext, rules: this.S.rules, customs: this.S.customs, ledger: this.S.ledger }; this.S = Object.assign(fresh(), keep); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); } // v2.8.73: keep the room's rules/settings/scores on a full stop — only clear players + any stuck game
 
   // timers: bots, idle humans, auto-next
   due(st) {

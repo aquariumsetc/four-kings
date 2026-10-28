@@ -355,7 +355,18 @@ export class Table extends DurableObject {
     if (changed) await this.commit();
   }
 
-  async webSocketClose(ws) { try { ws.close(); } catch {} if (this.ctx.getWebSockets().filter((w) => w !== ws && w.readyState === 1).length === 0 && this.S.phase !== "lobby" && !this.S.emptyAt) { this.S.emptyAt = Date.now(); await this.commit(); } this.broadcast(); }
+  async webSocketClose(ws) {
+    try { ws.close(); } catch {}
+    const st = this.S, att = ws.deserializeAttachment() || {};
+    // ghost cleanup (v2.8.60): a device that drops while we're in the room lounge leaves the roster, so stale tiles don't pile up in a permanent named room. Only in the lounge — mid-game we keep a seat so a blip never forfeits a hand. Skip if the same device still has another live socket (a refresh/reconnect protects itself).
+    if (att.pid && (st.lounge || st.phase === "lobby")) {
+      const otherSock = this.ctx.getWebSockets().some((w) => w !== ws && w.readyState === 1 && (w.deserializeAttachment() || {}).pid === att.pid);
+      const i = pidx(st, att.pid);
+      if (!otherSock && i >= 0) { st.players.splice(i, 1); st.first = 0; await this.commit(); }
+    }
+    if (this.ctx.getWebSockets().filter((w) => w !== ws && w.readyState === 1).length === 0 && this.S.phase !== "lobby" && !this.S.emptyAt) { this.S.emptyAt = Date.now(); await this.commit(); }
+    this.broadcast();
+  }
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
   tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) { if (ws.readyState === 1) this.send(ws); } }

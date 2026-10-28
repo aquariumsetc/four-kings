@@ -223,7 +223,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.85 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.86 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -245,7 +245,7 @@ let stageGame=null;
 // v2.8.85: Back button fix. Framing a game used to set stage.src, which stacks an iframe history entry, so the browser Back button walked into a blank/old game while the shell stayed stuck in-game. Now games load with location.replace() (no iframe history), and entering a room/game arms a one-shot Back trap so Back returns to the home page.
 let backTrapSet=false;
 function armBackTrap(){ if(backTrapSet) return; backTrapSet=true; try{ history.pushState({gnback:1},''); }catch(e){} }
-function frameSrc(url){ try{ if(stage.contentWindow) stage.contentWindow.location.replace(url); else stage.src=url; }catch(e){ stage.src=url; } }
+function frameSrc(url){ let abs=url; try{ abs=/^(https?:|about:)/.test(url)?url:new URL(url,location.href).href; }catch(e){} try{ if(stage.contentWindow) stage.contentWindow.location.replace(abs); else stage.src=abs; }catch(e){ stage.src=abs; } } // v2.8.86: always load an ABSOLUTE url — an about:blank iframe has no base to resolve "/fk.html" against
 window.addEventListener('popstate',()=>{ backTrapSet=false; if(room) goHome(); });
 const isTbl=()=>false; // the shell is never an iPad table; the camera lives here regardless of the game on screen
 function newCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
@@ -443,7 +443,7 @@ function onState(st){
   // appear in the room's people list once we're in a lounge and have a remembered name
   if(st.lounge&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,emoji}); if(myPhoto) sendMsg({t:'photo',photo:myPhoto}); }
   // host chores: bring the room up, or kick off a game picked from the home page
-  if(wantLobby){ if(st.lounge) wantLobby=false; else if(st.host) sendMsg({t:'toroom'}); }
+  if(wantLobby){ if(st.lounge||st.goto) wantLobby=false; else if(st.host) sendMsg({t:'toroom'}); } // v2.8.86: once the lounge is confirmed OR a game launch (goto) is in flight, stop forcing "back to the room" — it was fighting the game launch and leaving you on a blank "Back to the Game Night room…" page
   if(wantStart&&st.host){ wantStart.forEach(m=>sendMsg(m)); wantStart=null; }
   // decide what belongs on screen (mirrors test/shell-core.mjs screenFor)
   if(st.lounge){ inLobby=true; curGame=null; }

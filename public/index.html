@@ -223,7 +223,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.84 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.85 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -242,6 +242,11 @@ let S=null, ws=null, reconnectIn=800, skew=0, viewMsg='', meOpen=false, roomsEdi
 let curGame=null, inLobby=false, lastGotoAt=+(qs.get('from')||0), wantGame='', wantLobby=false, wantStart=null, autoTried=false;
 const app=document.getElementById('app'), connEl=document.getElementById('conn'), stage=document.getElementById('stage');
 let stageGame=null;
+// v2.8.85: Back button fix. Framing a game used to set stage.src, which stacks an iframe history entry, so the browser Back button walked into a blank/old game while the shell stayed stuck in-game. Now games load with location.replace() (no iframe history), and entering a room/game arms a one-shot Back trap so Back returns to the home page.
+let backTrapSet=false;
+function armBackTrap(){ if(backTrapSet) return; backTrapSet=true; try{ history.pushState({gnback:1},''); }catch(e){} }
+function frameSrc(url){ try{ if(stage.contentWindow) stage.contentWindow.location.replace(url); else stage.src=url; }catch(e){ stage.src=url; } }
+window.addEventListener('popstate',()=>{ backTrapSet=false; if(room) goHome(); });
 const isTbl=()=>false; // the shell is never an iPad table; the camera lives here regardless of the game on screen
 function newCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
 let wake=null;
@@ -446,13 +451,14 @@ function onState(st){
   else { inLobby=false; if(!curGame) curGame=wantGame||'fk'; }
 }
 function render(){
+  if(room) armBackTrap(); // v2.8.85: in a room/game, Back returns to home instead of a blank iframe
   document.body.classList.toggle('inroom',!!room);
-  if(!room){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ stage.src='about:blank'; stageGame=null; } app.innerHTML=iabBanner()+startHTML(); bind(); renderVideo(); return; }
+  if(!room){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ frameSrc('about:blank'); stageGame=null; } app.innerHTML=iabBanner()+startHTML(); bind(); renderVideo(); return; }
   if(!S){ document.body.classList.remove('ingame'); app.style.display=''; app.innerHTML=`<div class="wait">Joining ${esc(room)}…</div>`; renderVideo(); return; }
-  if(inLobby||!curGame){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ stage.src='about:blank'; stageGame=null; } app.innerHTML=iabBanner()+loungeHTML(S)+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:''); bind(); renderVideo(); return; }
+  if(inLobby||!curGame){ document.body.classList.remove('ingame'); app.style.display=''; if(stageGame){ frameSrc('about:blank'); stageGame=null; } app.innerHTML=iabBanner()+loungeHTML(S)+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:''); bind(); renderVideo(); return; }
   // a game is on: show it in the frame; the shell (and video) stay put
   const mode2=S.host?'both':'hand';
-  if(stageGame!==curGame){ stage.src=gameSrc(curGame,mode2); stageGame=curGame; }
+  if(stageGame!==curGame){ frameSrc(gameSrc(curGame,mode2)); stageGame=curGame; }
   document.body.classList.add('ingame'); app.style.display='none'; renderVideo();
 }
 function loungeHTML(st){
@@ -526,7 +532,7 @@ function openNameModal(){
   try{ q('#nmname').focus(); }catch(e){}
 }
 function closeNameModal(){ const m=document.getElementById('namemodal'); if(m) m.remove(); }
-function goHome(){ const oldWs=ws; ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; stage.src='about:blank'; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); setTimeout(()=>{ try{stopVideo();}catch(e){} if(oldWs){try{oldWs.onclose=null;oldWs.close();}catch(e){}} },0); } // v2.8.83: paint Home immediately, then tear down the camera + socket in the background so going Home doesn't feel sluggish
+function goHome(){ const oldWs=ws; ws=null; S=null; room=''; curGame=null; inLobby=false; stageGame=null; frameSrc('about:blank'); backTrapSet=false; wantGame=''; wantLobby=false; wantStart=null; autoTried=false; history.replaceState(null,'','/?home=1'); render(); setTimeout(()=>{ try{stopVideo();}catch(e){} if(oldWs){try{oldWs.onclose=null;oldWs.close();}catch(e){}} },0); } // v2.8.83: paint Home immediately, then tear down the camera + socket in the background so going Home doesn't feel sluggish
 // The room's join link + share/copy. Used by the lobby's Invite button and the in-game room-code chip
 // so a latecomer can be sent the code/link while a game is in progress (it opens straight into the room).
 function roomLink(){ return location.origin+'/?room='+room+'&mode=lounge'; }

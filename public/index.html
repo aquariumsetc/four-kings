@@ -171,6 +171,11 @@ body.inroom.hasvid #vid{padding-left:112px} /* v2.8.40: clear the fixed 🏠 Hom
 .roomquick{display:inline-flex;align-items:center;gap:8px;font-weight:600}
 .roomquick .rmroom{opacity:.5;font-size:1.1rem;line-height:1;padding:0 2px;border-radius:6px}
 .roomquick .rmroom:hover{opacity:1;background:rgba(255,255,255,.12)}
+.roomsel{font:inherit;font-weight:600;padding:.7rem .8rem;border-radius:10px;border:1px solid rgba(0,0,0,.25);background:var(--ivory);color:var(--ink);min-width:0} /* v2.8.59: saved rooms picked from a dropdown, not deletable pills */
+.roomedit{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.roomchip2{display:inline-flex;align-items:center;gap:10px;font-weight:600;background:var(--btn-2);border:1px solid rgba(251,247,236,.18);border-radius:999px;padding:5px 6px 5px 14px}
+.roomchip2 .rmroom2{font:inherit;font-size:.82rem;font-weight:600;background:rgba(184,35,42,.22);border:1px solid rgba(184,35,42,.5);color:#ffb3ad;border-radius:999px;padding:4px 12px;width:auto}
+.linkbtn{background:none;border:0;padding:4px 2px;width:auto;font-weight:600;text-decoration:underline;color:var(--fg);opacity:.72}
 .vctl .roomrow{display:flex;gap:5px;align-items:stretch} /* v2.8.50: room link + QR as two buttons */
 .vctl .roomrow .roomchip{flex:1}
 .vctl .roomrow .qrbtn{flex:none;padding:.45rem .62rem;font-size:1.05rem;line-height:1}
@@ -211,7 +216,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.58 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.59 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -226,7 +231,7 @@ const EMOJIS=['🦊','🐯','🐼','🦄','🦁','🐸','🐵','🦉','🐙','�
 let iabDismissed=false;
 const inAppBrowser=/FBAN|FBAV|FB_IAB|Instagram|Messenger|WhatsApp|Line\//i.test(navigator.userAgent||'') || (/iPhone|iPad|iPod/.test(navigator.userAgent||'') && window.navigator.standalone!==true && !/Safari/.test(navigator.userAgent||''));
 function iabBanner(){ if(!inAppBrowser||iabDismissed) return ''; return `<div class="panel" id="iab" style="border:1px solid #c9a227;background:rgba(201,162,39,.14)"><div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start"><div class="small">📱 <b>Open in Safari for the best experience</b> — video works properly and it remembers your name. Tap <b>•••</b> (top-right) → <b>Open in Safari</b>, or <b>Share → Add to Home Screen</b> for an app icon.</div><button class="ghost small" id="iabx" aria-label="dismiss">✕</button></div></div>`; }
-let S=null, ws=null, reconnectIn=800, skew=0, viewMsg='', meOpen=false;
+let S=null, ws=null, reconnectIn=800, skew=0, viewMsg='', meOpen=false, roomsEdit=false;
 let curGame=null, inLobby=false, lastGotoAt=+(qs.get('from')||0), wantGame='', wantLobby=false, wantStart=null, autoTried=false;
 const app=document.getElementById('app'), connEl=document.getElementById('conn'), stage=document.getElementById('stage');
 let stageGame=null;
@@ -475,8 +480,9 @@ function startHTML(){
   <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
   <div class="panel"><h3 style="margin:0">🎲 Your rooms</h3>
     <div class="small muted" style="margin-top:4px">Name a room your family remembers — open the same one every time, no codes. (Add the app to your Home Screen and you're in with one tap.)</div>
-    <div class="irow" style="margin-top:12px"><input id="roomname" placeholder="e.g. EVERYONE" maxlength="16" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.06em"><button id="openroom" style="flex:0 0 auto">Open</button></div>
-    ${(()=>{ const sr=savedRooms(); return sr.length?`<div class="roomquickwrap">${sr.map(r=>`<button class="ghost roomquick" data-room="${esc(r)}">🎲 ${esc(r)}<span class="rmroom" data-rm="${esc(r)}" aria-label="Remove ${esc(r)}">×</span></button>`).join('')}</div>`:''; })()}</div>
+    ${(()=>{ const sr=savedRooms(); if(!sr.length) return ''; return `<div class="irow" style="margin-top:12px"><select id="roompick" class="roomsel"><option value="">— pick a saved room —</option>${sr.map(r=>`<option value="${esc(r)}">🎲 ${esc(r)}</option>`).join('')}</select><button id="openpick" style="flex:0 0 auto">Open</button></div><div style="margin-top:6px"><button class="linkbtn small" id="editrooms">${roomsEdit?'✓ Done':'Edit list'}</button></div>${roomsEdit?`<div class="roomedit">${sr.map(r=>`<span class="roomchip2">🎲 ${esc(r)} <button class="rmroom2" data-rm="${esc(r)}" aria-label="Remove ${esc(r)}">Remove</button></span>`).join('')}</div>`:''}`; })()}
+    <div class="small muted" style="margin-top:14px">${savedRooms().length?'Or make a new room — type a name:':'Type a room name your family will remember:'}</div>
+    <div class="irow" style="margin-top:6px"><input id="roomname" placeholder="e.g. EVERYONE" maxlength="16" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.06em"><button id="openroom" style="flex:0 0 auto">Open</button></div></div>
   <div class="panel lounge"><div><h3 style="margin:0">📹 Quick one-off room</h3><div class="small muted">A random-code room for a one-time game — no saved name.</div></div><button class="big" id="newlounge">📹 Start a video game room</button></div>
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
@@ -526,6 +532,10 @@ function bind(){
   if(q('#newlounge')) q('#newlounge').onclick=()=>startRoom();
   if(q('#openroom')) q('#openroom').onclick=()=>openNamedRoom(q('#roomname').value);
   if(q('#roomname')) q('#roomname').onkeydown=e=>{ if(e.key==='Enter') openNamedRoom(q('#roomname').value); };
+  if(q('#openpick')) q('#openpick').onclick=()=>{ const v=q('#roompick').value; if(v) openNamedRoom(v); };
+  if(q('#roompick')) q('#roompick').onchange=()=>{ const v=q('#roompick').value; if(v) openNamedRoom(v); }; // pick to open
+  if(q('#editrooms')) q('#editrooms').onclick=()=>{ roomsEdit=!roomsEdit; render(); };
+  app.querySelectorAll('.rmroom2').forEach(b=>b.onclick=()=>{ if(confirm('Remove "'+b.dataset.rm+'" from this device\'s saved-room list? It won\'t end anyone\'s game — it just stops showing here.')) rmSavedRoom(b.dataset.rm); });
   app.querySelectorAll('.roomquick').forEach(b=>b.onclick=e=>{ const rm=e.target.closest('.rmroom'); if(rm){ e.stopPropagation(); rmSavedRoom(rm.dataset.rm); return; } if(b.dataset.switchroom){ location.href='/?room='+normRoom(b.dataset.switchroom)+'&mode=lounge'; return; } openNamedRoom(b.dataset.room); });
   if(q('#joingame')){ const go=()=>{ const c=normRoom(q('#code').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } }; q('#joingame').onclick=go; q('#code').onkeydown=e=>{ if(e.key==='Enter') go(); }; }
   if(q('#iabx')) q('#iabx').onclick=()=>{ iabDismissed=true; render(); };

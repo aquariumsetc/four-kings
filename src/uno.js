@@ -12,13 +12,12 @@ const EMPTY_GRACE = 45000; // v2.8.54: all humans gone this long (bots have no s
 const NUDGE_MS = 15000;  // idle player: phone nudges this long before auto-move
 const MAX_PLAYS = 800;   // safety net: a game this long finishes itself (fewest cards wins)
 // new tables start on the Party preset (see PRESETS below)
-const RULES = { multi: true, stack: true, playPicked: true, steal: true, pass: true, mirror: false, drawUntil: false, official: false, callUno: false, useCustoms: true };
+const RULES = { multi: true, stack: true, playPicked: true, drawUntil: false, official: false, callUno: false, useCustoms: true }; // v2.8.74: steal/pass/mirror removed — make those custom wild cards instead
 // one-tap rule sets. "official" follows the printed rules: draw one and only that card may be played,
 // no stacking, +4 only without a card of the current colour, and call UNO or get caught for 2.
 const PRESETS = {
-  official: { multi: false, stack: false, playPicked: false, steal: false, pass: false, mirror: false, drawUntil: false, official: true, callUno: true, useCustoms: false },
-  party: { multi: true, stack: true, playPicked: true, steal: true, pass: true, mirror: false, drawUntil: false, official: false, callUno: false, useCustoms: true },
-  chaos: { multi: true, stack: true, playPicked: true, steal: true, pass: true, mirror: true, drawUntil: false, official: false, callUno: false, useCustoms: true },
+  official: { multi: false, stack: false, playPicked: false, drawUntil: false, official: true, callUno: true, useCustoms: false },
+  party: { multi: true, stack: true, playPicked: true, drawUntil: false, official: false, callUno: false, useCustoms: true },
 };
 const BOT_NAMES = ["Robo Rita", "Dealer Dan", "Lucky Lou", "Queenie", "Ace Alvarez", "Blackjack Bea", "Shuffle Sam"];
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -26,7 +25,7 @@ const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 function fresh() {
   return {
     phase: "lobby", players: [], deck: [], pile: [], colour: null, dir: 1, turn: 0, first: 0, drawStack: 0, drew: false,
-    pot: 0, stake: 20, turnMs: 0, autoNext: false, rules: { ...RULES }, customs: ["", "", "", ""],
+    pot: 0, stake: 20, turnMs: 0, autoNext: false, rules: { ...RULES }, customs: [],
     game: 0, winner: null, note: "", event: null, ledger: {}, turnAt: 0, overAt: 0, nextId: 1, v: 0,
   };
 }
@@ -39,10 +38,7 @@ function buildDeck(st) {
     for (const v of ["skip", "rev", "d2"]) { add(c, v); add(c, v); }
   }
   for (let k = 0; k < 4; k++) { add("W", "wild"); add("W", "w4"); }
-  if (st.rules.steal) { add("W", "steal"); add("W", "steal"); }
-  if (st.rules.pass) { add("W", "pass"); add("W", "pass"); }
-  if (st.rules.mirror) { add("W", "mirror"); add("W", "mirror"); }
-  if (st.rules.useCustoms !== false) st.customs.forEach((txt, i) => { if (txt && txt.trim()) { add("W", "cust", i); add("W", "cust", i); } });
+  if (st.rules.useCustoms !== false) (st.customs || []).forEach((txt, i) => { if (txt && txt.trim()) { add("W", "cust", i); add("W", "cust", i); } }); // 2 of each custom wild card you've added
   return shuffle(d);
 }
 const isWild = (c) => WILDS.includes(c.v);
@@ -338,7 +334,7 @@ export class UnoTable extends DurableObject {
         if (m.rule && m.rule in RULES) st.rules[m.rule] = !!m.on; // v2.8.71: rule/preset changes take effect immediately, even mid-hand — change a rule "for this go" and keep playing (cards added by Steal/Pass/Mirror/Custom only enter the deck at the next deal)
         if (m.preset && PRESETS[m.preset]) st.rules = { ...PRESETS[m.preset] };
         if (["table", "phones"].includes(m.layout)) st.layout = m.layout; // iPad in the middle, or everyone on their own device
-        if (Array.isArray(m.customs)) st.customs = [0, 1, 2, 3].map((k) => String(m.customs[k] || "").slice(0, 60)); // v2.8.73: custom cards editable any time; they enter the deck at the next deal
+        if (Array.isArray(m.customs)) st.customs = m.customs.slice(0, 12).map((t) => String(t || "").slice(0, 60)).filter((t) => t.trim()); // v2.8.74: any number of custom wild cards (editable any time; enter the deck at the next deal)
         break;
       }
       default: changed = false;

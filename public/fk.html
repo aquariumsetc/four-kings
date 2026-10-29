@@ -225,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.6 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.7 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -251,8 +251,9 @@ let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
 let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 let qSeenKey=null, qSeenAt=0, queenShow=false, qTimer=null; // v2.8.98: the queen win-banner in the note auto-dismisses ~3s after it appears so it doesn't linger into the next lead prompt
-const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
-const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
+const m$=x=>{ x=Math.round(x*100)/100; return x%1===0?''+x:x.toFixed(2); }; // v2.9.7: split bets can be fractional ($2.50), so show cents only when needed
+const betsOf=d=>{ const o={}; const n=d.suits.length; if(!n) return o; const cents=Math.round(d.total*100), base=Math.floor(cents/n); let rem=cents-base*n; d.suits.forEach(x=>{ o[x]=(base+(rem>0?1:0))/100; if(rem>0) rem--; }); return o; }; // split the stake evenly, giving any odd cent to the first king(s) so it sums exactly
+const betsText=b=>Object.keys(b).map(x=>'$'+m$(b[x])+' '+SYM[x]).join(' + ');
 const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const app=document.getElementById('app'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
@@ -510,7 +511,7 @@ function noteHTML(st,cls){
   if(e&&e.t==='queen'&&st.note.indexOf('played the queen')>=0){
     if(!queenShow) return ''; // v2.8.98: auto-dismissed ~3s after the queen was played
     const rest=st.note.replace(/^[^.]*played the queen[^.]*\.\s*/,'');
-    return `<div class="center"><div class="won"><b>${esc(pname(st,e.who))}</b> played ${cardHTML({s:e.suit,r:12})} wins <span class="amt">$${e.won}</span></div></div>${rest?`<p class="center ${cls||''}">${esc(rest)}</p>`:''}`;
+    return `<div class="center"><div class="won"><b>${esc(pname(st,e.who))}</b> played ${cardHTML({s:e.suit,r:12})} wins <span class="amt">$${m$(e.won)}</span></div></div>${rest?`<p class="center ${cls||''}">${esc(rest)}</p>`:''}`;
   }
   return `<p class="center ${cls||''}">${esc(st.note)}</p>`;
 }
@@ -519,14 +520,14 @@ function kingsHTML(st){
   const ante=st.phase==='ante';
   const onK=s=>st.kings[s]+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+(p.bets[s]||0),0):0);
   const pot=st.pot+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+p.bet,0):0);
-  return `<div class="kings">${SUITS.map(s=>`<div class="spot"><span class="k ${RED[s]?'red':''}"><span>K</span><span>${SYM[s]}</span></span><div class="coins">$${onK(s)}</div></div>`).join('')}<div class="pot"><div class="n">$${pot}</div><div class="l">in the centre</div></div></div>`;
+  return `<div class="kings">${SUITS.map(s=>`<div class="spot"><span class="k ${RED[s]?'red':''}"><span>K</span><span>${SYM[s]}</span></span><div class="coins">$${m$(onK(s))}</div></div>`).join('')}<div class="pot"><div class="n">$${m$(pot)}</div><div class="l">in the centre</div></div></div>`;
 }
 function scoresHTML(st){
   if(!st.players.length) return '';
   const order=st.players.map((p,i)=>({p,i})).sort((a,b)=>b.p.balance-a.p.balance); const top=order[0].p.balance;
   const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:st.phase==='claim'?(st.waitingOn>=0?st.waitingOn:-1):(st.phase==='swap'&&st.swapTurn!=null?st.swapTurn:-1);
   return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
-  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${o.p.emoji?esc(o.p.emoji)+' ':''}${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>$${o.p.balance}</td></tr>`).join('')}</table></div>`;
+  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${o.p.emoji?esc(o.p.emoji)+' ':''}${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>$${m$(o.p.balance)}</td></tr>`).join('')}</table></div>`;
 }
 function statusOf(st,p){
   if(st.phase==='ante') return p.broke?'out of money':p.placed?(p.carried?'same bet':'bet placed'):'betting…';
@@ -606,7 +607,7 @@ function paintFkStrip(st){
     if(ph){ ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundSize='cover'; ava.style.backgroundPosition='center'; ava.style.backgroundColor=`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`; ava.textContent=''; }
     else { ava.style.backgroundImage=''; ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`; ava.textContent = p.bot?'🤖':(p.emoji||(p.name||'?').charAt(0).toUpperCase()); }
     nm.textContent = (p.id===pid&&mode!=='table')?'You':p.name;
-    bal.textContent = '$'+p.balance;
+    bal.textContent = '$'+m$(p.balance);
     const cur = st.phase!=='ante' && st.waitingOn>=0 && st.waitingOn===k;
     const owe = st.phase==='ante' ? (!p.placed&&!p.broke) : (st.phase==='swap'&&st.swapTurn==null&&p.in&&!p.kept);
     const out = st.phase==='ante' ? !!p.broke : !p.in;
@@ -743,19 +744,19 @@ function handMain(st,embedded,bare){
   }
   if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${st.claimMs?fmtSec(st.claimMs/1000)+(st.claimMs>=60000?' min':' s'):'Off'}</p>`:''}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
-    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${p.balance}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
+    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${m$(p.balance)}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
   }
   else if(st.phase==='ante'){
     if(p.placed&&!draft.suits.length){ draft.suits=Object.keys(p.bets); draft.total=p.bet; }
-    const max=Math.max(10,Math.floor(p.balance/20)*10); const step=draft.suits.length===2?20:10;
+    const max=Math.max(10,Math.floor(p.balance/20)*10); const step=10; // v2.9.7: the stake steps in $10; adding kings SPLITS it (doesn't add more)
     if(draft.total>max) draft.total=Math.max(step,Math.floor(max/step)*step); if(draft.total<step) draft.total=step; if(draft.total%step) draft.total=Math.ceil(draft.total/step)*step;
     const bets=betsOf(draft), each=draft.suits.length?draft.total/draft.suits.length:0, dirty=!p.placed||!sameBets(bets,p.bets);
     const head=p.placed?(p.carried&&!dirty?'Same bet as last game':'Your bet is in'):'Your bet';
     const lead=bare /* v2.8.95: inlined under "Place your bets" — skip the duplicate heading, just a short instruction */
-      ?`<p class="muted small">You have $${p.balance}.${p.placed?(p.carried&&!dirty?' Nothing to do unless you want to change it.':' Change it until the cards are dealt.'):''}</p>`
-      :`<h2>${head}</h2><p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'First place a bet on a king, or two to split your bet.'}</p>`;
+      ?`<p class="muted small">You have $${m$(p.balance)}.${p.placed?(p.carried&&!dirty?' Nothing to do unless you want to change it.':' Change it until the cards are dealt.'):''}</p>`
+      :`<h2>${head}</h2><p class="muted small">You have $${m$(p.balance)}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'First place a bet on a king, or two to split your bet.'}</p>`;
     main=`${lead}
-      <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.suits.includes(s)?'on':''}" data-king="${s}">${SYM[s]}${draft.suits.includes(s)?`<div class="small" style="font-family:-apple-system,sans-serif;font-weight:600">$${each}</div>`:''}</button>`).join('')}</div>
+      <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.suits.includes(s)?'on':''}" data-king="${s}">${SYM[s]}${draft.suits.includes(s)?`<div class="small" style="font-family:-apple-system,sans-serif;font-weight:600">$${m$(bets[s])}</div>`:''}</button>`).join('')}</div>
       <div class="center" style="margin-top:12px"><span class="serif" style="font-size:1.8rem">$${draft.total}</span><div class="small muted">${draft.suits.length?betsText(bets):'on a king'} + $${draft.total} centre</div></div><div class="row" style="margin-top:8px;gap:6px"><button class="ghost" data-bet="-${step}" style="flex:1">Decrease bet</button><button class="ghost" data-bet="${step}" style="flex:1">Increase bet</button></div>
       <button class="big" id="place" ${draft.suits.length&&dirty&&p.balance>=2*draft.total?'':'disabled'}>${p.placed?(dirty?'Change my bet':'✓ Bet placed'):'Place bet'}</button>
       ${bare?'':st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${p.placed?'':' · bet now or you\'ll sit this one out'}</p>`:'<p class="center small muted">Waiting for everyone to bet…</p>'}
@@ -837,7 +838,7 @@ function bind(){
   if(q('#endsession')) q('#endsession').onclick=()=>{ if(confirm('Finish the game session for everyone? This ends the game and closes the room — every player goes back to home.')){ if(framed) tellShell('endsession'); else { sendMsg({t:'endsession'}); setTimeout(()=>location.replace('/?home=1'),300); } } };
   if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,auto:autoOn,emoji}); };
   if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
-  app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<2) draft.suits.push(s); else draft.suits=[draft.suits[1],s]; if(draft.suits.length===2&&draft.total<20) draft.total=20; render(); });
+  app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<4) draft.suits.push(s); render(); }); // v2.9.7: up to 4 kings, and picking more splits the same stake
   app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.total=Math.max(10,draft.total+(+b.dataset.bet)); render(); });
   if(q('#place')) q('#place').onclick=()=>{ q('#place').disabled=true; if(sfxOn){ try{ coins(6,.35); }catch(e){} } sendMsg({t:'bet',bets:betsOf(draft)}); };
   if(q('#deal')) q('#deal').onclick=()=>sendMsg({t:'deal'});

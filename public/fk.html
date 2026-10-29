@@ -225,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.97 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.99 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -250,6 +250,7 @@ let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
 let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
+let qSeenKey=null, qSeenAt=0, queenShow=false, qTimer=null; // v2.8.98: the queen win-banner in the note auto-dismisses ~3s after it appears so it doesn't linger into the next lead prompt
 const betsOf=d=>{ const o={}; if(!d.suits.length) return o; const each=d.total/d.suits.length; d.suits.forEach(x=>o[x]=each); return o; };
 const betsText=b=>Object.keys(b).map(x=>'$'+b[x]+' '+SYM[x]).join(' + ');
 const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -507,8 +508,9 @@ function noteHTML(st,cls){
   if(!st.note) return '';
   const e=st.event;
   if(e&&e.t==='queen'&&st.note.indexOf('played the queen')>=0){
+    if(!queenShow) return ''; // v2.8.98: auto-dismissed ~3s after the queen was played
     const rest=st.note.replace(/^[^.]*played the queen[^.]*\.\s*/,'');
-    return `<div class="center"><div class="won"><b>${esc(pname(st,e.who))}</b> played ${cardHTML({s:e.suit,r:12})}<span class="amt">+$${e.won}</span></div></div>${rest?`<p class="center ${cls||''}">${esc(rest)}</p>`:''}`;
+    return `<div class="center"><div class="won"><b>${esc(pname(st,e.who))}</b> played ${cardHTML({s:e.suit,r:12})} wins <span class="amt">$${e.won}</span></div></div>${rest?`<p class="center ${cls||''}">${esc(rest)}</p>`:''}`;
   }
   return `<p class="center ${cls||''}">${esc(st.note)}</p>`;
 }
@@ -536,9 +538,18 @@ function settingsHTML(st){
   const pick=(attr,val,cur,label)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}">${label}</button>`;
   const timerRow=`<div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>`;
   const nextRow=`<div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>`;
-  // mid-game: only the settings the server honours during a live hand (the card timer, which also sets how long a lead/claim waits before it's auto-played). Spare hand, layout and game-switch change between games.
-  if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them; Off never plays a card for anyone — good when you're all in the room together. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
-  return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>
+  // ---- per-device options: everyone gets these (v2.8.99 — moved in from the cluttered footer) ----
+  const soundRow=`<div class="srow"><span>Sound</span><span><button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects</button> <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins</button> <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music</button></span></div>${IOS&&(sfxOn||winOn||musicOn)?`<div class="muted" style="font-size:.78rem;margin:-2px 0 4px">iPhone: the ringer switch must be on for sound.</div>`:''}`;
+  const playRows=mode!=='table'?`<div class="srow"><span>Beginner hints</span><span><button class="ghost small" id="hints">${hints?'on':'off'}</button></span></div><div class="srow"><span>Auto-play my cards</span><span><button class="ghost small" id="autoplay">${autoOn?'on':'off'}</button></span></div>`:'';
+  const deviceRow=`<div class="srow"><span>This device · table ${esc(room)}</span><span><button class="ghost small" id="switch">${mode==='table'?'use as a hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button></span></div>`;
+  const helpRow=mode!=='table'?`<div class="srow"><span>Help</span><span><button class="ghost small" id="howtobtn">How to play</button></span></div>`:'';
+  const mine=`<div class="muted" style="margin-bottom:4px">Just for this device</div>${soundRow}${playRows}${deviceRow}${helpRow}`;
+  // non-host players get only their own options; table-wide settings are host-only (the server ignores them from non-hosts anyway)
+  if(!st.host) return `<div class="panel small settings">${mine}</div>`;
+  const tableHead=`<div class="muted" style="margin:12px 0 4px">For everyone at the table</div>`;
+  // mid-game: only the table settings the server honours during a live hand (the card timer + next-game). Spare hand, layout and game-switch change between games.
+  if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings">${mine}${tableHead}${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them; Off never plays a card for anyone — good when you're all in the room together. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
+  return `<div class="panel small settings">${mine}${tableHead}
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   ${timerRow}
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
@@ -556,6 +567,13 @@ function boardHTML(st,host){
 function heroHTML(){ return `<div class="setuphero"><div class="ghero-ring">👑</div><div class="ghero-name">4 Kings</div></div>`; } // v2.8.83: game identity on the loading/setup screens
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
+  // v2.8.98: the persistent queen win-banner (baked into the note) shows for ~3s, then auto-dismisses even if the state doesn't change
+  if(S&&S.event&&S.event.t==='queen'&&S.note&&S.note.indexOf('played the queen')>=0){
+    if(S.event.at!==qSeenKey){ qSeenKey=S.event.at; qSeenAt=Date.now(); }
+    queenShow=Date.now()-qSeenAt<3000;
+    if(qTimer){clearTimeout(qTimer);qTimer=null;}
+    if(queenShow) qTimer=setTimeout(()=>{ if(S) render(); }, Math.max(40,qSeenAt+3000-Date.now()+40));
+  } else { qSeenKey=null; queenShow=false; if(qTimer){clearTimeout(qTimer);qTimer=null;} }
   // v2.8.92: when framed, the FRAME never decides "back to the room" on its own — the SHELL owns the room<->game switch (it unframes this page when the room's lounge is on). The frame only shows the game. This kills the stuck "Back to the Game Night room…" screen that appeared when the frame's own copy of `lounge` was briefly stale after a launch.
   if(framed&&S&&S.phase==='lobby'){ const n=S.players.length; app.className='app';
     const hostbar=S.host?`<div class="row" style="max-width:420px;margin:16px auto 0"><button class="ghost small" id="toroom">📹 Back to the room</button><button class="ghost small" id="endsession" style="border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish · everyone out</button></div>`:''; // v2.8.84: give 4 Kings setup the same host escapes UNO has — no need for the browser back button
@@ -568,7 +586,7 @@ function render(){
   const fkStripOn=['ante','swap','play','claim'].includes(S.phase)&&S.players.length>=2; // the avatar strip shows during a live game on every device (table, own-devices phones, hand devices)
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(fkStripOn?' fkstripon':''); // own-devices game: players get the wide table layout too
   const fkHandPanel=withTable&&S.phase!=='ante'?`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`:''; /* v2.8.95: during betting your controls go inline under "Place your bets" (see tableHTML) — no "Your cards" box (you have no cards yet, and it buried the suit buttons) */
-  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,fkHandPanel,true):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+(S.host?`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Table settings ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
+  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,fkHandPanel,true):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Settings &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div><p class="center small muted" style="opacity:.6;margin-top:1.2rem">Game Night ${VERSION}</p>`; /* v2.8.99: sound, hints, auto-play, How to play, table-mode & change-table all moved inside ⚙️ (settingsHTML) so the bottom isn't cluttered; the panel is now open to everyone, with the table-wide settings still host-only inside it */
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();

@@ -223,7 +223,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.8.93 · 28 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.8.94 · 28 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -502,10 +502,10 @@ function startHTML(){
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
       <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
-      <button class="big" id="newtable">Play with an iPad table</button><button class="big ghost" id="newphones">Play on our own devices</button></div>
+      <button class="big" id="newphones">Play on our own devices</button><button class="big ghost" id="newtable">Play with an iPad table</button></div>
     <div class="game uno"><div class="art">${u('#e2453c','7',-12)}${u('conic-gradient(#e2453c 0 25%,#f5c02e 0 50%,#2fa866 0 75%,#2c7be5 0)','+4',0)}${u('#2c7be5','⇄',12)}</div>
       <h2>Ultium UNO</h2><p>Match colours and numbers, stack the draws, flip the direction. Play the official rules or full house chaos.</p><div class="small muted">2–10 players · bots can fill in</div>
-      <button class="big" id="unotable">Play with an iPad table</button><button class="big ghost" id="unophones">Play on our own devices</button></div>
+      <button class="big" id="unophones">Play on our own devices</button><button class="big ghost" id="unotable">Play with an iPad table</button></div>
   </div>
   <div class="panel"><h3>Joining someone else's game?</h3><p class="small muted">Scan the QR code on their table with your phone camera. Or type the 4-letter code:</p>
     <input class="code" id="code" placeholder="CODE" maxlength="16" value="" autocapitalize="characters" autocomplete="off">

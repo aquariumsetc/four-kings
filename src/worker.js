@@ -38,7 +38,8 @@ function deck() {
 }
 const sortHand = (h) => h.sort((a, b) => SUITS.indexOf(a.s) - SUITS.indexOf(b.s) || a.r - b.r);
 const pidx = (st, id) => st.players.findIndex((p) => p.id === id);
-const betTotal = (p) => Object.values(p.bets || {}).reduce((a, b) => a + b, 0);
+const betTotal = (p) => Math.round(Object.values(p.bets || {}).reduce((a, b) => a + b, 0) * 100) / 100;
+const money = (x) => { x = Math.round(x * 100) / 100; return x % 1 === 0 ? "" + x : x.toFixed(2); }; // v2.9.7: show cents for split bets
 const broke = (p) => p.balance < 2 * MIN_BET;
 const idleMs = (st) => Math.max(IDLE_MIN_MS, st.claimMs || CLAIM_MS);
 // players dealt into this game, in turn order starting from the first player
@@ -46,22 +47,27 @@ const inOrder = (st) => { const n = st.players.length, out = []; for (let k = 0;
 const swapTurn = (st) => inOrder(st)[st.swapIdx];
 const holderOf = (st, s, r) => st.players.findIndex((p) => p.in && p.hand.some((c) => c.s === s && c.r === r));
 
-// bets: { S: 20, H: 10 } — one or two kings, multiples of $10, matched in the centre
+// bets: { S: 5, H: 5 } — 1–4 kings, the $10 stake SPLIT across them, matched in the centre
 function cleanBets(raw, balance) {
   if (!raw || typeof raw !== "object") return null;
-  const bets = {};
-  for (const s of SUITS) { const v = Math.round(Number(raw[s] || 0) / 10) * 10; if (v > 0) bets[s] = v; }
-  const n = Object.keys(bets).length, total = Object.values(bets).reduce((a, b) => a + b, 0);
-  if (n < 1 || n > 2 || Object.values(bets).some((v) => v < MIN_BET) || total > balance / 2) return null;
+  const keys = SUITS.filter((s) => Number(raw[s] || 0) > 0); // v2.9.7: 1–4 kings; the stake is split across them, not added per king
+  const n = keys.length; if (n < 1 || n > 4) return null;
+  const sum = keys.reduce((a, s) => a + Number(raw[s] || 0), 0);
+  let total = Math.round(sum / 10) * 10;                      // the total stake is always a whole $10
+  const max = Math.floor(balance / 2 / 10) * 10;
+  if (total > max) total = max;
+  if (total < MIN_BET) return null;                           // can't afford the minimum $10 stake (matched $10 in the centre)
+  const cents = total * 100, base = Math.floor(cents / n); let rem = cents - base * n;
+  const bets = {}; keys.forEach((s) => { bets[s] = (base + (rem > 0 ? 1 : 0)) / 100; if (rem > 0) rem--; });
   return bets;
 }
 // last game's bet, trimmed to what the player can still afford
 function carryBets(p) {
   const prev = p.bets || {}, keys = Object.keys(prev); if (!keys.length || broke(p)) return null;
-  let total = betTotal({ bets: prev }); const step = keys.length === 2 ? 20 : 10;
-  const max = Math.floor(p.balance / 2 / step) * step;
+  let total = betTotal({ bets: prev });
+  const max = Math.floor(p.balance / 2 / 10) * 10;
   if (total > max) total = max;
-  if (total < step) return keys.length === 2 ? cleanBets({ [keys[0]]: 10 }, p.balance) : null;
+  if (total < MIN_BET) return null;
   const o = {}; keys.forEach((k) => (o[k] = total / keys.length)); return cleanBets(o, p.balance);
 }
 const placedCount = (st) => st.players.filter((p) => p.placed).length;
@@ -79,7 +85,7 @@ function dealInto(st) {
   st.players.forEach((p) => {
     p.in = !!p.placed; p.hand = []; p.gq = 0;
     if (!p.in) { p.bets = p.bets || {}; if (!broke(p)) sitting.push(p.name); return; }
-    const t = betTotal(p); p.balance -= 2 * t; st.pot += t; for (const s in p.bets) st.kings[s] += p.bets[s];
+    const t = betTotal(p); p.balance -= 2 * t; st.pot += t; for (const s in p.bets) st.kings[s] = Math.round((st.kings[s] + p.bets[s]) * 100) / 100;
   });
   st.dealAt = 0;
   const ids = st.players.map((p, i) => i).filter((i) => st.players[i].in);
@@ -121,7 +127,7 @@ function playFrom(st, who, r) {
   const p = st.players[who], suit = st.runSuit; let note = "";
   const ci = p.hand.findIndex((c) => c.s === suit && c.r === r); if (ci < 0) return;
   const c = p.hand.splice(ci, 1)[0]; st.run.push({ c, who });
-  if (c.r === 12) { const won = st.kings[suit]; st.kings[suit] = 0; p.balance += won; p.gq = (p.gq || 0) + 1; note = `${p.name} played the queen and takes $${won} from the king of ${NAME[suit]}.`; st.event = { t: "queen", who, suit, won, at: Date.now() }; }
+  if (c.r === 12) { const won = Math.round(st.kings[suit] * 100) / 100; st.kings[suit] = 0; p.balance = Math.round((p.balance + won) * 100) / 100; p.gq = (p.gq || 0) + 1; note = `${p.name} played the queen and takes $${money(won)} from the king of ${NAME[suit]}.`; st.event = { t: "queen", who, suit, won, at: Date.now() }; }
   if (p.hand.length === 0) { const won = st.pot; st.pot = 0; p.balance += won; st.winner = { idx: who, won }; st.note = note; st.leader = who; endGame(st); st.event = { t: "out", who, won, at: Date.now() }; return; }
   if (c.r === 12) { endRun(st, who, note); return; }
   st.nextRank = r + 1; st.leader = who; st.phase = "claim"; st.calledAt = Date.now(); st.note = note;

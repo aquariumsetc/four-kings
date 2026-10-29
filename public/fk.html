@@ -225,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.99 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.1 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -714,11 +714,11 @@ function tableHTML(st,handPanel,embedded){
       main=`<h2>${esc(pname(st,i))}: keep or swap?</h2><p class="muted">${st.swapIdx+1} of ${inN} asked, in turn. The spare hand goes to the first player who takes it.</p>`;
     }
   } else if(st.phase==='play'){
-    const dup=embedded&&window.innerWidth<760; // v2.8.97: own-devices phone — "Your cards" below already shows the run + note, so don't repeat the big table pile here (it was pushing your hand off-screen)
-    main=`${dup?'':`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}`}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
+    const dup=embedded; // v2.9.0: any own-devices view — "Your cards" below already shows the run + note + lead prompt, so never repeat the big table pile here (was doubling up on wider screens too)
+    main=dup?'':`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
   } else if(st.phase==='claim'){
-    const dup=embedded&&window.innerWidth<760; // v2.8.97: own-devices phone — the run, note and countdown are all in "Your cards" below, so skip the duplicate table pile here
-    main=`${dup?'':`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}`}<div class="call">${st.waitingOn>=0&&st.players[st.waitingOn]?`Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs({s:st.runSuit,r:st.nextRank})}`:`Who has the ${cs({s:st.runSuit,r:st.nextRank})}?`}</div>${dup?'':(st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:`<div class="center small muted" style="margin-top:6px">No time limit — play when you're ready</div>`)}`;
+    const dup=embedded; // v2.9.0: any own-devices view — the run, note, countdown and lead prompt are all in "Your cards" below, so never repeat the table pile here
+    main=dup?'':`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">${st.waitingOn>=0&&st.players[st.waitingOn]?`Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs({s:st.runSuit,r:st.nextRank})}`:`Who has the ${cs({s:st.runSuit,r:st.nextRank})}?`}</div>${st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:`<div class="center small muted" style="margin-top:6px">No time limit — play when you're ready</div>`}`;
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
@@ -786,9 +786,9 @@ function handMain(st,embedded,bare){
   else if(st.phase==='claim'){
     const need={s:st.runSuit,r:st.nextRank}; const have=hand.some(c=>c.s===need.s&&c.r===need.r);
     const autoNote=p.auto&&have?`<p class="center small" style="color:var(--brass)">⚡ Auto-play is playing it for you…</p>`:'';
-    const waitLine=(!have&&st.waitingOn>=0&&st.waitingOn!==i&&st.players[st.waitingOn])?`<p class="center small" style="color:var(--brass)">Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs(need)}</p>`:'';
-    main=`${miniRun(st,true,need)}${noteHTML(st,'small')}${autoNote}${waitLine}
-      ${hints&&have&&!p.auto?`<button class="huge" id="claim">I've got the ${cs(need)}!</button>${st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:''}`:`<p class="center">Got it? Tap the card in your hand.${st.claimMs?` <span class="serif" id="count">${fmtSec(st.claimMs/1000)}</span>`:''}</p>`}
+    // v2.9.1: the holder is no longer revealed (server sends waitingOn -1 during a claim). Everyone just sees "Who has the X?" and must spot it in their own hand. The "I've got it!" shortcut + card highlight are opt-in beginner hints only.
+    main=`${miniRun(st,true,need)}${noteHTML(st,'small')}${autoNote}
+      ${hints&&have&&!p.auto?`<button class="huge" id="claim">I've got the ${cs(need)}!</button>${st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:''}`:`<p class="center">Who has the ${cs(need)}? <span class="muted small">Tap it in your hand if you've got it.</span></p>${st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:''}`}
       ${handView(hand,null,{need,hint:hints})}`;
   }
   else if(st.phase==='over'){

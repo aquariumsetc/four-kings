@@ -225,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.7 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.8 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -311,7 +311,7 @@ function onState(st,old){
   skew=st.serverNow-Date.now();
   const m=me(st); if(m&&!m.bot&&m.auto!==autoOn) sendMsg({t:'autoplay',on:autoOn});
   if(st.phase==='claim'&&(!old||old.phase!=='claim'||old.run.length!==st.run.length||old.runSuit!==st.runSuit)) claimSeen=Date.now();
-  if(mode!=='table'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:10};
+  if(mode!=='table'&&st.phase==='ante'&&(!old||old.phase!=='ante')) draft={suits:[],total:(st.stake||10)};
   if(st.phase==='ante'&&st.dealAt&&(!old||old.dealAt!==st.dealAt)) dealSeen=Date.now()+(st.dealAt-st.serverNow);
   if(st.event&&st.event.at!==lastEvent){ if(old) showBanner(st); lastEvent=st.event.at; }
   try{ soundsFor(st,old); }catch(e){}
@@ -548,9 +548,13 @@ function settingsHTML(st){
   // non-host players get only their own options; table-wide settings are host-only (the server ignores them from non-hosts anyway)
   if(!st.host) return `<div class="panel small settings">${mine}</div>`;
   const tableHead=`<div class="muted" style="margin:12px 0 4px">For everyone at the table</div>`;
+  const pickD=(attr,val,cur,label,dis)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}${dis?';opacity:.35':''}"${dis?' disabled':''}>${label}</button>`;
+  const stakeRow=`<div class="srow"><span>Minimum bet</span><span>${[[0.1,'10¢'],[0.5,'50¢'],[1,'$1'],[5,'$5'],[10,'$10']].map(([v,l])=>pickD('stake',v,(st.stake??10)===v,l,v*2>(st.buyin??1000))).join(' ')}</span></div>`;
+  const buyinRow=`<div class="srow"><span>Buy-in · each stack</span><span>${[[5,'$5'],[25,'$25'],[100,'$100'],[500,'$500'],[1000,'$1000']].map(([v,l])=>pickD('buyin',v,(st.buyin??1000)===v,l,v<2*(st.stake??10))).join(' ')}</span></div>`;
+  const stakeNote=`<div class="muted" style="margin:2px 0 6px">Buy-in is each player's starting stack (changing it in the lobby resets everyone). Minimum bet is the smallest bet and the step — at most half the buy-in.</div>`;
   // mid-game: only the table settings the server honours during a live hand (the card timer + next-game). Spare hand, layout and game-switch change between games.
   if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings">${mine}${tableHead}${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them; Off never plays a card for anyone — good when you're all in the room together. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
-  return `<div class="panel small settings">${mine}${tableHead}
+  return `<div class="panel small settings">${mine}${tableHead}${buyinRow}${stakeRow}${stakeNote}
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   ${timerRow}
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
@@ -744,12 +748,12 @@ function handMain(st,embedded,bare){
   }
   if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${st.claimMs?fmtSec(st.claimMs/1000)+(st.claimMs>=60000?' min':' s'):'Off'}</p>`:''}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
-    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${m$(p.balance)}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
+    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${m$(p.balance)}, and the smallest bet needs $${m$(2*(S.stake||10))}. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $${m$(S.buyin||1000)}</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
   }
   else if(st.phase==='ante'){
     if(p.placed&&!draft.suits.length){ draft.suits=Object.keys(p.bets); draft.total=p.bet; }
-    const max=Math.max(10,Math.floor(p.balance/20)*10); const step=10; // v2.9.7: the stake steps in $10; adding kings SPLITS it (doesn't add more)
-    if(draft.total>max) draft.total=Math.max(step,Math.floor(max/step)*step); if(draft.total<step) draft.total=step; if(draft.total%step) draft.total=Math.ceil(draft.total/step)*step;
+    const u=S.stake||10, step=u, max=Math.max(u,Math.floor(p.balance/(2*u))*u); // v2.9.8: the stake steps in the table's minimum bet; adding kings SPLITS it
+    { const uC=Math.round(u*100), maxC=Math.floor(Math.round(max*100)/uC)*uC; let tC=Math.round(draft.total*100); if(tC>maxC) tC=maxC; if(tC<uC) tC=uC; if(tC%uC) tC=Math.ceil(tC/uC)*uC; draft.total=tC/100; }
     const bets=betsOf(draft), each=draft.suits.length?draft.total/draft.suits.length:0, dirty=!p.placed||!sameBets(bets,p.bets);
     const head=p.placed?(p.carried&&!dirty?'Same bet as last game':'Your bet is in'):'Your bet';
     const lead=bare /* v2.8.95: inlined under "Place your bets" — skip the duplicate heading, just a short instruction */
@@ -831,6 +835,8 @@ function bind(){
   if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'4 Kings, table '+room,text:'Join my 4 Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
   app.querySelectorAll('[data-timer]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',claimMs:+b.dataset.timer}));
+  app.querySelectorAll('[data-stake]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',stake:+b.dataset.stake}));
+  app.querySelectorAll('[data-buyin]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',buyin:+b.dataset.buyin}));
   if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});
   if(q('#clearboard')) q('#clearboard').onclick=()=>{ if(confirm('Reset the season scoreboard?')) sendMsg({t:'clearboard'}); };
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };
@@ -839,7 +845,7 @@ function bind(){
   if(q('#join')) q('#join').onclick=()=>{ nick=q('#nick').value.trim().slice(0,18)||'Player'; set('fk-nick',nick); sendMsg({t:'join',name:nick,auto:autoOn,emoji}); };
   if(q('#leave')) q('#leave').onclick=()=>sendMsg({t:'leave'});
   app.querySelectorAll('[data-king]').forEach(b=>b.onclick=()=>{ const s=b.dataset.king; if(draft.suits.includes(s)) draft.suits=draft.suits.filter(x=>x!==s); else if(draft.suits.length<4) draft.suits.push(s); render(); }); // v2.9.7: up to 4 kings, and picking more splits the same stake
-  app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ draft.total=Math.max(10,draft.total+(+b.dataset.bet)); render(); });
+  app.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{ const u=S.stake||10; draft.total=Math.max(u,Math.round((draft.total+(+b.dataset.bet))*100)/100); render(); });
   if(q('#place')) q('#place').onclick=()=>{ q('#place').disabled=true; if(sfxOn){ try{ coins(6,.35); }catch(e){} } sendMsg({t:'bet',bets:betsOf(draft)}); };
   if(q('#deal')) q('#deal').onclick=()=>sendMsg({t:'deal'});
   if(q('#keep')) q('#keep').onclick=()=>{ q('#keep').disabled=q('#swap').disabled=true; sfx.tap(); sendMsg({t:'swap',swap:false}); };

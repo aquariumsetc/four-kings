@@ -473,9 +473,9 @@ export default {
     if (url.pathname === "/ice") return iceServers(env);
     if (url.pathname === "/stopall") { const n = await env.TABLE.get(env.TABLE.idFromName("__rooms__")).stopAll(); return new Response("Stopped " + n + " room(s).", { headers: { "content-type": "text/plain" } }); }
     const reg = (code) => env.TABLE.get(env.TABLE.idFromName("__rooms__")).register(code).catch(() => {}); // remember active rooms so /stopall can clear them all
-    const u = url.pathname.match(/^\/uws\/([A-Za-z0-9]{3,8})$/);
+    const u = url.pathname.match(/^\/uws\/([A-Za-z0-9]{3,16})$/);
     if (u) { const code = u[1].toUpperCase(); await reg(code); return env.UNO.get(env.UNO.idFromName(code)).fetch(req); }
-    const m = url.pathname.match(/^\/ws\/([A-Za-z0-9]{3,8})$/);
+    const m = url.pathname.match(/^\/ws\/([A-Za-z0-9]{3,16})$/);
     if (m) {
       const code = m[1].toUpperCase(); await reg(code);
       const id = env.TABLE.idFromName(code);

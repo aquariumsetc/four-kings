@@ -225,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.95 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.97 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -532,12 +532,12 @@ function statusOf(st,p){
   return '';
 }
 function settingsHTML(st){
-  const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min']], on='background:var(--ivory);color:var(--ink);';
+  const opts=[[5000,'5 s'],[30000,'30 s'],[300000,'5 min'],[0,'Off']], on='background:var(--ivory);color:var(--ink);';
   const pick=(attr,val,cur,label)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}">${label}</button>`;
   const timerRow=`<div class="srow"><span>Time to play the next card</span><span>${opts.map(([v,l])=>pick('timer',v,st.claimMs===v,l)).join(' ')}</span></div>`;
   const nextRow=`<div class="srow"><span>Next game starts</span><span>${pick('autonext','1',st.autoNext!==false,'By itself')} ${pick('autonext','0',st.autoNext===false,'When someone taps')}</span></div>`;
   // mid-game: only the settings the server honours during a live hand (the card timer, which also sets how long a lead/claim waits before it's auto-played). Spare hand, layout and game-switch change between games.
-  if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
+  if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them; Off never plays a card for anyone — good when you're all in the room together. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
   return `<div class="panel small settings"><div class="muted" style="margin-bottom:4px">Table settings</div>
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   ${timerRow}
@@ -618,7 +618,7 @@ function tickAll(){
 }
 setInterval(tickAll,250);
 function fmtSec(n){ return n>=60?Math.floor(n/60)+':'+String(n%60).padStart(2,'0'):String(n); }
-function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim') return; const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left!==lastLeft){ lastLeft=left; if(left>=1&&left<=3) sfx.beep(left===1); } if(left>0) timer=setTimeout(tickCount,250); }
+function tickCount(){ const el=document.getElementById('count'); if(!el||!S||S.phase!=='claim'||!S.claimMs) return; /* claimMs 0 = Off: no countdown */ const left=Math.max(0,Math.ceil((claimSeen+(S.claimMs||CLAIM_MS)-Date.now())/1000)); el.textContent=fmtSec(left); if(left!==lastLeft){ lastLeft=left; if(left>=1&&left<=3) sfx.beep(left===1); } if(left>0) timer=setTimeout(tickCount,250); }
 function loungeHTML(st){
   // Game Night room: everyone on video first, then the host picks a game and the room moves into it
   const me=st.players.find(p=>p.id===pid), host=st.host, hostP=st.players[0], onVid=new Set((st.peers||[]).filter(p=>p.video).map(p=>p.name));
@@ -696,9 +696,11 @@ function tableHTML(st,handPanel,embedded){
       main=`<h2>${esc(pname(st,i))}: keep or swap?</h2><p class="muted">${st.swapIdx+1} of ${inN} asked, in turn. The spare hand goes to the first player who takes it.</p>`;
     }
   } else if(st.phase==='play'){
-    main=`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
+    const dup=embedded&&window.innerWidth<760; // v2.8.97: own-devices phone — "Your cards" below already shows the run + note, so don't repeat the big table pile here (it was pushing your hand off-screen)
+    main=`${dup?'':`<div class="pile">${pileHTML(st,false)}</div>${noteHTML(st)}`}<div class="call">${esc(pname(st,st.leader))}, your lowest ${st.colour||'card'}</div>`;
   } else if(st.phase==='claim'){
-    main=`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">${st.waitingOn>=0&&st.players[st.waitingOn]?`Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs({s:st.runSuit,r:st.nextRank})}`:`Who has the ${cs({s:st.runSuit,r:st.nextRank})}?`}</div><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`;
+    const dup=embedded&&window.innerWidth<760; // v2.8.97: own-devices phone — the run, note and countdown are all in "Your cards" below, so skip the duplicate table pile here
+    main=`${dup?'':`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}`}<div class="call">${st.waitingOn>=0&&st.players[st.waitingOn]?`Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs({s:st.runSuit,r:st.nextRank})}`:`Who has the ${cs({s:st.runSuit,r:st.nextRank})}?`}</div>${dup?'':(st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:`<div class="center small muted" style="margin-top:6px">No time limit — play when you're ready</div>`)}`;
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
@@ -721,7 +723,7 @@ function handMain(st,embedded,bare){
     else main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
     return main;
   }
-  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${fmtSec((st.claimMs||5000)/1000)}${st.claimMs>=60000?' min':' s'}</p>`:''}</div>`; }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${st.claimMs?fmtSec(st.claimMs/1000)+(st.claimMs>=60000?' min':' s'):'Off'}</p>`:''}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
     main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${p.balance}, and the smallest bet needs $20. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $1000</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
   }
@@ -768,7 +770,7 @@ function handMain(st,embedded,bare){
     const autoNote=p.auto&&have?`<p class="center small" style="color:var(--brass)">⚡ Auto-play is playing it for you…</p>`:'';
     const waitLine=(!have&&st.waitingOn>=0&&st.waitingOn!==i&&st.players[st.waitingOn])?`<p class="center small" style="color:var(--brass)">Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs(need)}</p>`:'';
     main=`${miniRun(st,true,need)}${noteHTML(st,'small')}${autoNote}${waitLine}
-      ${hints&&have&&!p.auto?`<button class="huge" id="claim">I've got the ${cs(need)}!</button><div class="count" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</div>`:`<p class="center">Got it? Tap the card in your hand. <span class="serif" id="count">${fmtSec((st.claimMs||CLAIM_MS)/1000)}</span></p>`}
+      ${hints&&have&&!p.auto?`<button class="huge" id="claim">I've got the ${cs(need)}!</button>${st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:''}`:`<p class="center">Got it? Tap the card in your hand.${st.claimMs?` <span class="serif" id="count">${fmtSec(st.claimMs/1000)}</span>`:''}</p>`}
       ${handView(hand,null,{need,hint:hints})}`;
   }
   else if(st.phase==='over'){

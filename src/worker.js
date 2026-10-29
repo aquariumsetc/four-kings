@@ -27,7 +27,7 @@ function fresh() {
     phase: "lobby", players: [], kings: { S: 0, H: 0, D: 0, C: 0 }, pot: 0, first: 0, game: 0,
     dead: [], spare: [], swapIdx: 0, swapAns: {}, leader: 0, colour: null, runSuit: null, run: [], nextRank: 0,
     calledAt: 0, turnAt: 0, swapEnd: 0, overAt: 0, note: "", winner: null, v: 0,
-    claimMs: CLAIM_MS, swapMode: "race", autoNext: false, ledger: {},
+    claimMs: 0, swapMode: "race", autoNext: false, ledger: {}, // v2.9.1: card timer Off by default — never auto-plays; a timer can be switched on per room in ⚙️
   };
 }
 function deck() {
@@ -164,15 +164,15 @@ function recordGame(st) {
 // ---------- deadlines: everything the table waits for has a time limit ----------
 function deadlines(st) {
   const d = {};
-  if (st.phase === "claim") d.claimBy = st.calledAt + (holderOf(st, st.runSuit, st.nextRank) >= 0 ? st.claimMs || CLAIM_MS : DEAD_STOP_MS);
+  if (st.phase === "claim") { const holder = holderOf(st, st.runSuit, st.nextRank); if (holder < 0) d.claimBy = st.calledAt + DEAD_STOP_MS; else if (st.claimMs) d.claimBy = st.calledAt + st.claimMs; } // claimMs 0 = Off: a real holder gets unlimited time; a card nobody holds still dead-stops the run
   if (st.phase === "ante" && st.dealAt) d.dealBy = st.dealAt;
   if (st.phase === "swap") {
-    if (st.swapMode === "turn") { const t = st.players[swapTurn(st)]; if (t && !t.bot) d.swapBy = st.turnAt + idleMs(st); }
+    if (st.swapMode === "turn") { const t = st.players[swapTurn(st)]; if (t && !t.bot && st.claimMs) d.swapBy = st.turnAt + idleMs(st); } // claimMs 0 = Off: wait for the human
     else d.swapBy = st.swapEnd;
   }
   if (st.phase === "play") {
     const p = st.players[st.leader];
-    if (p && p.in && !p.bot) d.leadBy = st.turnAt + (leadOptions(st, st.leader).length === 1 ? AUTO_LEAD_MS : idleMs(st));
+    if (p && p.in && !p.bot && st.claimMs) d.leadBy = st.turnAt + (leadOptions(st, st.leader).length === 1 ? AUTO_LEAD_MS : idleMs(st)); // claimMs 0 = Off: wait for the human
   }
   if (st.phase === "over" && st.autoNext !== false && st.overAt) d.nextBy = st.overAt + NEXT_MS;
   return d;
@@ -343,7 +343,7 @@ export class Table extends DurableObject {
       case "clearboard": if (isHost) { st.ledger = {}; changed = true; } break;
       case "settings": {
         if (!isHost) break;
-        if ([5000, 30000, 300000].includes(Number(m.claimMs))) { st.claimMs = Number(m.claimMs); changed = true; }
+        if ([0, 5000, 30000, 300000].includes(Number(m.claimMs))) { st.claimMs = Number(m.claimMs); changed = true; } // 0 = Off (no auto-play)
         if (["race", "turn"].includes(m.swapMode) && st.phase !== "swap") { st.swapMode = m.swapMode; changed = true; }
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); changed = true; }
         if (["table", "phones"].includes(m.layout)) { st.layout = m.layout; changed = true; }
@@ -432,14 +432,14 @@ export class Table extends DurableObject {
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined, swapAns: undefined, botAt: undefined,
       swapTurn: st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : null,
-      // who the table is waiting on right now — the claim holder is hidden info the client can't compute, so the server tells it (so everyone can see who it's stuck on)
-      waitingOn: st.phase === "claim" ? holderOf(st, st.runSuit, st.nextRank) : st.phase === "play" ? st.leader : st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : -1,
+      // who the table is waiting on right now. v2.9.1: during a claim we DON'T reveal the holder (-1) — you have to spot the needed card in your own hand; no "waiting on you" / highlight. The server still tracks the real holder internally (holderOf) for bots and the timer.
+      waitingOn: st.phase === "play" ? st.leader : st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : -1,
       players: st.players.map((p) => ({
         id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, auto: !!p.auto, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, carried: !!p.carried,
         broke: broke(p), in: !!p.in, rebuys: p.rebuys || 0, kept: !!(st.swapAns || {})[p.id],
         cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined,
       })),
-      canDeal: canDeal(st), claimMs: st.claimMs || CLAIM_MS, ledger: st.ledger || {}, you: pid, sid, peers,
+      canDeal: canDeal(st), claimMs: st.claimMs ?? CLAIM_MS, ledger: st.ledger || {}, you: pid, sid, peers,
       host: role === "table" || !!creator || (!tablePresent && st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       // claim deadline is deliberately not sent; the others are public anyway
       swapBy: d.swapBy || 0, nextBy: d.nextBy || 0,

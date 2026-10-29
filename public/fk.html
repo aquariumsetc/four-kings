@@ -68,6 +68,30 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 /* table + your cards on one screen: cards right under the table, side panel after (phones) or alongside (wide) */
 .tgrid.withhand{grid-template-areas:"round side" "hand side"}.tgrid.withhand>.tl-round{grid-area:round}.tgrid.withhand>.tl-side{grid-area:side}.tgrid.withhand>.tl-hand{grid-area:hand}
 @media (max-width:760px){.tgrid.withhand{grid-template-areas:"round" "hand" "side"}}
+/* v2.8.93: fit a 4 Kings game on a phone (the own-devices "table" layout) — compact the kings, pile, run and hand so the whole play area fits on one iPhone screen without scrolling, matching the Ultium UNO compacting. Standings & settings stay below, as in UNO. Desktop/iPad (>760px) is unchanged. */
+@media (max-width:760px){
+  .app.table .kings{padding:7px 7px 6px;gap:4px}
+  .app.table .spot .k{max-width:46px;font-size:1rem;border-radius:5px}
+  .app.table .coins{font-size:.82rem;margin-top:2px}
+  .app.table .pot .n{font-size:1.5rem}.app.table .pot .l{font-size:.7rem}
+  .app.table .pile{height:132px;margin:7px 0}
+  .app.table .pile .card.lg{width:56px;height:78px;font-size:1.45rem;border-radius:7px}.app.table .pile .card.lg small{font-size:1rem}
+  .app.table .pile .card{margin:-39px 0 0 -28px}
+  .app.table .pile .wait{padding-top:40px!important}
+  .app.table .call{display:none}
+  .app.table .leadcall{font-size:1.15rem;margin:.2rem 0}
+  .app.table .fkava{width:40px;height:40px;font-size:1.05rem}
+  .app.table .fkchip .fknm{font-size:.72rem}.app.table .fkchip .fkbal{font-size:.66rem}
+  .app.table .hand{gap:4px;margin:.4rem 0}
+  .app.table .hand .card{width:35px;height:48px;font-size:1rem}
+  .app.table .suitrow{min-height:46px}
+  .app.table .suitrow .tag{font-size:1.1rem}
+  .app.table .tl-hand .panel{padding:9px}
+  .app.table button.huge{padding:1rem;font-size:1.2rem;margin-top:.5rem}
+  .app.table .kbtns button{padding:.55rem 0;font-size:1.3rem}
+  .app.table .tl-round h2{font-size:1.3rem;margin:.3rem 0}
+  .app.table .tl-round>.muted{font-size:.82rem}
+}
 .pile{position:relative;height:280px;background:rgba(0,0,0,.18);border-radius:20px;margin:12px 0;overflow:hidden}
 .pile .card{position:absolute;left:50%;top:50%;margin:-58px 0 0 -42px}
 .pile .card.who::after{content:attr(data-who);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font:600 .72rem -apple-system,"Segoe UI",sans-serif;color:var(--fg);background:rgba(0,0,0,.45);padding:2px 6px;border-radius:6px;white-space:nowrap}
@@ -200,7 +224,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.92 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.93 · 28 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};

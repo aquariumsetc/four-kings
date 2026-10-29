@@ -225,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.2 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.3 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -701,7 +701,7 @@ function tableHTML(st,handPanel,embedded){
     const foot=st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${waiting.length?` · ${waiting.map(p=>esc(p.name)).join(', ')} will sit out if not ready`:' — last chance to change your bet'}</p>`:`<p class="center small muted">${st.players.filter(p=>p.placed).length<2?'Waiting for at least two players to bet…':''}</p>`;
     const dealBtn=host&&st.canDeal?`<button class="big" id="deal">Deal the cards now${waiting.length?` <span class="small" style="font-weight:400">(${waiting.map(p=>esc(p.name)).join(', ')} sit${waiting.length>1?'':'s'} out)</span>`:''}</button>`:'';
     if(embedded){ // v2.8.95: own-devices phone — your suit buttons + stake sit right under "Place your bets"; who's-betting status goes below them (no confusing "Your cards" box)
-      main=`<h2>Place your bets</h2>${handMain(st,true,true)}<div class="betafter">${roster}${foot}${dealBtn}</div>`;
+      main=`<h2 class="bethead">First place a bet on a king, choose two if you want to split bet.</h2>${handMain(st,true,true)}<div class="betafter">${roster}${foot}${dealBtn}</div>`;
     } else { // iPad table: heading + roster only — each phone shows its own controls
       main=`<h2>Place your bets</h2><p class="muted">Pick one or two kings and a stake on your phone. Last game's bet is kept unless you change it.</p>${roster}${foot}${dealBtn}`;
     }
@@ -752,7 +752,7 @@ function handMain(st,embedded,bare){
     const bets=betsOf(draft), each=draft.suits.length?draft.total/draft.suits.length:0, dirty=!p.placed||!sameBets(bets,p.bets);
     const head=p.placed?(p.carried&&!dirty?'Same bet as last game':'Your bet is in'):'Your bet';
     const lead=bare /* v2.8.95: inlined under "Place your bets" — skip the duplicate heading, just a short instruction */
-      ?`<p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'Change it until the cards are dealt.'):'First place a bet on a king, choose two if you want to split the bet.'}</p>`
+      ?`<p class="muted small">You have $${p.balance}.${p.placed?(p.carried&&!dirty?' Nothing to do unless you want to change it.':' Change it until the cards are dealt.'):''}</p>`
       :`<h2>${head}</h2><p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'First place a bet on a king, choose two if you want to split the bet.'}</p>`;
     main=`${lead}
       <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.suits.includes(s)?'on':''}" data-king="${s}">${SYM[s]}${draft.suits.includes(s)?`<div class="small" style="font-family:-apple-system,sans-serif;font-weight:600">$${each}</div>`:''}</button>`).join('')}</div>

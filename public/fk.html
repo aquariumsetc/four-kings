@@ -225,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.1 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.2 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -752,8 +752,8 @@ function handMain(st,embedded,bare){
     const bets=betsOf(draft), each=draft.suits.length?draft.total/draft.suits.length:0, dirty=!p.placed||!sameBets(bets,p.bets);
     const head=p.placed?(p.carried&&!dirty?'Same bet as last game':'Your bet is in'):'Your bet';
     const lead=bare /* v2.8.95: inlined under "Place your bets" — skip the duplicate heading, just a short instruction */
-      ?`<p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'Change it until the cards are dealt.'):'Tap a king (or two to split the stake); the same again goes in the centre.'}</p>`
-      :`<h2>${head}</h2><p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'Tap a king, or two kings to split the stake; the same again goes in the centre.'}</p>`;
+      ?`<p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'Change it until the cards are dealt.'):'First place a bet on a king, choose two if you want to split the bet.'}</p>`
+      :`<h2>${head}</h2><p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'First place a bet on a king, choose two if you want to split the bet.'}</p>`;
     main=`${lead}
       <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.suits.includes(s)?'on':''}" data-king="${s}">${SYM[s]}${draft.suits.includes(s)?`<div class="small" style="font-family:-apple-system,sans-serif;font-weight:600">$${each}</div>`:''}</button>`).join('')}</div>
       <div class="row" style="margin-top:10px"><button class="ghost" data-bet="-${step}" style="flex:0 0 56px">−</button><div class="center"><span class="serif" style="font-size:1.8rem">$${draft.total}</span><div class="small muted">${draft.suits.length?betsText(bets):'on a king'} + $${draft.total} centre</div></div><button class="ghost" data-bet="${step}" style="flex:0 0 56px">+</button></div>

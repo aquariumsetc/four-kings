@@ -20,6 +20,7 @@ const SWAP_RACE_MS = 12000;    // fastest-finger swap window
 const NEXT_MS = 15000;         // game over: next game starts after this (if auto-next is on)
 const EMPTY_GRACE = 45000;      // v2.8.54: all humans gone this long -> reset the game to the room lounge (keep settings + season scores)
 const MIN_BET = 10, START_BAL = 1000;
+let curStake = MIN_BET; // v2.9.8: the active table's minimum-bet unit; one value per room, set at each entry point (DO is single-threaded)
 const rname = (r) => RN[r] || String(r);
 
 function fresh() {
@@ -27,7 +28,7 @@ function fresh() {
     phase: "lobby", players: [], kings: { S: 0, H: 0, D: 0, C: 0 }, pot: 0, first: 0, game: 0,
     dead: [], spare: [], swapIdx: 0, swapAns: {}, leader: 0, colour: null, runSuit: null, run: [], nextRank: 0,
     calledAt: 0, turnAt: 0, swapEnd: 0, overAt: 0, note: "", winner: null, v: 0,
-    claimMs: 0, swapMode: "race", autoNext: false, ledger: {}, // v2.9.1: card timer Off by default — never auto-plays; a timer can be switched on per room in ⚙️
+    claimMs: 0, swapMode: "race", autoNext: false, ledger: {}, stake: MIN_BET, buyin: START_BAL, // v2.9.1: card timer Off by default — never auto-plays; a timer can be switched on per room in ⚙️
   };
 }
 function deck() {
@@ -40,35 +41,32 @@ const sortHand = (h) => h.sort((a, b) => SUITS.indexOf(a.s) - SUITS.indexOf(b.s)
 const pidx = (st, id) => st.players.findIndex((p) => p.id === id);
 const betTotal = (p) => Math.round(Object.values(p.bets || {}).reduce((a, b) => a + b, 0) * 100) / 100;
 const money = (x) => { x = Math.round(x * 100) / 100; return x % 1 === 0 ? "" + x : x.toFixed(2); }; // v2.9.7: show cents for split bets
-const broke = (p) => p.balance < 2 * MIN_BET;
+const broke = (p) => p.balance < 2 * curStake;
 const idleMs = (st) => Math.max(IDLE_MIN_MS, st.claimMs || CLAIM_MS);
 // players dealt into this game, in turn order starting from the first player
 const inOrder = (st) => { const n = st.players.length, out = []; for (let k = 0; k < n; k++) { const i = (st.first + k) % n; if (st.players[i].in) out.push(i); } return out; };
 const swapTurn = (st) => inOrder(st)[st.swapIdx];
 const holderOf = (st, s, r) => st.players.findIndex((p) => p.in && p.hand.some((c) => c.s === s && c.r === r));
 
-// bets: { S: 5, H: 5 } — 1–4 kings, the $10 stake SPLIT across them, matched in the centre
+// bets: { S: 5, H: 5 } — 1–4 kings, the stake SPLIT across them, matched in the centre
 function cleanBets(raw, balance) {
   if (!raw || typeof raw !== "object") return null;
-  const keys = SUITS.filter((s) => Number(raw[s] || 0) > 0); // v2.9.7: 1–4 kings; the stake is split across them, not added per king
+  const keys = SUITS.filter((s) => Number(raw[s] || 0) > 0); // 1–4 kings; the stake is split across them, not added per king
   const n = keys.length; if (n < 1 || n > 4) return null;
   const sum = keys.reduce((a, s) => a + Number(raw[s] || 0), 0);
-  let total = Math.round(sum / 10) * 10;                      // the total stake is always a whole $10
-  const max = Math.floor(balance / 2 / 10) * 10;
-  if (total > max) total = max;
-  if (total < MIN_BET) return null;                           // can't afford the minimum $10 stake (matched $10 in the centre)
-  const cents = total * 100, base = Math.floor(cents / n); let rem = cents - base * n;
+  const uC = Math.max(1, Math.round(curStake * 100));         // v2.9.8: the minimum-bet unit, in cents (configurable)
+  let totalC = Math.round((sum * 100) / uC) * uC;             // snap the total to a whole unit
+  const maxC = Math.floor((balance * 100) / 2 / uC) * uC;     // can't stake more than half the balance
+  if (totalC > maxC) totalC = maxC;
+  if (totalC < uC) return null;                               // below one minimum bet (+ its match in the centre)
+  const base = Math.floor(totalC / n); let rem = totalC - base * n;
   const bets = {}; keys.forEach((s) => { bets[s] = (base + (rem > 0 ? 1 : 0)) / 100; if (rem > 0) rem--; });
   return bets;
 }
 // last game's bet, trimmed to what the player can still afford
 function carryBets(p) {
-  const prev = p.bets || {}, keys = Object.keys(prev); if (!keys.length || broke(p)) return null;
-  let total = betTotal({ bets: prev });
-  const max = Math.floor(p.balance / 2 / 10) * 10;
-  if (total > max) total = max;
-  if (total < MIN_BET) return null;
-  const o = {}; keys.forEach((k) => (o[k] = total / keys.length)); return cleanBets(o, p.balance);
+  if (broke(p)) return null; // v2.9.8: re-clean last game's bet to the current stake/affordability
+  return cleanBets(p.bets || {}, p.balance);
 }
 const placedCount = (st) => st.players.filter((p) => p.placed).length;
 const canDeal = (st) => placedCount(st) >= 2;
@@ -207,10 +205,10 @@ function botDelay(st) {
 function botAct(st, i) {
   const p = st.players[i];
   if (st.phase === "ante") {
-    const max = Math.max(10, Math.floor(p.balance / 20) * 10);
-    const stake = Math.min(max, [10, 10, 20, 30, 40][rnd(0, 4)]);
+    const u = curStake, max = Math.max(u, Math.floor(p.balance / 2 / u) * u); // v2.9.8: bots bet in multiples of the table's min bet
+    const stake = Math.min(max, u * [1, 1, 2, 3, 4][rnd(0, 4)]);
     const a = SUITS[rnd(0, 3)]; let b = SUITS[rnd(0, 3)];
-    if (stake >= 20 && b !== a && Math.random() < 0.35) p.bets = { [a]: stake / 2, [b]: stake / 2 }; else p.bets = { [a]: stake };
+    if (stake >= 2 * u && b !== a && Math.random() < 0.35) p.bets = { [a]: stake / 2, [b]: stake / 2 }; else p.bets = { [a]: stake };
     p.placed = true; updateDealAt(st);
   } else if (st.phase === "swap") {
     const h = p.hand, queens = h.filter((c) => c.r === 12).length, high = h.filter((c) => c.r >= 9).length;
@@ -230,7 +228,7 @@ export class Table extends DurableObject {
     ctx.blockConcurrencyWhile(async () => {
       const st = (await ctx.storage.get("state")) || fresh();
       // tables created before a field existed
-      st.claimMs ??= CLAIM_MS; st.swapMode ??= "race"; st.autoNext ??= true; st.ledger ??= {}; st.swapAns ??= {};
+      st.claimMs ??= CLAIM_MS; st.swapMode ??= "race"; st.autoNext ??= true; st.ledger ??= {}; st.swapAns ??= {}; st.stake ??= MIN_BET; st.buyin ??= START_BAL;
       if (st.phase !== "lobby" && st.phase !== "ante") st.players.forEach((p) => { p.in ??= true; });
       this.S = st;
     });
@@ -258,7 +256,7 @@ export class Table extends DurableObject {
     let m; try { m = JSON.parse(raw); } catch { return; }
     const att = ws.deserializeAttachment() || {};
     const { pid, role } = att;
-    const st = this.S;
+    const st = this.S; curStake = (this.S && this.S.stake) || MIN_BET;
     // --- video signalling: relayed between sockets, never touches game state ---
     if (m.t === "video") { att.video = !!m.on; ws.serializeAttachment(att); this.broadcast(); return; }
     if (m.t === "photo") { const photo = (typeof m.photo === "string" && m.photo.length <= 60000 && m.photo.startsWith("data:image/")) ? m.photo : ""; if (photo) await this.ctx.storage.put("photo:" + att.pid, photo); else await this.ctx.storage.delete("photo:" + att.pid); const msg = JSON.stringify({ t: "photo", pid: att.pid, photo }); for (const w of this.ctx.getWebSockets()) { if (w.readyState === 1) try { w.send(msg); } catch {} } return; }
@@ -284,7 +282,7 @@ export class Table extends DurableObject {
         if (me) { me.name = name; me.emoji = emoji; changed = true; break; }
         if (st.players.length >= 8) { err = "The table is full."; break; }
         // joining mid-game: you're seated now and dealt in at the next game
-        st.players.push({ id: pid, name, emoji, balance: START_BAL, bets: {}, placed: false, hand: [], startBal: START_BAL, auto: !!m.auto, in: false });
+        st.players.push({ id: pid, name, emoji, balance: (st.buyin || START_BAL), bets: {}, placed: false, hand: [], startBal: (st.buyin || START_BAL), auto: !!m.auto, in: false });
         if (st.phase === "ante") { if (st.dealAt) st.dealAt = Math.max(st.dealAt, Date.now() + JOIN_GRACE_MS); updateDealAt(st); }
         changed = true; break;
       }
@@ -299,7 +297,7 @@ export class Table extends DurableObject {
       case "addbot": {
         if (!isHost || !between || st.players.length >= 8) break;
         const used = new Set(st.players.map((p) => p.name)); const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${st.players.length + 1}`;
-        st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name, bot: true, balance: START_BAL, bets: {}, placed: false, hand: [] }); changed = true; break;
+        st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name, bot: true, balance: (st.buyin || START_BAL), bets: {}, placed: false, hand: [] }); changed = true; break;
       }
       case "removebot": {
         if (!isHost || !between) break;
@@ -308,10 +306,10 @@ export class Table extends DurableObject {
       case "start": if (isHost && st.phase === "lobby" && st.players.length >= 2) { this.beginAnte(st); changed = true; } break;
       // anyone at the table can move on to the next game
       case "next": if ((me || role === "table") && st.phase === "over") { this.beginAnte(st); changed = true; } break;
-      case "reset": if (isHost) { this.S = fresh(); Object.assign(this.S, { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext }); await this.ctx.storage.deleteAlarm(); changed = true; } break;
+      case "reset": if (isHost) { this.S = fresh(); Object.assign(this.S, { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, stake: st.stake, buyin: st.buyin }); await this.ctx.storage.deleteAlarm(); changed = true; } break;
       case "rebuy": {
         if (!me || !broke(me) || !(between || st.phase === "ante")) break;
-        me.balance += START_BAL; me.rebuys = (me.rebuys || 0) + 1; if (st.phase === "ante") me.startBal = (me.startBal ?? 0) + START_BAL;
+        me.balance += (st.buyin || START_BAL); me.rebuys = (me.rebuys || 0) + 1; if (st.phase === "ante") me.startBal = (me.startBal ?? 0) + (st.buyin || START_BAL);
         if (st.phase === "ante") { if (st.dealAt) st.dealAt = Math.max(st.dealAt, Date.now() + JOIN_GRACE_MS); updateDealAt(st); }
         changed = true; break;
       }
@@ -354,6 +352,8 @@ export class Table extends DurableObject {
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); changed = true; }
         if (["table", "phones"].includes(m.layout)) { st.layout = m.layout; changed = true; }
         if (typeof m.lounge === "boolean" && st.phase === "lobby") { st.lounge = m.lounge; changed = true; } // Game Night room: video chat before a game is picked
+        if ([0.1, 0.5, 1, 5, 10].includes(Number(m.stake)) && Number(m.stake) * 2 <= (st.buyin ?? START_BAL)) { st.stake = Number(m.stake); curStake = st.stake; changed = true; } // v2.9.8: minimum bet (10¢–$10); must be ≤ half the buy-in
+        if ([5, 25, 100, 500, 1000].includes(Number(m.buyin)) && Number(m.buyin) >= 2 * (st.stake ?? MIN_BET)) { st.buyin = Number(m.buyin); if (st.phase === "lobby") st.players.forEach((p) => { p.balance = st.buyin; p.startBal = st.buyin; }); changed = true; } // v2.9.8: buy-in / starting stack; in the lobby it resets everyone's stack
         break;
       }
     }
@@ -381,10 +381,10 @@ export class Table extends DurableObject {
   async stopAll() { const r = (await this.ctx.storage.get("rooms")) || []; let n = 0; for (const code of r) { try { await this.env.TABLE.get(this.env.TABLE.idFromName(code)).stop(); n++; } catch (e) {} try { await this.env.UNO.get(this.env.UNO.idFromName(code)).stop(); } catch (e) {} } await this.ctx.storage.put("rooms", []); return n; }
 
   async alarm() {
-    const st = this.S;
+    const st = this.S; curStake = (this.S && this.S.stake) || MIN_BET;
     if (st.emptyAt) {
       if (this.ctx.getWebSockets().some((w) => w.readyState === 1)) { delete st.emptyAt; await this.commit(); return; }
-      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, ledger: st.ledger }); this.S.lounge = true; await this.commit(); return; }
+      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, ledger: st.ledger, stake: st.stake, buyin: st.buyin }); this.S.lounge = true; await this.commit(); return; }
     }
     const now = Date.now(), d = deadlines(st), due = (t) => t && now >= t - 50; let changed = false;
     if (due(d.claimBy)) { stopRun(st); changed = true; }
@@ -415,7 +415,7 @@ export class Table extends DurableObject {
     st.game++; st.phase = "ante"; st.run = []; st.note = ""; st.winner = null; st.dead = []; st.spare = []; st.dealAt = 0; st.overAt = 0;
     let carried = 0;
     st.players.forEach((p) => {
-      if (p.bot && broke(p)) { p.balance += START_BAL; p.rebuys = (p.rebuys || 0) + 1; }
+      if (p.bot && broke(p)) { p.balance += (st.buyin || START_BAL); p.rebuys = (p.rebuys || 0) + 1; }
       p.hand = []; p.gq = 0; p.startBal = p.balance; p.in = false;
       const keep = p.bot ? null : carryBets(p);
       if (keep) { p.bets = keep; p.placed = true; p.carried = true; carried++; } else { p.bets = p.bot ? {} : p.bets || {}; p.placed = false; p.carried = false; }
@@ -433,7 +433,7 @@ export class Table extends DurableObject {
   // Each socket gets only what it may see: its own hand, everyone else's card count.
   send(ws) {
     const { pid, role, sid, creator } = ws.deserializeAttachment() || {};
-    const st = this.S, d = deadlines(st); const tablePresent = this.tablePresent();
+    const st = this.S, d = deadlines(st); const tablePresent = this.tablePresent(); curStake = (st && st.stake) || MIN_BET;
     const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, pid: a.pid, role: a.role, video: !!a.video, ios: !!a.ios, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, dead: undefined, spareCount: st.spare.length, spare: undefined, swapAns: undefined, botAt: undefined,
@@ -445,7 +445,7 @@ export class Table extends DurableObject {
         broke: broke(p), in: !!p.in, rebuys: p.rebuys || 0, kept: !!(st.swapAns || {})[p.id],
         cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined,
       })),
-      canDeal: canDeal(st), claimMs: st.claimMs ?? CLAIM_MS, ledger: st.ledger || {}, you: pid, sid, peers,
+      canDeal: canDeal(st), claimMs: st.claimMs ?? CLAIM_MS, stake: st.stake ?? MIN_BET, buyin: st.buyin ?? START_BAL, ledger: st.ledger || {}, you: pid, sid, peers,
       host: role === "table" || !!creator || (!tablePresent && st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       // claim deadline is deliberately not sent; the others are public anyway
       swapBy: d.swapBy || 0, nextBy: d.nextBy || 0,

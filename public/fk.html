@@ -68,6 +68,7 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 /* table + your cards on one screen: cards right under the table, side panel after (phones) or alongside (wide) */
 .tgrid.withhand{grid-template-areas:"round side" "hand side"}.tgrid.withhand>.tl-round{grid-area:round}.tgrid.withhand>.tl-side{grid-area:side}.tgrid.withhand>.tl-hand{grid-area:hand}
 @media (max-width:760px){.tgrid.withhand{grid-template-areas:"round" "hand" "side"}}
+.betafter{margin-top:1.1rem} /* v2.8.95: who's-betting status sits a little below your inlined controls */
 /* v2.8.93: fit a 4 Kings game on a phone (the own-devices "table" layout) — compact the kings, pile, run and hand so the whole play area fits on one iPhone screen without scrolling, matching the Ultium UNO compacting. Standings & settings stay below, as in UNO. Desktop/iPad (>760px) is unchanged. */
 @media (max-width:760px){
   .app.table .kings{padding:7px 7px 6px;gap:4px}
@@ -224,7 +225,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.93 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.95 · 29 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -566,7 +567,8 @@ function render(){
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const fkStripOn=['ante','swap','play','claim'].includes(S.phase)&&S.players.length>=2; // the avatar strip shows during a live game on every device (table, own-devices phones, hand devices)
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(fkStripOn?' fkstripon':''); // own-devices game: players get the wide table layout too
-  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+(S.host?`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Table settings ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
+  const fkHandPanel=withTable&&S.phase!=='ante'?`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`:''; /* v2.8.95: during betting your controls go inline under "Place your bets" (see tableHTML) — no "Your cards" box (you have no cards yet, and it buried the suit buttons) */
+  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,fkHandPanel,true):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+(S.host?`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Table settings ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>`:'')+`<p class="center small muted" style="margin-top:1.5rem">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as a hand instead':mode==='both'?'table only':'use as the table instead'}</button>${mode!=='both'?` · <button class="ghost small" id="both">table + my hand</button>`:''} · <button class="ghost small" id="leaveRoom">change table</button></p><p class="center small muted">Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> · <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button> · <button class="ghost small" id="musicbtn">${musicOn?'🎵':'🔇'} music: ${musicOn?'on':'off'}</button>${IOS&&(sfxOn||winOn||musicOn)?` <span class="muted" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${hints?'on':'off'}</button> · <button class="ghost small" id="autoplay">auto-play my cards: ${autoOn?'on':'off'}</button> · <button class="ghost small" id="howtobtn">How to play</button>`:''}</p><p class="center small muted" style="opacity:.6">Game Night ${VERSION}</p>`;
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();
@@ -665,7 +667,7 @@ function nextHTML(st,small){
   return `${st.nextBy?`<p class="center small muted" style="margin:.6rem 0 0">Next game in <span data-until="${local(st.nextBy)}">${Math.ceil((st.nextBy-st.serverNow)/1000)}</span> s</p>`:''}${btn}`;
 }
 /* --- table (iPad) --- */
-function tableHTML(st,handPanel){
+function tableHTML(st,handPanel,embedded){
   let main=''; const host=st.host;
   const link=location.origin+location.pathname+'?room='+room+'&mode=hand';
   if(st.phase==='lobby'){
@@ -677,10 +679,14 @@ function tableHTML(st,handPanel){
     ${invite}`;
   } else if(st.phase==='ante'){
     const waiting=st.players.filter(p=>!p.placed&&!p.broke), brokeP=st.players.filter(p=>p.broke&&!p.placed);
-    main=`<h2>Place your bets</h2><p class="muted">Pick one or two kings and a stake on your phone. Last game's bet is kept unless you change it.</p>
-    <div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} <span class="muted small">${p.placed?betsText(p.bets)+(p.carried?' · same as last game':''):p.broke?'out of money: can rebuy on their phone':'deciding…'}</span></div>`).join('')}</div>
-    ${st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${waiting.length?` · ${waiting.map(p=>esc(p.name)).join(', ')} will sit out if not ready`:' — last chance to change your bet'}</p>`:`<p class="center small muted">${st.players.filter(p=>p.placed).length<2?'Waiting for at least two players to bet…':''}</p>`}
-    ${host&&st.canDeal?`<button class="big" id="deal">Deal the cards now${waiting.length?` <span class="small" style="font-weight:400">(${waiting.map(p=>esc(p.name)).join(', ')} sit${waiting.length>1?'':'s'} out)</span>`:''}</button>`:''}`;
+    const roster=`<div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} <span class="muted small">${p.placed?betsText(p.bets)+(p.carried?' · same as last game':''):p.broke?'out of money: can rebuy on their phone':'deciding…'}</span></div>`).join('')}</div>`;
+    const foot=st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${waiting.length?` · ${waiting.map(p=>esc(p.name)).join(', ')} will sit out if not ready`:' — last chance to change your bet'}</p>`:`<p class="center small muted">${st.players.filter(p=>p.placed).length<2?'Waiting for at least two players to bet…':''}</p>`;
+    const dealBtn=host&&st.canDeal?`<button class="big" id="deal">Deal the cards now${waiting.length?` <span class="small" style="font-weight:400">(${waiting.map(p=>esc(p.name)).join(', ')} sit${waiting.length>1?'':'s'} out)</span>`:''}</button>`:'';
+    if(embedded){ // v2.8.95: own-devices phone — your suit buttons + stake sit right under "Place your bets"; who's-betting status goes below them (no confusing "Your cards" box)
+      main=`<h2>Place your bets</h2>${handMain(st,true,true)}<div class="betafter">${roster}${foot}${dealBtn}</div>`;
+    } else { // iPad table: heading + roster only — each phone shows its own controls
+      main=`<h2>Place your bets</h2><p class="muted">Pick one or two kings and a stake on your phone. Last game's bet is kept unless you change it.</p>${roster}${foot}${dealBtn}`;
+    }
   } else if(st.phase==='swap'){
     if(swapRace(st)){
       main=`<h2>Keep or swap?</h2><p class="muted">Everyone check your cards. The first to tap <b>Swap</b> gets the spare hand.</p><div class="count" data-until="${local(st.swapBy)}">${Math.ceil((st.swapBy-st.serverNow)/1000)}</div>
@@ -707,7 +713,7 @@ function pileHTML(st,live){
 }
 /* --- hand (phone) --- */
 function handHTML(st){ return kingsHTML(st)+handMain(st)+scoresHTML(st)+((st.phase==='lobby'||st.phase==='over')?boardHTML(st,st.host):''); }
-function handMain(st,embedded){
+function handMain(st,embedded,bare){
   const i=pidx(st,pid); const p=i>=0?st.players[i]:null; const hand=p&&p.hand?p.hand:[];
   let main='';
   if(!p){
@@ -725,11 +731,14 @@ function handMain(st,embedded){
     if(draft.total>max) draft.total=Math.max(step,Math.floor(max/step)*step); if(draft.total<step) draft.total=step; if(draft.total%step) draft.total=Math.ceil(draft.total/step)*step;
     const bets=betsOf(draft), each=draft.suits.length?draft.total/draft.suits.length:0, dirty=!p.placed||!sameBets(bets,p.bets);
     const head=p.placed?(p.carried&&!dirty?'Same bet as last game':'Your bet is in'):'Your bet';
-    main=`<h2>${head}</h2><p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'Tap a king, or two kings to split the stake; the same again goes in the centre.'}</p>
+    const lead=bare /* v2.8.95: inlined under "Place your bets" — skip the duplicate heading, just a short instruction */
+      ?`<p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'Change it until the cards are dealt.'):'Tap a king (or two to split the stake); the same again goes in the centre.'}</p>`
+      :`<h2>${head}</h2><p class="muted small">You have $${p.balance}. ${p.placed?(p.carried&&!dirty?'Nothing to do unless you want to change it.':'You can change it until the cards are dealt.'):'Tap a king, or two kings to split the stake; the same again goes in the centre.'}</p>`;
+    main=`${lead}
       <div class="kbtns">${SUITS.map(s=>`<button class="${RED[s]?'red':''} ${draft.suits.includes(s)?'on':''}" data-king="${s}">${SYM[s]}${draft.suits.includes(s)?`<div class="small" style="font-family:-apple-system,sans-serif;font-weight:600">$${each}</div>`:''}</button>`).join('')}</div>
       <div class="row" style="margin-top:10px"><button class="ghost" data-bet="-${step}" style="flex:0 0 56px">−</button><div class="center"><span class="serif" style="font-size:1.8rem">$${draft.total}</span><div class="small muted">${draft.suits.length?betsText(bets):'on a king'} + $${draft.total} centre</div></div><button class="ghost" data-bet="${step}" style="flex:0 0 56px">+</button></div>
       <button class="big" id="place" ${draft.suits.length&&dirty&&p.balance>=2*draft.total?'':'disabled'}>${p.placed?(dirty?'Change my bet':'✓ Bet placed'):'Place bet'}</button>
-      ${st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${p.placed?'':' · bet now or you\'ll sit this one out'}</p>`:'<p class="center small muted">Waiting for everyone to bet…</p>'}
+      ${bare?'':st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${p.placed?'':' · bet now or you\'ll sit this one out'}</p>`:'<p class="center small muted">Waiting for everyone to bet…</p>'}
       ${st.host&&st.canDeal&&!embedded?`<button class="big ghost" id="deal">Deal the cards now</button>`:''}`;
   }
   else if(['swap','play','claim'].includes(st.phase)&&!p.in){

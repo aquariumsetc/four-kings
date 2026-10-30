@@ -116,11 +116,11 @@
 const $ = (id) => document.getElementById(id);
 const api = async (body) => {
   let r;
-  try { r = await fetch('/bank', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) }); }
+  try { r = await fetch('/bankapi', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) }); }
   catch (e) { return { ok:false, err:"Can't reach the bank — no connection." }; }
   const txt = await r.text().catch(()=> '');
   try { return JSON.parse(txt); }
-  catch (e) { return { ok:false, err:`Bank not responding (HTTP ${r.status})${/not found/i.test(txt)?" — the /bank route isn't deployed":""}. Check src/worker.js + wrangler.toml are deployed.` }; }
+  catch (e) { return { ok:false, err:`Bank not responding (HTTP ${r.status})${/not found/i.test(txt)?" — the /bankapi route isn't deployed":""}. Check src/worker.js + wrangler.toml are deployed.` }; }
 };
 const fmt = (n) => { n = Math.round((+n||0)*100)/100; return n % 1 === 0 ? ''+n : n.toFixed(2); };
 const set = (k,v)=>{ try{ localStorage.setItem(k,v);}catch(e){} };

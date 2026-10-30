@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 export { UnoTable } from "./uno.js";
+export { GameBank } from "./bank.js";
 
 // ---------- game rules (server-side, authoritative) ----------
 const SUITS = ["S", "H", "D", "C"];
@@ -486,6 +487,7 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === "/ice") return iceServers(env);
+    if (url.pathname === "/bank") return env.BANK.get(env.BANK.idFromName("bank")).fetch(req); // the one shared GameBank
     if (url.pathname === "/stopall") { const n = await env.TABLE.get(env.TABLE.idFromName("__rooms__")).stopAll(); return new Response("Stopped " + n + " room(s).", { headers: { "content-type": "text/plain" } }); }
     const reg = (code) => env.TABLE.get(env.TABLE.idFromName("__rooms__")).register(code).catch(() => {}); // remember active rooms so /stopall can clear them all
     const u = url.pathname.match(/^\/uws\/([A-Za-z0-9]{3,16})$/);

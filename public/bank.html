@@ -114,7 +114,14 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const api = async (body) => { const r = await fetch('/bank', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) }); return r.json().catch(()=>({ok:false,err:'network'})); };
+const api = async (body) => {
+  let r;
+  try { r = await fetch('/bank', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) }); }
+  catch (e) { return { ok:false, err:"Can't reach the bank — no connection." }; }
+  const txt = await r.text().catch(()=> '');
+  try { return JSON.parse(txt); }
+  catch (e) { return { ok:false, err:`Bank not responding (HTTP ${r.status})${/not found/i.test(txt)?" — the /bank route isn't deployed":""}. Check src/worker.js + wrangler.toml are deployed.` }; }
+};
 const fmt = (n) => { n = Math.round((+n||0)*100)/100; return n % 1 === 0 ? ''+n : n.toFixed(2); };
 const set = (k,v)=>{ try{ localStorage.setItem(k,v);}catch(e){} };
 const get = (k)=>{ try{ return localStorage.getItem(k)||'';}catch(e){ return ''; } };

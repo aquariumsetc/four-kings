@@ -17,7 +17,8 @@
   .tab.on{background:var(--brass);border-color:var(--brass);color:var(--ink)}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
   label{display:block;font-weight:600;margin:10px 0 4px}
-  input{width:100%;padding:.7rem .8rem;font:inherit;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.07);color:var(--fg)}
+  input,select{width:100%;padding:.7rem .8rem;font:inherit;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.07);color:var(--fg)}
+  #btable tbody tr{cursor:pointer}#btable tbody tr:active{background:rgba(201,162,39,.12)}
   button.go{width:100%;padding:.9rem;margin-top:14px;border:none;border-radius:12px;background:var(--brass);color:var(--ink);font:inherit;font-weight:800;cursor:pointer}
   button.ghost{background:rgba(255,255,255,.06);color:var(--fg);border:1px solid var(--line)}
   .row{display:flex;gap:8px}.row>*{flex:1}
@@ -101,7 +102,7 @@
 
       <div style="margin-top:16px"><b>Add coins</b></div>
       <label>Player name</label>
-      <input id="tname" autocomplete="off" placeholder="exact name">
+      <select id="tname"><option value="">— pick a player —</option></select>
       <label>Amount</label>
       <input id="tamt" inputmode="decimal" autocomplete="off" placeholder="coins to add">
       <div class="pick" id="amtpick"></div>
@@ -176,16 +177,21 @@ async function openBank(){
   renderLedger(r.players);
 }
 function renderLedger(players){
-  $('btable').querySelector('tbody').innerHTML = players.map(p =>
-    `<tr><td>${esc(p.name)}</td><td class="r">${fmt(p.balance)}</td><td class="r muted">${fmt(p.totalIn)}</td><td class="r" style="color:var(--green)">${fmt(p.totalWon)}</td><td class="r" style="color:#ffb3ad">${fmt(p.totalLost)}</td></tr>`
+  const tb = $('btable').querySelector('tbody');
+  tb.innerHTML = players.map(p =>
+    `<tr data-name="${esc(p.name)}"><td>${esc(p.name)}</td><td class="r">${fmt(p.balance)}</td><td class="r muted">${fmt(p.totalIn)}</td><td class="r" style="color:var(--green)">${fmt(p.totalWon)}</td><td class="r" style="color:#ffb3ad">${fmt(p.totalLost)}</td></tr>`
   ).join('') || '<tr><td colspan="5" class="muted">No wallets yet.</td></tr>';
+  const sel = $('tname'), cur = sel.value;
+  sel.innerHTML = '<option value="">— pick a player —</option>' + players.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+  if (players.some(p => p.name === cur)) sel.value = cur;
+  tb.querySelectorAll('tr[data-name]').forEach(tr => tr.onclick = () => { sel.value = tr.getAttribute('data-name'); });
 }
 $('brefresh').onclick = () => openBank();
 [5,10,20,50,100].forEach(v => { const b = document.createElement('button'); b.textContent = '+'+v; b.onclick = () => { $('tamt').value = v; }; $('amtpick').appendChild(b); });
 $('dotop').onclick = async () => {
   const name = $('tname').value.trim(), amt = +$('tamt').value;
   $('tmsg').className = 'msg';
-  if (!name) { $('tmsg').className='msg err'; $('tmsg').textContent='Enter the player name.'; return; }
+  if (!name) { $('tmsg').className='msg err'; $('tmsg').textContent='Pick a player first.'; return; }
   if (!amt) { $('tmsg').className='msg err'; $('tmsg').textContent='Enter an amount.'; return; }
   const r = await api({ op: amt < 0 ? 'adjust' : 'topup', pin: bankPin, name, amt });
   if (!r.ok) { $('tmsg').className='msg err'; $('tmsg').textContent = r.err; return; }

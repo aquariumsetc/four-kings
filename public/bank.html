@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Game Bank</title>
+<style>
+  :root{ --felt:#163f2a; --felt-deep:#0f2b1d; --panel:#1c4a33; --line:rgba(251,247,236,.16); --brass:#c9a227; --ink:#1b1a17; --fg:#fbf7ec; --dim:rgba(251,247,236,.62); --red:#e0453c; --green:#51c07a; color-scheme:dark; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI",system-ui,sans-serif;background:radial-gradient(120% 120% at 50% 0,#1d5138,var(--felt-deep));color:var(--fg);min-height:100vh;padding:calc(16px + env(safe-area-inset-top)) 14px 40px}
+  .wrap{max-width:560px;margin:0 auto}
+  h1{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;margin:.2rem 0 .1rem}
+  .sub{color:var(--dim);font-size:.9rem;margin:0 0 14px}
+  a.back{color:var(--brass);text-decoration:none;font-size:.9rem}
+  .tabs{display:flex;gap:8px;margin:14px 0}
+  .tab{flex:1;padding:.7rem;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--fg);border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
+  .tab.on{background:var(--brass);border-color:var(--brass);color:var(--ink)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  label{display:block;font-weight:600;margin:10px 0 4px}
+  input{width:100%;padding:.7rem .8rem;font:inherit;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.07);color:var(--fg)}
+  button.go{width:100%;padding:.9rem;margin-top:14px;border:none;border-radius:12px;background:var(--brass);color:var(--ink);font:inherit;font-weight:800;cursor:pointer}
+  button.ghost{background:rgba(255,255,255,.06);color:var(--fg);border:1px solid var(--line)}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  .msg{margin-top:10px;font-size:.9rem;min-height:1.1em}
+  .msg.err{color:#ffb3ad}.msg.ok{color:var(--green)}
+  .bal{font-family:"Fraunces",Georgia,serif;font-size:2.6rem;color:var(--brass);line-height:1}
+  .coin{font-size:1.3rem}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--dim);font-size:.9rem}
+  .stats b{color:var(--fg)}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.92rem}
+  th,td{text-align:left;padding:.4rem .3rem;border-bottom:1px solid var(--line)}
+  td.r,th.r{text-align:right}
+  .hist{margin-top:12px;max-height:230px;overflow:auto}
+  .hrow{display:flex;justify-content:space-between;gap:10px;padding:.35rem 0;border-bottom:1px solid var(--line);font-size:.86rem}
+  .hrow .amt.pos{color:var(--green)}.hrow .amt.neg{color:#ffb3ad}
+  .muted{color:var(--dim)}.small{font-size:.85rem}
+  .hide{display:none}
+  .pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .pick button{flex:1 1 auto;min-width:64px;padding:.5rem;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--fg);border-radius:10px;font:inherit;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Back to Game Night</a>
+  <h1>🏦 Game Bank</h1>
+  <p class="sub">One coin wallet per player, shared across every game. Coins are added by the banker.</p>
+
+  <div class="tabs">
+    <button class="tab on" id="tab-wallet">💰 My wallet</button>
+    <button class="tab" id="tab-bank">🏦 Banker</button>
+  </div>
+
+  <!-- ============ PLAYER WALLET ============ -->
+  <div id="walletTab">
+    <div class="panel" id="walletLogin">
+      <label>Your name</label>
+      <input id="wname" autocomplete="off" placeholder="e.g. Cam">
+      <label>Password <span class="muted small">(a simple PIN — not a real password)</span></label>
+      <input id="wpass" type="password" autocomplete="off" inputmode="numeric">
+      <button class="go" id="wopen">Open my wallet</button>
+      <div class="msg" id="wmsg"></div>
+      <p class="muted small" style="margin-top:12px">New name? This creates your wallet (starts at 0 coins). To get coins, send the banker money — they'll fill your wallet.</p>
+    </div>
+
+    <div class="panel hide" id="walletView">
+      <div class="muted small" id="whello"></div>
+      <div class="bal"><span id="wbal">0</span> <span class="coin">🪙</span></div>
+      <div class="stats">
+        <span>Put in: <b id="win">0</b></span>
+        <span>Won: <b id="wwon">0</b></span>
+        <span>Lost: <b id="wlost">0</b></span>
+        <span>Net: <b id="wnet">0</b></span>
+      </div>
+      <div class="hist" id="whist"></div>
+      <button class="go ghost" id="wout" style="margin-top:14px">Close wallet</button>
+    </div>
+  </div>
+
+  <!-- ============ BANKER ============ -->
+  <div id="bankTab" class="hide">
+    <div class="panel" id="bankSetpin">
+      <p>No bank PIN is set yet. Choose one now (4–8 digits) — you'll use it to add coins.</p>
+      <label>New bank PIN</label>
+      <input id="newpin" type="password" inputmode="numeric" autocomplete="off">
+      <button class="go" id="setpin">Set bank PIN</button>
+      <div class="msg" id="setmsg"></div>
+    </div>
+
+    <div class="panel hide" id="bankLogin">
+      <label>Bank PIN</label>
+      <input id="bpin" type="password" inputmode="numeric" autocomplete="off">
+      <button class="go" id="bopen">Open the bank</button>
+      <div class="msg" id="bmsg"></div>
+    </div>
+
+    <div class="panel hide" id="bankView">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b>Players</b><button class="ghost" id="brefresh" style="padding:.4rem .7rem;border-radius:10px;cursor:pointer">Refresh</button>
+      </div>
+      <table id="btable"><thead><tr><th>Name</th><th class="r">Coins</th><th class="r">In</th><th class="r">Won</th><th class="r">Lost</th></tr></thead><tbody></tbody></table>
+
+      <div style="margin-top:16px"><b>Add coins</b></div>
+      <label>Player name</label>
+      <input id="tname" autocomplete="off" placeholder="exact name">
+      <label>Amount</label>
+      <input id="tamt" inputmode="decimal" autocomplete="off" placeholder="coins to add">
+      <div class="pick" id="amtpick"></div>
+      <button class="go" id="dotop">Add coins to wallet</button>
+      <div class="msg" id="tmsg"></div>
+      <p class="muted small" style="margin-top:10px">Use a negative amount to take coins back (a correction).</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (body) => { const r = await fetch('/bank', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) }); return r.json().catch(()=>({ok:false,err:'network'})); };
+const fmt = (n) => { n = Math.round((+n||0)*100)/100; return n % 1 === 0 ? ''+n : n.toFixed(2); };
+const set = (k,v)=>{ try{ localStorage.setItem(k,v);}catch(e){} };
+const get = (k)=>{ try{ return localStorage.getItem(k)||'';}catch(e){ return ''; } };
+
+// ---- tabs ----
+$('tab-wallet').onclick = () => { $('tab-wallet').classList.add('on'); $('tab-bank').classList.remove('on'); $('walletTab').classList.remove('hide'); $('bankTab').classList.add('hide'); };
+$('tab-bank').onclick = async () => {
+  $('tab-bank').classList.add('on'); $('tab-wallet').classList.remove('on'); $('bankTab').classList.remove('hide'); $('walletTab').classList.add('hide');
+  const st = await api({ op:'status' });
+  $('bankSetpin').classList.toggle('hide', !!st.pinSet);
+  $('bankLogin').classList.toggle('hide', !st.pinSet);
+};
+
+// ---- player wallet ----
+$('wname').value = get('gb-name');
+function showWallet(w){
+  $('walletLogin').classList.add('hide'); $('walletView').classList.remove('hide');
+  $('whello').textContent = w.name + "'s wallet";
+  $('wbal').textContent = fmt(w.balance);
+  $('win').textContent = fmt(w.totalIn); $('wwon').textContent = fmt(w.totalWon); $('wlost').textContent = fmt(w.totalLost); $('wnet').textContent = (w.net>=0?'+':'') + fmt(w.net);
+  const names = { topup:'Top-up from banker', adjust:'Banker adjustment', win:'Won', loss:'Lost' };
+  $('whist').innerHTML = (w.history||[]).map(h => {
+    const pos = h.amt >= 0; const d = new Date(h.at);
+    return `<div class="hrow"><span>${names[h.t]||h.t}${h.note?` <span class="muted">· ${esc(h.note)}</span>`:''}<br><span class="muted small">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></span><span class="amt ${pos?'pos':'neg'}">${pos?'+':''}${fmt(h.amt)}</span></div>`;
+  }).join('') || '<div class="muted small">No activity yet.</div>';
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+$('wopen').onclick = async () => {
+  const name = $('wname').value.trim(), pass = $('wpass').value;
+  $('wmsg').className = 'msg'; $('wmsg').textContent = 'Opening…';
+  const r = await api({ op:'claim', name, pass });
+  if (!r.ok) { $('wmsg').className = 'msg err'; $('wmsg').textContent = r.err; return; }
+  set('gb-name', name); $('wmsg').textContent = '';
+  showWallet(r.wallet);
+};
+$('wout').onclick = () => { $('walletView').classList.add('hide'); $('walletLogin').classList.remove('hide'); $('wpass').value = ''; };
+
+// ---- banker ----
+let bankPin = '';
+$('setpin').onclick = async () => {
+  const r = await api({ op:'setpin', pin: $('newpin').value });
+  if (!r.ok) { $('setmsg').className = 'msg err'; $('setmsg').textContent = r.err; return; }
+  $('bankSetpin').classList.add('hide'); $('bankLogin').classList.add('hide');
+  bankPin = $('newpin').value; openBank();
+};
+$('bopen').onclick = () => { bankPin = $('bpin').value; openBank(); };
+async function openBank(){
+  $('bmsg').className = 'msg'; $('bmsg').textContent = 'Opening…';
+  const r = await api({ op:'ledger', pin: bankPin });
+  if (!r.ok) { $('bmsg').className = 'msg err'; $('bmsg').textContent = r.err; bankPin=''; return; }
+  $('bmsg').textContent = ''; $('bankLogin').classList.add('hide'); $('bankSetpin').classList.add('hide'); $('bankView').classList.remove('hide');
+  renderLedger(r.players);
+}
+function renderLedger(players){
+  $('btable').querySelector('tbody').innerHTML = players.map(p =>
+    `<tr><td>${esc(p.name)}</td><td class="r">${fmt(p.balance)}</td><td class="r muted">${fmt(p.totalIn)}</td><td class="r" style="color:var(--green)">${fmt(p.totalWon)}</td><td class="r" style="color:#ffb3ad">${fmt(p.totalLost)}</td></tr>`
+  ).join('') || '<tr><td colspan="5" class="muted">No wallets yet.</td></tr>';
+}
+$('brefresh').onclick = () => openBank();
+[5,10,20,50,100].forEach(v => { const b = document.createElement('button'); b.textContent = '+'+v; b.onclick = () => { $('tamt').value = v; }; $('amtpick').appendChild(b); });
+$('dotop').onclick = async () => {
+  const name = $('tname').value.trim(), amt = +$('tamt').value;
+  $('tmsg').className = 'msg';
+  if (!name) { $('tmsg').className='msg err'; $('tmsg').textContent='Enter the player name.'; return; }
+  if (!amt) { $('tmsg').className='msg err'; $('tmsg').textContent='Enter an amount.'; return; }
+  const r = await api({ op: amt < 0 ? 'adjust' : 'topup', pin: bankPin, name, amt });
+  if (!r.ok) { $('tmsg').className='msg err'; $('tmsg').textContent = r.err; return; }
+  $('tmsg').className='msg ok'; $('tmsg').textContent = `${esc(r.name)} now has ${fmt(r.balance)} coins.`;
+  $('tamt').value = '';
+  openBank();
+};
+</script>
+</body>
+</html>

@@ -211,7 +211,7 @@ body.inroom:not(.ingame) #gohome{display:none}
 .tile.me .ava{background:#1f4a34}
 .tile .tgear{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);border:0;color:#fff;font-size:.72rem;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;z-index:2}
 body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only exists in the room — hide the gear in-game so it isn't a dead control */
-.stakeset{display:flex;flex-direction:column;gap:14px;margin-top:12px}.stakeset label{display:flex;flex-direction:column;gap:3px;font-weight:600}.stakeset label .small{font-weight:400}.stakeset .numin{align-self:flex-start;margin-top:3px}.chiprow{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.chip{appearance:none;-webkit-appearance:none;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.06);color:inherit;font:inherit;font-weight:600;padding:.5rem 0;border-radius:10px;cursor:pointer;flex:1 1 0;min-width:46px;text-align:center}.chip.on{background:var(--brass);border-color:var(--brass);color:var(--ink)}.chip:active{transform:scale(.95)}.stakeset label.funtog{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}.stakeset label.funtog input{width:auto;transform:scale(1.35);flex:0 0 auto}
+.stakeset{display:flex;flex-direction:column;gap:14px;margin-top:12px}.stakeset label{display:flex;flex-direction:column;gap:3px;font-weight:600}.stakeset label .small{font-weight:400}.stakeset .numin{align-self:flex-start;margin-top:3px}.chiprow{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.chip{appearance:none;-webkit-appearance:none;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.06);color:inherit;font:inherit;font-weight:600;padding:.5rem 0;border-radius:10px;cursor:pointer;flex:1 1 0;min-width:46px;text-align:center}.chip.on{background:var(--brass);border-color:var(--brass);color:var(--ink)}.chip:active{transform:scale(.95)}.banklink{display:block;text-align:center;margin-top:14px;padding:.75rem;border:1px solid var(--brass);border-radius:12px;color:var(--brass);text-decoration:none;font-weight:700}.banklink:active{background:rgba(201,162,39,.12)}.stakeset label.funtog{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}.stakeset label.funtog input{width:auto;transform:scale(1.35);flex:0 0 auto}
 .numin{display:inline-flex;align-items:center;gap:3px;font-weight:600}.numin input{width:76px;padding:.3rem .45rem;text-align:right;font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:inherit}.numin input::-webkit-outer-spin-button,.numin input::-webkit-inner-spin-button{opacity:1}
 </style>
 </head>
@@ -225,7 +225,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.9.13 · 30 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.9.14 · 30 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -514,6 +514,7 @@ function startHTML(){
       <label>4 Kings — minimum bet <span class="small muted">half to the kings, half to the centre</span>${gnChips('gn-fk-stake',[[0.1,'10¢'],[0.2,'20¢'],[0.5,'50¢'],[1,'$1'],[2,'$2']],gnFk())}</label>
       <label>UNO — minimum bet <span class="small muted">the ante each hand; winner takes the pot</span>${gnChips('gn-uno-stake',[[0.1,'10¢'],[0.2,'20¢'],[0.5,'50¢'],[1,'$1'],[2,'$2']],gnUno())}</label>
       <label class="funtog"><span>\uD83C\uDF89 Fun mode <span class="small muted">points, not money \u2014 play for the win</span></span><input type="checkbox" id="gnfun" ${gnFun()?'checked':''}></label>
+      <a class="banklink" href="/bank.html">\uD83C\uDFE6 Game Bank \u2014 wallets &amp; coins \u2192</a>
     </div></div>
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>

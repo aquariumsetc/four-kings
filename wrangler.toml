@@ -13,6 +13,10 @@ class_name = "Table"
 name = "UNO"
 class_name = "UnoTable"
 
+[[durable_objects.bindings]]
+name = "BANK"
+class_name = "GameBank"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Table"]
@@ -20,3 +24,7 @@ new_sqlite_classes = ["Table"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["UnoTable"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["GameBank"]

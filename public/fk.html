@@ -220,6 +220,7 @@ body.hasvid.tbl .app.fkstripon{padding-top:calc(250px + env(safe-area-inset-top,
 .vctl button{padding:.45rem .7rem;font-size:.82rem;border-radius:9px}
 body.hasvid .app{padding-top:128px}
 body.hasvid.tbl .app{padding-top:136px}
+.numin{display:inline-flex;align-items:center;gap:3px;font-weight:600}.numin input{width:76px;padding:.3rem .45rem;text-align:right;font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:inherit}.numin input::-webkit-outer-spin-button,.numin input::-webkit-inner-spin-button{opacity:1}
 </style>
 </head>
 <body>
@@ -231,7 +232,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.9 · 30 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.12 · 30 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -256,8 +257,10 @@ let room=(qs.get('room')||get('fk-room')||'').toUpperCase().replace(/[^A-Z0-9]/g
 let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
 let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
+let seededStakes=false;
 let qSeenKey=null, qSeenAt=0, queenShow=false, qTimer=null; // v2.8.98: the queen win-banner in the note auto-dismisses ~3s after it appears so it doesn't linger into the next lead prompt
 const m$=x=>{ x=Math.round(x*100)/100; return x%1===0?''+x:x.toFixed(2); }; // v2.9.7: split bets can be fractional ($2.50), so show cents only when needed
+const mp=v=> (S&&S.funMode) ? String(Math.round(v)) : '$'+m$(v); // fun mode shows plain points, money mode shows dollars
 const betsOf=d=>{ const o={}; const n=d.suits.length; if(!n) return o; const cents=Math.round(d.total*100), base=Math.floor(cents/n); let rem=cents-base*n; d.suits.forEach(x=>{ o[x]=(base+(rem>0?1:0))/100; if(rem>0) rem--; }); return o; }; // split the stake evenly, giving any odd cent to the first king(s) so it sums exactly
 const betsText=b=>Object.keys(b).map(x=>'$'+m$(b[x])+' '+SYM[x]).join(' + ');
 const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -308,6 +311,7 @@ function onState(st,old){
   if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) sendMsg({t:'start'}); },1200); } // launched from the room: start straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
   if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; sendMsg({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
+  if(framed&&st.host&&st.phase==='lobby'&&!st.stakesSet&&!seededStakes){ seededStakes=true; const b=+get('gn-buyin'),k=+get('gn-fk-stake'),msg={t:'settings',funMode:get('gn-funmode')==='1'}; if(b>0)msg.buyin=b; if(k>0)msg.stake=k; sendMsg(msg); } // seed this room from the home-page Table stakes (once per fresh room)
   if(wantLounge&&(st.lounge||(st.goto&&Date.now()-st.goto.at<3000))) wantLounge=false; else if(wantLounge&&st.host) sendMsg({t:'toroom'}); // v2.8.88: back off only for a FRESH launch (<3s); a stale leftover goto still gets cleared to reach the room
   // the host took everyone back to the Game Night room: this page becomes the room (no reload, video stays up)
   if(!framed&&st.lounge&&(mode==='hand'||mode==='both')){ if(st.host) set('fk-lhost',room); mode='lounge'; set('fk-mode',mode); }
@@ -328,7 +332,7 @@ function showBanner(st){
   const sparks=Array.from({length:14},(_,i)=>{ const a=i/14*Math.PI*2, d=120+Math.random()*120; return `<span class="spark" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;animation-delay:${Math.random()*.3}s">${['✨','⭐','💰','🎉'][i%4]}</span>`; }).join('');
   const body=e.t==='queen'
     ?`<h2>${me?'You':esc(name)} took the King of ${NAME[e.suit]}!</h2>${cardHTML({s:e.suit,r:12})}<div class="big">+$${e.won}</div><div class="sub">played the Queen of ${NAME[e.suit]}</div>`
-    :`<h2>${me?'You are':esc(name)+' is'} out of cards!</h2><div class="big">+$${e.won}</div><div class="sub">takes the centre</div>`;
+    :`<h2>${me?'You are':esc(name)+' is'} out of cards!</h2><div class="big">${S.funMode?'+'+Math.round(e.won):'+$'+e.won}</div><div class="sub">takes the centre</div>`;
   b.innerHTML=`<div class="fanfare" style="position:relative">${sparks}${body}</div>`;
   if(winOn){ try{ chime(e.t==='out'); coins(e.t==='out'?28:14, .35); }catch(x){} }
   if(bannerTimer) clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>{ b.innerHTML=''; },4300);
@@ -526,14 +530,14 @@ function kingsHTML(st){
   const ante=st.phase==='ante';
   const onK=s=>st.kings[s]+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+(p.bets[s]||0),0):0);
   const pot=st.pot+(ante?st.players.filter(p=>p.placed).reduce((a,p)=>a+p.bet,0):0);
-  return `<div class="kings">${SUITS.map(s=>`<div class="spot"><span class="k ${RED[s]?'red':''}"><span>K</span><span>${SYM[s]}</span></span><div class="coins">$${m$(onK(s))}</div></div>`).join('')}<div class="pot"><div class="n">$${m$(pot)}</div><div class="l">in the centre</div></div></div>`;
+  return `<div class="kings">${SUITS.map(s=>`<div class="spot"><span class="k ${RED[s]?'red':''}"><span>K</span><span>${SYM[s]}</span></span><div class="coins">${mp(onK(s))}</div></div>`).join('')}<div class="pot"><div class="n">${mp(pot)}</div><div class="l">${st.funMode?'centre points':'in the centre'}</div></div></div>`;
 }
 function scoresHTML(st){
   if(!st.players.length) return '';
   const order=st.players.map((p,i)=>({p,i})).sort((a,b)=>b.p.balance-a.p.balance); const top=order[0].p.balance;
   const leaders=order.filter(o=>o.p.balance===top); const active=st.phase==='play'?st.leader:st.phase==='claim'?(st.waitingOn>=0?st.waitingOn:-1):(st.phase==='swap'&&st.swapTurn!=null?st.swapTurn:-1);
   return `<div class="panel scores"><div class="small" style="display:flex;justify-content:space-between"><span>Standings${st.game?', game '+st.game:''}</span><span class="muted">${leaders.length===st.players.length?'all level':'leading: '+leaders.map(o=>esc(o.p.name)).join(', ')}</span></div>
-  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${o.p.emoji?esc(o.p.emoji)+' ':''}${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>$${m$(o.p.balance)}</td></tr>`).join('')}</table></div>`;
+  <table>${order.map(o=>`<tr class="${o.p.balance===top&&leaders.length<st.players.length?'lead':''} ${o.i===active?'on':''}"><td>${o.p.emoji?esc(o.p.emoji)+' ':''}${esc(o.p.name)}${o.p.bot?' 🤖':''}${o.p.id===pid&&mode!=='table'?' <span class="muted small">(you)</span>':''}${o.p.rebuys?` <span class="muted small" title="rebuys">↻${o.p.rebuys}</span>`:''}${o.p.auto?' <span class="muted small" title="auto-play">⚡</span>':''} <span class="muted small">${statusOf(st,o.p)}</span></td><td>${mp(o.p.balance)}</td></tr>`).join('')}</table></div>`;
 }
 function statusOf(st,p){
   if(st.phase==='ante') return p.broke?'out of money':p.placed?(p.carried?'same bet':'bet placed'):'betting…';
@@ -555,12 +559,12 @@ function settingsHTML(st){
   if(!st.host) return `<div class="panel small settings">${mine}</div>`;
   const tableHead=`<div class="muted" style="margin:12px 0 4px">For everyone at the table</div>`;
   const pickD=(attr,val,cur,label,dis)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}${dis?';opacity:.35':''}"${dis?' disabled':''}>${label}</button>`;
-  const stakeRow=`<div class="srow"><span>Minimum bet</span><span>${[[0.1,'10¢'],[0.5,'50¢'],[1,'$1'],[5,'$5'],[10,'$10']].map(([v,l])=>pickD('stake',v,(st.stake??10)===v,l,v*2>(st.buyin??1000))).join(' ')}</span></div>`;
-  const buyinRow=`<div class="srow"><span>Buy-in · each stack</span><span>${[[5,'$5'],[25,'$25'],[100,'$100'],[500,'$500'],[1000,'$1000']].map(([v,l])=>pickD('buyin',v,(st.buyin??1000)===v,l,v<2*(st.stake??10))).join(' ')}</span></div>`;
+  const stakeRow=`<div class="srow"><span>Minimum bet</span><span class="numin">$<input type="number" inputmode="decimal" min="0.05" step="0.05" id="stakein" value="${m$(st.stake??1)}"></span></div>`;
+  const buyinRow=`<div class="srow"><span>Buy-in · each stack</span><span class="numin">$<input type="number" inputmode="decimal" min="0.1" step="1" id="buyinin" value="${m$(st.buyin??20)}"></span></div>`;
   const stakeNote=`<div class="muted" style="margin:2px 0 6px">Buy-in is each player's starting stack (changing it in the lobby resets everyone). Minimum bet is the smallest bet and the step — at most half the buy-in.</div>`;
   // mid-game: only the table settings the server honours during a live hand (the card timer + next-game). Spare hand, layout and game-switch change between games.
   if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings">${mine}${tableHead}${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them; Off never plays a card for anyone — good when you're all in the room together. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
-  return `<div class="panel small settings">${mine}${tableHead}${buyinRow}${stakeRow}${stakeNote}
+  return `<div class="panel small settings">${mine}${tableHead}${st.funMode?'<div class="muted" style="margin:2px 0 6px">\uD83C\uDF89 Fun mode \u2014 points. 8 a game: 4 in the centre, 1 on each king. Win a king\u2019s queen for its point; go out to take the centre.</div>':buyinRow+stakeRow+stakeNote}
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   ${timerRow}
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
@@ -595,7 +599,7 @@ function render(){
   if(!S){ app.innerHTML=`<div class="wait">${heroHTML()}<p class="muted">Connecting to table ${esc(room)}<span class="dots"><i>.</i><i>.</i><i>.</i></span></p></div>`; return; }
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const fkStripOn=['ante','swap','play','claim'].includes(S.phase)&&S.players.length>=2; // the avatar strip shows during a live game on every device (table, own-devices phones, hand devices)
-  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(fkStripOn?' fkstripon':''); // own-devices game: players get the wide table layout too
+  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(fkStripOn?' fkstripon':'')+(S.funMode?' funmode':''); // own-devices game: players get the wide table layout too
   const fkHandPanel=withTable&&S.phase!=='ante'?`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`:''; /* v2.8.95: during betting your controls go inline under "Place your bets" (see tableHTML) — no "Your cards" box (you have no cards yet, and it buried the suit buttons) */
   app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,fkHandPanel,true):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Settings &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div><p class="center small muted" style="opacity:.6;margin-top:1.2rem">Game Night ${VERSION}</p>`; /* v2.8.99: sound, hints, auto-play, How to play, table-mode & change-table all moved inside ⚙️ (settingsHTML) so the bottom isn't cluttered; the panel is now open to everyone, with the table-wide settings still host-only inside it */
   bind();
@@ -653,7 +657,7 @@ function paintFkStrip(st){
     if(ph){ ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundColor=`hsl(${FKHUE[ch.pi%FKHUE.length]} 55% 44%)`; ava.textContent=''; }
     else { ava.style.backgroundImage=''; ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[ch.pi%FKHUE.length]} 55% 44%)`; ava.textContent = p.bot?'\uD83E\uDD16':(p.emoji||(p.name||'?').charAt(0).toUpperCase()); }
     nm.textContent = (p.id===pid&&mode!=='table')?'You':p.name;
-    bal.textContent = '$'+m$(p.balance);
+    bal.textContent = st.funMode ? (Math.round(p.balance)+' pt'+(Math.round(p.balance)===1?'':'s')) : '$'+m$(p.balance);
     const owe = st.phase==='ante' ? (!p.placed&&!p.broke) : (st.phase==='swap'&&st.swapTurn==null ? (p.in&&!p.kept) : false);
     const out = st.phase==='ante' ? !!p.broke : !p.in;
     ch.el.classList.toggle('owe', owe);
@@ -803,7 +807,7 @@ function tableHTML(st,handPanel,embedded){
     main=dup?'':`<div class="pile">${pileHTML(st,true)}</div>${noteHTML(st)}<div class="call">${st.waitingOn>=0&&st.players[st.waitingOn]?`Waiting on ${faceOf(st,st.waitingOn)} ${esc(st.players[st.waitingOn].name)} — the ${cs({s:st.runSuit,r:st.nextRank})}`:`Who has the ${cs({s:st.runSuit,r:st.nextRank})}?`}</div>${st.claimMs?`<div class="count" id="count">${fmtSec(st.claimMs/1000)}</div>`:`<div class="center small muted" style="margin-top:6px">No time limit — play when you're ready</div>`}`;
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
-    main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the $${st.winner.won} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`$${left} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">$${st.pot} stays in the centre${left?` and $${left} on the kings`:''} for next game.</p>`}</div>
+    main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the ${mp(st.winner.won)} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`${mp(left)} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">${mp(st.pot)} stays in the centre${left?` and ${mp(left)} on the kings`:''} for next game.</p>`}</div>
     <div class="endbar" style="margin-top:10px"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>`;
   }
   return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&st.phase!=='over'&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
@@ -825,7 +829,7 @@ function handMain(st,embedded,bare){
   }
   if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${st.claimMs?fmtSec(st.claimMs/1000)+(st.claimMs>=60000?' min':' s'):'Off'}</p>`:''}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
-    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${m$(p.balance)}, and the smallest bet needs $${m$(2*(S.stake||10))}. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $${m$(S.buyin||1000)}</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
+    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${m$(p.balance)}, and the smallest bet needs $${m$(2*(S.stake||1))}. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $${m$(S.buyin||20)}</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
   }
   else if(st.phase==='ante'){
     if(p.placed&&!draft.suits.length){ draft.suits=Object.keys(p.bets); draft.total=p.bet; }
@@ -874,7 +878,7 @@ function handMain(st,embedded,bare){
       ${handView(hand,null,{need,hint:hints})}`;
   }
   else if(st.phase==='over'){
-    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">$${st.winner.won} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} $${st.pot} stays in the centre for next game.</p>`}${p.broke?`<button class="ghost" id="rebuy" style="margin-bottom:8px">Out of money: rebuy $1000</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st,true)}</div>`;
+    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">${mp(st.winner.won)} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} ${mp(st.pot)} stays in the centre for next game.</p>`}${(!S.funMode&&p.broke)?`<button class="ghost" id="rebuy" style="margin-bottom:8px">Out of money: rebuy $${m$(S.buyin||20)}</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st,true)}</div>`;
   }
   return main;
 }
@@ -912,8 +916,8 @@ function bind(){
   if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'4 Kings, table '+room,text:'Join my 4 Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
   app.querySelectorAll('[data-timer]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',claimMs:+b.dataset.timer}));
-  app.querySelectorAll('[data-stake]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',stake:+b.dataset.stake}));
-  app.querySelectorAll('[data-buyin]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',buyin:+b.dataset.buyin}));
+  {const _si=q('#stakein'); if(_si) _si.onchange=e=>{const v=+e.target.value; if(v>0) sendMsg({t:'settings',stake:v});}}
+  {const _bi=q('#buyinin'); if(_bi) _bi.onchange=e=>{const v=+e.target.value; if(v>0) sendMsg({t:'settings',buyin:v});}}
   if(q('#removebot')) q('#removebot').onclick=()=>sendMsg({t:'removebot'});
   if(q('#clearboard')) q('#clearboard').onclick=()=>{ if(confirm('Reset the season scoreboard?')) sendMsg({t:'clearboard'}); };
   if(q('#reset')) q('#reset').onclick=()=>{ if(confirm('Clear the table for everyone?')) sendMsg({t:'reset'}); };

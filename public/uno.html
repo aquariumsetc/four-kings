@@ -272,6 +272,8 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 .lobbyc ol{text-align:left;margin:0 auto;padding-left:1.3rem;font-family:-apple-system,"Segoe UI",sans-serif;font-size:.9rem;color:var(--dim);max-width:260px}.lobbyc li{margin:.25rem 0}.lobbyc b{color:var(--fg)}
 .foot{margin-top:1.4rem;text-align:center;font-size:.85rem;color:var(--dim)}
 .foot button{margin:3px}
+.numin{display:inline-flex;align-items:center;gap:3px;font-weight:600}.numin input{width:76px;padding:.3rem .45rem;text-align:right;font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:inherit}.numin input::-webkit-outer-spin-button,.numin input::-webkit-inner-spin-button{opacity:1}
+.app.funmode .potchip{display:none}
 </style>
 </head>
 <body>
@@ -284,7 +286,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.83 · 28 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.8.85 · 30 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:''};
@@ -294,6 +296,8 @@ const PRESETS={official:{multi:false,stack:false,playPicked:false,drawUntil:fals
 const presetOf=r=>(r&&r.official)?'official':'party'; // v2.8.78: Official vs Ultium are two modes, told apart by the "Official draw rules" switch. Tweaking any other rule now keeps your current mode lit instead of making both tabs go dark.
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}}, set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+const m$=v=>{ v=Math.round((+v||0)*100)/100; return v%1===0?String(v):v.toFixed(2); };
+let seededStakes=false;
 let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
 let myPhoto=get('fk-photo')||''; const photos={}; if(myPhoto) photos[pid]=myPhoto; // selfie avatars keyed by pid (shared via the {t:'photo'} channel; emoji fallback)
 const qs=new URLSearchParams(location.search);
@@ -352,6 +356,7 @@ function onState(st,old){
   if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) send({t:'start'}); },1200); } // launched from the room: deal straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
   if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; send({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ send({t:'settings',layout:wantLayout}); wantLayout=''; }
+  if(framed&&st.host&&st.phase==='lobby'&&!st.stakesSet&&!seededStakes){ seededStakes=true; const b=+get('gn-buyin'),k=+get('gn-uno-stake'),msg={t:'settings',funMode:get('gn-funmode')==='1'}; if(b>0)msg.buyin=b; if(k>0)msg.stake=k; send(msg); } // seed from the home-page Table stakes (once per fresh room)
   // video was on before (e.g. in the Game Night room): switch it back on
   if(!framed&&!autoVidTried&&get('gn-video')==='1'&&mode!=='table'&&!rtc.on){ autoVidTried=true; setTimeout(()=>{ if(!rtc.on) startVideo(); },400); }
   if(mode!=='table'&&!get('uno-howto')&&!overlay){ overlay={k:'howto'}; set('uno-howto','1'); }
@@ -604,7 +609,7 @@ function render(){
     app.innerHTML=main+esc; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot and host escapes
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const stripOn=(S.phase==='play'||S.phase==='over')&&S.players.length>=2; // compact strip layout during play AND on the end screen, so the full-size round table doesn't take over after a game
-  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':''); // own-devices game: players get the wide table layout too
+  app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(stripOn?' stripon':'')+(S.funMode?' funmode':''); // own-devices game: players get the wide table layout too
   const handInner=(withTable&&S.phase!=='over')?handMain(S,true):''; // v2.8.79: dropped the "Your cards" label — it's obviously your hand
   let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,handInner):handHTML(S);
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
@@ -639,8 +644,8 @@ function roundHTML(st){
       <path d="M50 4 A46 46 0 0 1 96 50" fill="none" stroke="#ffd166" stroke-width="1.6" marker-end="url(#ah)"/><path d="M50 96 A46 46 0 0 1 4 50" fill="none" stroke="#ffd166" stroke-width="1.6" marker-end="url(#ah)"/></svg></div>
     ${st.phase==='play'||st.phase==='over'?`<div class="halo" style="--hc:${col}"></div><div class="dirlbl" id="dirlbl"></div><div class="pile">${pileHTML(st)}</div>
     <div class="deck">${backHTML()}<div class="n">${st.deckCount} left</div></div>
-    <div class="potchip"><div class="n">$${st.pot}</div><div class="l">in the pot</div>${st.colour?`<div class="potcol" style="color:var(--${st.colour})">${CNAME[st.colour]}</div>`:''}</div>
-    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc"><div class="n">$${st.stake}</div><div class="l">stake each</div><div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div>${st.players.length<2?`<ol><li>${st.layout==='phones'?'Tap <b>Share join link</b> and send it to everyone':'Scan the code with a phone camera to join'}</li><li>Short of players? <b>Add a bot</b></li><li>Pick the rules, then <b>Deal</b></li></ol>`:`<p class="dim" style="margin-top:8px">Everyone in — tap <b>Deal</b> to start. More players, rules &amp; options are below.</p>`}</div>`}
+    <div class="potchip"><div class="n">${st.funMode?'\uD83C\uDF89':'$'+m$(st.pot)}</div><div class="l">${st.funMode?'Fun mode':'in the pot'}</div>${st.colour?`<div class="potcol" style="color:var(--${st.colour})">${CNAME[st.colour]}</div>`:''}</div>
+    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc">${st.funMode?'<div class="n">\uD83C\uDF89</div><div class="l">Fun mode \u2014 no money</div>':`<div class="n">$${m$(st.stake)}</div><div class="l">stake each</div>`}<div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div>${st.players.length<2?`<ol><li>${st.layout==='phones'?'Tap <b>Share join link</b> and send it to everyone':'Scan the code with a phone camera to join'}</li><li>Short of players? <b>Add a bot</b></li><li>Pick the rules, then <b>Deal</b></li></ol>`:`<p class="dim" style="margin-top:8px">Everyone in — tap <b>Deal</b> to start. More players, rules &amp; options are below.</p>`}</div>`}
     ${seatsHTML(st)}</div>`;
 }
 function tableHTML(st,handInner){
@@ -656,7 +661,7 @@ function tableHTML(st,handInner){
     side=`<div class="panel center"><div class="small dim">Now playing</div><h2>${esc(p?p.name:'')}</h2><p class="small dim">${esc(st.note||'')}</p></div>${host?`<button class="ghost big" id="finish">Finish the game</button><p class="small dim center">Whoever has the fewest cards wins the pot.</p>`:''}${scoresHTML(st)}${handInner?`<button class="ghost small" id="quit" style="width:100%;margin-top:6px">Leave this game</button>`:''}${resetBtn}`; // v2.8.80: "Leave this game" sits directly above "Clear the table" (for players; the iPad table itself gets no Leave)
   } else if(st.phase==='over'){
     const w=st.winner, iWon=!!(w&&w.idx.some(i=>st.players[i]&&st.players[i].id===pid));
-    side=`<div class="panel center"><h2>${w?(iWon?'You win!':w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins')):'Game over'}</h2>${w?`<p>$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}</div><div class="endbar"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>${scoresHTML(st)}`;
+    side=`<div class="panel center"><h2>${w?(iWon?'You win!':w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins')):'Game over'}</h2>${w?`<p>${st.funMode?esc(w.why):`$${m$(w.won)}${w.idx.length>1?' each':''} · ${esc(w.why)}`}</p>`:''}</div><div class="endbar"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>${scoresHTML(st)}`;
   }
   // During play on own-devices, fold the compact mat (discard · pot · deck) into the top of the "Your cards" panel so it's ONE box, not a separate mat box stacked above a card box wasting vertical space.
   if(handInner&&st.phase==='play'){
@@ -669,7 +674,7 @@ function nextHTML(st){ return `${st.autoNext?`<p class="center small dim">Next g
 function scoresHTML(st){
   if(!st.players.length) return '';
   const rows=st.players.map(p=>{ const L=(st.ledger||{})[p.id]; return {p,w:L?L.wins:0,g:L?L.games:0}; }).sort((a,b)=>b.w-a.w||b.p.balance-a.p.balance);
-  return `<div class="panel scores"><div class="small dim">Wins this season (games without bots)</div><table>${rows.map(r=>`<tr class="${r.p.id===pid&&mode!=='table'?'me':''}"><td>${esc(r.p.name)}${r.p.bot?' 🤖':''}${r.p.rebuys?` <span class="dim small">↻${r.p.rebuys}</span>`:''}</td><td class="r">${r.w} win${r.w===1?'':'s'}</td><td class="r">$${r.p.balance}</td></tr>`).join('')}</table>${st.host&&Object.keys(st.ledger||{}).length?`<button class="ghost small" id="clearboard" style="margin-top:6px">Reset wins</button>`:''}</div>`;
+  return `<div class="panel scores"><div class="small dim">Wins this season (games without bots)</div><table>${rows.map(r=>`<tr class="${r.p.id===pid&&mode!=='table'?'me':''}"><td>${esc(r.p.name)}${r.p.bot?' 🤖':''}${r.p.rebuys?` <span class="dim small">↻${r.p.rebuys}</span>`:''}</td><td class="r">${r.w} win${r.w===1?'':'s'}</td><td class="r">${st.funMode?'':'$'+m$(r.p.balance)}</td></tr>`).join('')}</table>${st.host&&Object.keys(st.ledger||{}).length?`<button class="ghost small" id="clearboard" style="margin-top:6px">Reset wins</button>`:''}</div>`;
 }
 function settingsHTML(st){
   const pick=(attr,val,cur,label)=>`<button class="ghost small ${cur?'on':''}" data-${attr}="${val}">${label}</button>`;
@@ -690,7 +695,8 @@ function settingsHTML(st){
   ${rulesTabs}
   <div class="small dim">${pr?'':'Custom rules — tap a tab to reset.'}</div>
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
-  <div class="srow"><span>Stake per player</span><span>${[10,20,50,100].map(v=>pick('stake',v,st.stake===v,'$'+v)).join(' ')}</span></div>
+  ${st.funMode?'<div class="small dim" style="margin-top:6px">\uD83C\uDF89 Fun mode \u2014 no money. Everyone plays for the win.</div>':`<div class="srow"><span>Buy-in · each wallet</span><span class="numin">$<input type="number" inputmode="decimal" min="0.1" step="1" id="buyinin" value="${m$(st.buyin??20)}"></span></div>
+  <div class="srow"><span>Minimum bet (ante)</span><span class="numin">$<input type="number" inputmode="decimal" min="0.05" step="0.05" id="stakein" value="${m$(st.stake??1)}"></span></div>`}
   ${timerRow}
   ${nextRow}
   <div class="small dim" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>
@@ -706,9 +712,9 @@ function handMain(st,embedded){
     return `<h2 style="margin-top:1rem">Join table ${esc(room)}</h2><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18" style="margin-top:8px"><button class="big" id="join">Join game</button>${st.players.length?`<p class="small dim">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
   }
   const notYou=`<button class="ghost small" id="notyou">Not ${esc(p.name)}?</button>`;
-  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2>${notYou}<p class="dim">Stake is $${st.stake}. Waiting for the table to deal.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> <button class="ghost" id="addbot">Add a bot</button> `:''}<button class="ghost" id="leave">Leave the table</button></div>`;
+  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2>${notYou}<p class="dim">Ante is $${m$(st.stake)}. Waiting for the table to deal.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> <button class="ghost" id="addbot">Add a bot</button> `:''}<button class="ghost" id="leave">Leave the table</button></div>`;
   if(st.phase==='over'){ const w=st.winner, won=w&&w.idx.includes(i);
-    return `<div class="center" style="padding:1.2rem 0"><h2>${won?'You win!':w?w.idx.map(k=>esc(st.players[k].name)).join(' & ')+' won':'Game over'}</h2>${w?`<p class="dim">$${w.won}${w.idx.length>1?' each':''} · ${esc(w.why)}</p>`:''}${p.balance<st.stake?`<button class="ghost" id="rebuy">Out of money: rebuy $1000</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st)}</div>`; }
+    return `<div class="center" style="padding:1.2rem 0"><h2>${won?'You win!':w?w.idx.map(k=>esc(st.players[k].name)).join(' & ')+' won':'Game over'}</h2>${w?`<p class="dim">${st.funMode?esc(w.why):`$${m$(w.won)}${w.idx.length>1?' each':''} · ${esc(w.why)}`}</p>`:''}${(!st.funMode&&p.balance<st.stake)?`<button class="ghost" id="rebuy">Out of money: rebuy $${m$(st.buyin??20)}</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st)}</div>`; }
   // play
   if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.queued?`<h2 style="color:var(--fg)">You're in, ${esc(p.name)}!</h2>You'll be dealt in when the next game starts.<br>${notYou}`:p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake&&!p.queued?' Rebuy between games to get back in.':''}</div>`;
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
@@ -751,7 +757,7 @@ function overlayHTML(o){
     <button class="big" id="cancelovl">Let's play</button></div></div>`; }
   if(o.k==='colour') return `<div class="ovl"><div class="sheet"><h2>Choose a colour</h2><div class="cols">${COLS.map(c=>`<button class="${c}" data-pickcol="${c}">${CNAME[c]}</button>`).join('')}</div><button class="ghost big" id="cancelovl">Cancel</button></div></div>`;
   if(o.k==='target'){ const others=S.players.filter(p=>p.in&&p.id!==pid); return `<div class="ovl"><div class="sheet"><h2>Swap hands with…</h2><div class="tlist">${others.map(p=>`<button data-target="${p.id}"><span>${esc(p.name)}</span><span>${p.cards} card${p.cards===1?'':'s'}</span></button>`).join('')}</div><button class="ghost big" id="cancelovl">Cancel</button></div></div>`; }
-  if(o.k==='quit') return `<div class="ovl"><div class="sheet"><h2>Leave this game?</h2><p class="dim">Your cards go back into the deck and your $${S.stake} stake stays in the pot. You'll be dealt in again next game.</p><div class="row" style="margin-top:12px"><button class="ghost" id="cancelovl">Keep playing</button><button id="confirmquit">Leave game</button></div></div></div>`;
+  if(o.k==='quit') return `<div class="ovl"><div class="sheet"><h2>Leave this game?</h2><p class="dim">Your cards go back into the deck and your $${m$(S.stake)} stake stays in the pot. You'll be dealt in again next game.</p><div class="row" style="margin-top:12px"><button class="ghost" id="cancelovl">Keep playing</button><button id="confirmquit">Leave game</button></div></div></div>`;
   if(o.k==='finish') return `<div class="ovl"><div class="sheet"><h2>Finish the game now?</h2><p class="dim">Whoever is holding the fewest cards wins the $${S.pot} pot. A tie splits it.</p><div class="row" style="margin-top:12px"><button class="ghost" id="cancelovl">Keep playing</button><button id="confirmfinish">Finish now</button></div></div></div>`;
   return '';
 }
@@ -816,7 +822,7 @@ function bind(){
     if(sel.includes(id)) sel=sel.filter(x=>x!==id);
     else { const f=sel.length?me.hand.find(x=>x.id===sel[0]):null; sel=f&&S.rules.multi&&same(f,c)?sel.concat(id):[id]; }
     render(); });
-  document.querySelectorAll('[data-stake]').forEach(b=>b.onclick=()=>send({t:'settings',stake:+b.dataset.stake}));
+  { const si=document.getElementById('stakein'); if(si) si.onchange=e=>{const v=+e.target.value; if(v>0) send({t:'settings',stake:v});}; const bi=document.getElementById('buyinin'); if(bi) bi.onchange=e=>{const v=+e.target.value; if(v>0) send({t:'settings',buyin:v});}; }
   document.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>send({t:'settings',layout:b.dataset.layout}));
   document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>send({t:'settings',preset:b.dataset.preset}));
   on('#calluno',()=>{ send({t:'uno'}); sfx.tap(); }); on('#catchuno',()=>send({t:'catch'}));

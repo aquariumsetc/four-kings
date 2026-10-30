@@ -211,6 +211,8 @@ body.inroom:not(.ingame) #gohome{display:none}
 .tile.me .ava{background:#1f4a34}
 .tile .tgear{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);border:0;color:#fff;font-size:.72rem;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;z-index:2}
 body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only exists in the room — hide the gear in-game so it isn't a dead control */
+.stakeset{display:flex;flex-direction:column;gap:14px;margin-top:12px}.stakeset label{display:flex;flex-direction:column;gap:3px;font-weight:600}.stakeset label .small{font-weight:400}.stakeset .numin{align-self:flex-start;margin-top:3px}.stakeset label.funtog{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}.stakeset label.funtog input{width:auto;transform:scale(1.35);flex:0 0 auto}
+.numin{display:inline-flex;align-items:center;gap:3px;font-weight:600}.numin input{width:76px;padding:.3rem .45rem;text-align:right;font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:inherit}.numin input::-webkit-outer-spin-button,.numin input::-webkit-inner-spin-button{opacity:1}
 </style>
 </head>
 <body>
@@ -223,10 +225,15 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.9.9 · 30 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.9.12 · 30 Oct 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+const m$=v=>{ v=Math.round((+v||0)*100)/100; return v%1===0?String(v):v.toFixed(2); };
+const gnBuyin=()=>{ const v=+get('gn-buyin'); return v>0?v:20; };
+const gnFk=()=>{ const v=+get('gn-fk-stake'); return v>0?v:1; };
+const gnUno=()=>{ const v=+get('gn-uno-stake'); return v>0?v:1; };
+const gnFun=()=>get('gn-funmode')==='1';
 let pid=get('fk-pid'); if(!pid){ pid=Math.random().toString(36).slice(2,12)+Date.now().toString(36); set('fk-pid',pid); }
 const qs=new URLSearchParams(location.search);
 let room=(qs.get('room')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
@@ -499,6 +506,14 @@ function startHTML(){
     <div class="small muted" style="margin-top:14px">${savedRooms().length?'Or make a new room — type a name:':'Type a room name your family will remember:'}</div>
     <div class="irow" style="margin-top:6px"><input id="roomname" placeholder="e.g. EVERYONE" maxlength="16" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.06em"><button id="openroom" style="flex:0 0 auto">Open</button></div></div>
   <div class="panel lounge"><div><h3 style="margin:0">📹 Quick one-off room</h3><div class="small muted">A random-code room for a one-time game — no saved name.</div></div><button class="big" id="newlounge">📹 Start a video game room</button></div>
+  <div class="panel"><h3 style="margin:0">💰 Table stakes</h3>
+    <div class="small muted" style="margin-top:4px">Set these before you start — the host’s amounts apply to each new game. Type any amount.</div>
+    <div class="stakeset">
+      <label>Buy-in <span class="small muted">each player’s starting money (both games)</span><span class="numin">$<input type="number" inputmode="decimal" min="0.1" step="1" id="gnbuyin" value="${m$(gnBuyin())}"></span></label>
+      <label>4 Kings — minimum bet <span class="small muted">half to the kings, half to the centre</span><span class="numin">$<input type="number" inputmode="decimal" min="0.05" step="0.05" id="gnfk" value="${m$(gnFk())}"></span></label>
+      <label>UNO — minimum bet <span class="small muted">the ante each hand; winner takes the pot</span><span class="numin">$<input type="number" inputmode="decimal" min="0.05" step="0.05" id="gnuno" value="${m$(gnUno())}"></span></label>
+      <label class="funtog"><span>\uD83C\uDF89 Fun mode <span class="small muted">no money \u2014 just play for the win</span></span><input type="checkbox" id="gnfun" ${gnFun()?'checked':''}></label>
+    </div></div>
   <div class="games">
     <div class="game fk"><div class="art">${k('K<br>♠',0,-18)}${k('K<br>♥',1,-6)}${k('K<br>♦',1,6)}${k('K<br>♣',0,18)}</div>
       <h2>4 Kings</h2><p>Bet on the kings, play the cards in order, and grab the queens to win the money.</p><div class="small muted">2–8 players · bots can fill in</div>
@@ -566,6 +581,10 @@ function bind(){
   if(q('#unophones')) q('#unophones').onclick=()=>startOwn('uno');
   if(q('#newlounge')) q('#newlounge').onclick=()=>startRoom();
   if(q('#openroom')) q('#openroom').onclick=()=>openNamedRoom(q('#roomname').value);
+  if(q('#gnbuyin')) q('#gnbuyin').onchange=e=>{ const v=Math.round((+e.target.value||0)*100)/100; if(v>0) set('gn-buyin',String(v)); };
+  if(q('#gnfk')) q('#gnfk').onchange=e=>{ const v=Math.round((+e.target.value||0)*100)/100; if(v>0) set('gn-fk-stake',String(v)); };
+  if(q('#gnuno')) q('#gnuno').onchange=e=>{ const v=Math.round((+e.target.value||0)*100)/100; if(v>0) set('gn-uno-stake',String(v)); };
+  if(q('#gnfun')) q('#gnfun').onchange=e=>set('gn-funmode',e.target.checked?'1':'');
   if(q('#roomname')) q('#roomname').onkeydown=e=>{ if(e.key==='Enter') openNamedRoom(q('#roomname').value); };
   if(q('#roompick')) q('#roompick').onchange=()=>{ const v=q('#roompick').value; if(v) openNamedRoom(v); }; // pick to open
   if(q('#editrooms')) q('#editrooms').onclick=()=>{ roomsEdit=!roomsEdit; render(); };

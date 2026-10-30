@@ -8,6 +8,8 @@ const ACTION = ["skip", "rev", "d2", ...WILDS];
 const DRAWS = ["d2", "w4", "mirror"];
 const STAR = ["steal", "pass", "mirror", "cust"]; // v2.8.82: the non-official "star" wild cards — playable any time it's your turn
 const START_BAL = 1000;
+const money2 = (n, min, max) => { if (!isFinite(n) || n <= 0) return 0; let c = Math.round(n * 100); c = Math.max(Math.round(min * 100), Math.min(Math.round(max * 100), c)); return c / 100; };
+
 const NEXT_MS = 20000;   // game over: next game after this (if auto-next)
 const EMPTY_GRACE = 45000; // v2.8.54: all humans gone this long (bots have no sockets) -> reset the game to a fresh lobby, keeping the room (settings + season scores)
 const NUDGE_MS = 15000;  // idle player: phone nudges this long before auto-move
@@ -26,7 +28,7 @@ const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 function fresh() {
   return {
     phase: "lobby", players: [], deck: [], pile: [], colour: null, dir: 1, turn: 0, first: 0, drawStack: 0, drew: false,
-    pot: 0, stake: 20, turnMs: 0, autoNext: false, rules: { ...RULES }, customs: [],
+    pot: 0, stake: 1, buyin: 20, stakesSet: false, funMode: false, turnMs: 0, autoNext: false, rules: { ...RULES }, customs: [],
     game: 0, winner: null, note: "", event: null, ledger: {}, turnAt: 0, overAt: 0, nextId: 1, v: 0,
   };
 }
@@ -97,9 +99,9 @@ function startGame(st) {
   const sitting = [];
   st.players.forEach((p) => {
     p.hand = []; p.left = false; p.queued = false; p.startBal = p.balance;
-    if (p.bot && p.balance < st.stake) { p.balance += START_BAL; p.rebuys = (p.rebuys || 0) + 1; p.startBal = p.balance; }
-    p.in = p.balance >= st.stake; if (!p.in) { sitting.push(p.name); return; }
-    p.balance -= st.stake; st.pot += st.stake;
+    if (!st.funMode && p.bot && p.balance < st.stake) { p.balance += (st.buyin ?? START_BAL); p.rebuys = (p.rebuys || 0) + 1; p.startBal = p.balance; }
+    p.in = st.funMode ? true : p.balance >= st.stake; if (!p.in) { sitting.push(p.name); return; }
+    if (!st.funMode) { p.balance -= st.stake; st.pot += st.stake; }
   });
   st.deck = buildDeck(st);
   const seats = ins(st);
@@ -307,7 +309,7 @@ export class UnoTable extends DurableObject {
         if (me) { me.name = name; me.emoji = emoji; break; }
         if (st.players.length >= 10) { err = "The table is full."; changed = false; break; }
         // joining mid-game: you're seated now and dealt in at the next game
-        st.players.push({ id: pid, name, emoji, balance: START_BAL, hand: [], in: false, queued: st.phase === "play" }); break;
+        st.players.push({ id: pid, name, emoji, balance: (st.buyin ?? START_BAL), hand: [], in: false, queued: st.phase === "play" }); break;
       }
       case "leave": if (me && (between || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.turn > i) st.turn--; } else changed = false; break;
       case "uno": if (me) err = callUno(st, i); if (err) changed = false; break;
@@ -318,25 +320,27 @@ export class UnoTable extends DurableObject {
       case "addbot": {
         if (!isHost || !between || st.players.length >= 10) { changed = false; break; }
         const used = new Set(st.players.map((p) => p.name));
-        st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name: BOT_NAMES.find((n) => !used.has(n)) || "Bot", bot: true, balance: START_BAL, hand: [], in: false }); break;
+        st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name: BOT_NAMES.find((n) => !used.has(n)) || "Bot", bot: true, balance: (st.buyin ?? START_BAL), hand: [], in: false }); break;
       }
       case "removebot": { const b = st.players.map((p) => p.bot).lastIndexOf(true); if (isHost && between && b >= 0) { st.players.splice(b, 1); st.first = 0; } else changed = false; break; }
       case "start": case "next":
-        if ((m.t === "start" ? isHost && st.phase === "lobby" : st.phase === "over" && (me || role === "table")) && st.players.filter((p) => p.balance >= st.stake || p.bot).length >= 2) startGame(st);
+        if ((m.t === "start" ? isHost && st.phase === "lobby" : st.phase === "over" && (me || role === "table")) && (st.funMode ? st.players.length >= 2 : st.players.filter((p) => p.balance >= st.stake || p.bot).length >= 2)) startGame(st);
         else { changed = false; if (m.t === "start") err = "Need at least two players who can cover the stake."; }
         break;
-      case "rebuy": if (me && me.balance < st.stake && st.phase !== "play") { me.balance += START_BAL; me.rebuys = (me.rebuys || 0) + 1; } else changed = false; break;
+      case "rebuy": if (me && me.balance < st.stake && st.phase !== "play") { me.balance += (st.buyin ?? START_BAL); me.rebuys = (me.rebuys || 0) + 1; } else changed = false; break;
       case "play": if (me) err = play(st, i, (m.ids || []).map(Number), { colour: m.colour, target: m.target }); if (err) changed = false; break;
       case "draw": if (me) err = draw(st, i); if (err) changed = false; break;
       case "pass": if (me) err = pass(st, i); if (err) changed = false; break;
       case "finish": if (isHost && st.phase === "play") finishNow(st); else changed = false; break;
-      case "reset": if (isHost) { const keep = { stake: st.stake, turnMs: st.turnMs, autoNext: st.autoNext, rules: st.rules, customs: st.customs }; this.S = Object.assign(fresh(), keep); } break;
+      case "reset": if (isHost) { const keep = { stake: st.stake, buyin: st.buyin, stakesSet: st.stakesSet, funMode: st.funMode, turnMs: st.turnMs, autoNext: st.autoNext, rules: st.rules, customs: st.customs }; this.S = Object.assign(fresh(), keep); } break;
       case "clearboard": if (isHost) st.ledger = {}; break;
       case "settings": {
         if (!isHost) { changed = false; break; }
-        if ([10, 20, 50, 100].includes(+m.stake) && st.phase !== "play") st.stake = +m.stake;
+        if (m.stake != null && st.phase !== "play") { const v = money2(+m.stake, 0.05, (st.buyin ?? START_BAL)); if (v) { st.stake = v; st.stakesSet = true; } }
+        if (m.buyin != null) { const v = money2(+m.buyin, Math.max(0.05, st.stake ?? 1), 1000000); if (v) { st.buyin = v; st.stakesSet = true; if (st.phase === "lobby") st.players.forEach((p) => { p.balance = v; p.startBal = v; }); } }
         if ([30000, 60000, 0].includes(m.turnMs)) st.turnMs = m.turnMs;
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); }
+        if (typeof m.funMode === "boolean" && st.phase !== "play") st.funMode = m.funMode; // fun mode: no money
         if (m.rule && m.rule in RULES) st.rules[m.rule] = !!m.on; // v2.8.71: rule/preset changes take effect immediately, even mid-hand — change a rule "for this go" and keep playing (cards added by Steal/Pass/Mirror/Custom only enter the deck at the next deal)
         if (m.preset && PRESETS[m.preset]) st.rules = { ...PRESETS[m.preset] };
         if (["table", "phones"].includes(m.layout)) st.layout = m.layout; // iPad in the middle, or everyone on their own device
@@ -352,7 +356,7 @@ export class UnoTable extends DurableObject {
   async webSocketError(ws) { try { ws.close(); } catch {} this.broadcast(); }
   tablePresent() { return this.ctx.getWebSockets().some((w) => w.readyState === 1 && (w.deserializeAttachment() || {}).creator); }
   broadcast() { for (const ws of this.ctx.getWebSockets()) if (ws.readyState === 1) this.send(ws); }
-  async stop() { const keep = { stake: this.S.stake, turnMs: this.S.turnMs, autoNext: this.S.autoNext, rules: this.S.rules, customs: this.S.customs, ledger: this.S.ledger }; this.S = Object.assign(fresh(), keep); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); } // v2.8.73: keep the room's rules/settings/scores on a full stop — only clear players + any stuck game
+  async stop() { const keep = { stake: this.S.stake, buyin: this.S.buyin, stakesSet: this.S.stakesSet, funMode: this.S.funMode, turnMs: this.S.turnMs, autoNext: this.S.autoNext, rules: this.S.rules, customs: this.S.customs, ledger: this.S.ledger }; this.S = Object.assign(fresh(), keep); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); } // v2.8.73: keep the room's rules/settings/scores on a full stop — only clear players + any stuck game
 
   // timers: bots, idle humans, auto-next
   due(st) {
@@ -368,9 +372,9 @@ export class UnoTable extends DurableObject {
     if (st.emptyAt) {
       const open = this.ctx.getWebSockets().filter((w) => w.readyState === 1).length;
       if (open > 0) { delete st.emptyAt; await this.commit(); this.broadcast(); return; } // someone came back
-      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { stake: st.stake, turnMs: st.turnMs, autoNext: st.autoNext, rules: st.rules, customs: st.customs, ledger: st.ledger }); await this.commit(); this.broadcast(); return; } // empty long enough -> fresh lobby, room kept
+      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { stake: st.stake, buyin: st.buyin, stakesSet: st.stakesSet, funMode: st.funMode, turnMs: st.turnMs, autoNext: st.autoNext, rules: st.rules, customs: st.customs, ledger: st.ledger }); await this.commit(); this.broadcast(); return; } // empty long enough -> fresh lobby, room kept
     }
-    if (st.phase === "over" && st.autoNext && Date.now() >= st.overAt + NEXT_MS - 50) { if (st.players.filter((p) => p.balance >= st.stake || p.bot).length >= 2) startGame(st); else st.overAt = 0; }
+    if (st.phase === "over" && st.autoNext && Date.now() >= st.overAt + NEXT_MS - 50) { if (st.funMode ? st.players.length >= 2 : st.players.filter((p) => p.balance >= st.stake || p.bot).length >= 2) startGame(st); else st.overAt = 0; }
     else if (st.phase === "play" && Date.now() >= (st.wakeAt || 0) - 50) {
       const p = st.players[st.turn];
       if (p.bot) botMove(st, st.turn);

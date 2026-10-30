@@ -20,6 +20,8 @@ const SWAP_RACE_MS = 12000;    // fastest-finger swap window
 const NEXT_MS = 15000;         // game over: next game starts after this (if auto-next is on)
 const EMPTY_GRACE = 45000;      // v2.8.54: all humans gone this long -> reset the game to the room lounge (keep settings + season scores)
 const MIN_BET = 10, START_BAL = 1000;
+const money2 = (n, min, max) => { if (!isFinite(n) || n <= 0) return 0; let c = Math.round(n * 100); c = Math.max(Math.round(min * 100), Math.min(Math.round(max * 100), c)); return c / 100; };
+
 let curStake = MIN_BET; // v2.9.8: the active table's minimum-bet unit; one value per room, set at each entry point (DO is single-threaded)
 const rname = (r) => RN[r] || String(r);
 
@@ -28,7 +30,7 @@ function fresh() {
     phase: "lobby", players: [], kings: { S: 0, H: 0, D: 0, C: 0 }, pot: 0, first: 0, game: 0,
     dead: [], spare: [], swapIdx: 0, swapAns: {}, leader: 0, colour: null, runSuit: null, run: [], nextRank: 0,
     calledAt: 0, turnAt: 0, swapEnd: 0, overAt: 0, note: "", winner: null, v: 0,
-    claimMs: 0, swapMode: "race", autoNext: false, ledger: {}, stake: MIN_BET, buyin: START_BAL, // v2.9.1: card timer Off by default — never auto-plays; a timer can be switched on per room in ⚙️
+    claimMs: 0, swapMode: "race", autoNext: false, ledger: {}, stake: 1, buyin: 20, stakesSet: false, funMode: false, // v2.9.1: card timer Off by default — never auto-plays; a timer can be switched on per room in ⚙️
   };
 }
 function deck() {
@@ -228,7 +230,7 @@ export class Table extends DurableObject {
     ctx.blockConcurrencyWhile(async () => {
       const st = (await ctx.storage.get("state")) || fresh();
       // tables created before a field existed
-      st.claimMs ??= CLAIM_MS; st.swapMode ??= "race"; st.autoNext ??= true; st.ledger ??= {}; st.swapAns ??= {}; st.stake ??= MIN_BET; st.buyin ??= START_BAL;
+      st.claimMs ??= CLAIM_MS; st.swapMode ??= "race"; st.autoNext ??= true; st.ledger ??= {}; st.swapAns ??= {}; st.stake ??= MIN_BET; st.buyin ??= START_BAL; st.stakesSet ??= false; st.funMode ??= false;
       if (st.phase !== "lobby" && st.phase !== "ante") st.players.forEach((p) => { p.in ??= true; });
       this.S = st;
     });
@@ -282,7 +284,7 @@ export class Table extends DurableObject {
         if (me) { me.name = name; me.emoji = emoji; changed = true; break; }
         if (st.players.length >= 8) { err = "The table is full."; break; }
         // joining mid-game: you're seated now and dealt in at the next game
-        st.players.push({ id: pid, name, emoji, balance: (st.buyin || START_BAL), bets: {}, placed: false, hand: [], startBal: (st.buyin || START_BAL), auto: !!m.auto, in: false });
+        st.players.push({ id: pid, name, emoji, balance: (st.funMode ? 0 : (st.buyin || START_BAL)), bets: {}, placed: false, hand: [], startBal: (st.funMode ? 0 : (st.buyin || START_BAL)), auto: !!m.auto, in: false });
         if (st.phase === "ante") { if (st.dealAt) st.dealAt = Math.max(st.dealAt, Date.now() + JOIN_GRACE_MS); updateDealAt(st); }
         changed = true; break;
       }
@@ -297,16 +299,16 @@ export class Table extends DurableObject {
       case "addbot": {
         if (!isHost || !between || st.players.length >= 8) break;
         const used = new Set(st.players.map((p) => p.name)); const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${st.players.length + 1}`;
-        st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name, bot: true, balance: (st.buyin || START_BAL), bets: {}, placed: false, hand: [] }); changed = true; break;
+        st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name, bot: true, balance: (st.funMode ? 0 : (st.buyin || START_BAL)), bets: {}, placed: false, hand: [] }); changed = true; break;
       }
       case "removebot": {
         if (!isHost || !between) break;
         const bi = st.players.map((p) => p.bot).lastIndexOf(true); if (bi >= 0) { st.players.splice(bi, 1); st.first = 0; changed = true; } break;
       }
-      case "start": if (isHost && st.phase === "lobby" && st.players.length >= 2) { this.beginAnte(st); changed = true; } break;
+      case "start": if (isHost && st.phase === "lobby" && st.players.length >= 2) { st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; } break;
       // anyone at the table can move on to the next game
-      case "next": if ((me || role === "table") && st.phase === "over") { this.beginAnte(st); changed = true; } break;
-      case "reset": if (isHost) { this.S = fresh(); Object.assign(this.S, { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, stake: st.stake, buyin: st.buyin }); await this.ctx.storage.deleteAlarm(); changed = true; } break;
+      case "next": if ((me || role === "table") && st.phase === "over") { st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; } break;
+      case "reset": if (isHost) { this.S = fresh(); Object.assign(this.S, { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, stake: st.stake, buyin: st.buyin, stakesSet: st.stakesSet, funMode: st.funMode }); await this.ctx.storage.deleteAlarm(); changed = true; } break;
       case "rebuy": {
         if (!me || !broke(me) || !(between || st.phase === "ante")) break;
         me.balance += (st.buyin || START_BAL); me.rebuys = (me.rebuys || 0) + 1; if (st.phase === "ante") me.startBal = (me.startBal ?? 0) + (st.buyin || START_BAL);
@@ -350,10 +352,11 @@ export class Table extends DurableObject {
         if ([0, 5000, 30000, 300000].includes(Number(m.claimMs))) { st.claimMs = Number(m.claimMs); changed = true; } // 0 = Off (no auto-play)
         if (["race", "turn"].includes(m.swapMode) && st.phase !== "swap") { st.swapMode = m.swapMode; changed = true; }
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); changed = true; }
+        if (typeof m.funMode === "boolean" && (st.phase === "lobby" || st.phase === "over")) { st.funMode = m.funMode; st.players.forEach((p) => { p.balance = m.funMode ? 0 : (st.buyin || START_BAL); p.startBal = p.balance; }); changed = true; } // fun mode: no money, set between games
         if (["table", "phones"].includes(m.layout)) { st.layout = m.layout; changed = true; }
         if (typeof m.lounge === "boolean" && st.phase === "lobby") { st.lounge = m.lounge; changed = true; } // Game Night room: video chat before a game is picked
-        if ([0.1, 0.5, 1, 5, 10].includes(Number(m.stake)) && Number(m.stake) * 2 <= (st.buyin ?? START_BAL)) { st.stake = Number(m.stake); curStake = st.stake; changed = true; } // v2.9.8: minimum bet (10¢–$10); must be ≤ half the buy-in
-        if ([5, 25, 100, 500, 1000].includes(Number(m.buyin)) && Number(m.buyin) >= 2 * (st.stake ?? MIN_BET)) { st.buyin = Number(m.buyin); if (st.phase === "lobby") st.players.forEach((p) => { p.balance = st.buyin; p.startBal = st.buyin; }); changed = true; } // v2.9.8: buy-in / starting stack; in the lobby it resets everyone's stack
+        if (m.stake != null) { const v = money2(+m.stake, 0.05, (st.buyin ?? START_BAL) / 2); if (v) { st.stake = v; curStake = v; st.stakesSet = true; changed = true; } } // v2.9.8: minimum bet (10¢–$10); must be ≤ half the buy-in
+        if (m.buyin != null) { const v = money2(+m.buyin, Math.max(0.1, 2 * (st.stake ?? MIN_BET)), 1000000); if (v) { st.buyin = v; if (st.phase === "lobby") st.players.forEach((p) => { p.balance = v; p.startBal = v; }); st.stakesSet = true; changed = true; } } // v2.9.8: buy-in / starting stack; in the lobby it resets everyone's stack
         break;
       }
     }
@@ -384,7 +387,7 @@ export class Table extends DurableObject {
     const st = this.S; curStake = (this.S && this.S.stake) || MIN_BET;
     if (st.emptyAt) {
       if (this.ctx.getWebSockets().some((w) => w.readyState === 1)) { delete st.emptyAt; await this.commit(); return; }
-      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, ledger: st.ledger, stake: st.stake, buyin: st.buyin }); this.S.lounge = true; await this.commit(); return; }
+      if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, ledger: st.ledger, stake: st.stake, buyin: st.buyin, stakesSet: st.stakesSet, funMode: st.funMode }); this.S.lounge = true; await this.commit(); return; }
     }
     const now = Date.now(), d = deadlines(st), due = (t) => t && now >= t - 50; let changed = false;
     if (due(d.claimBy)) { stopRun(st); changed = true; }
@@ -398,7 +401,7 @@ export class Table extends DurableObject {
       const multi = leadOptions(st, st.leader).length > 1, who = st.players[st.leader].name, best = bestLead(st, st.leader);
       if (best) { doLead(st, st.leader, best); if (multi) st.note = (st.note ? st.note + " " : "") + `${who} took a while, so their lowest ${NAME[best.s]} went down.`; changed = true; }
     }
-    else if (due(d.nextBy)) { this.beginAnte(st); changed = true; }
+    else if (due(d.nextBy)) { st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; }
     else if (now >= (st.botAt || 0) - 50) { const i = botPending(st); if (i >= 0) { botAct(st, i); changed = true; } st.botAt = 0; }
     if (changed) await this.commit(); else await this.schedule();
   }
@@ -421,6 +424,12 @@ export class Table extends DurableObject {
       if (keep) { p.bets = keep; p.placed = true; p.carried = true; carried++; } else { p.bets = p.bot ? {} : p.bets || {}; p.placed = false; p.carried = false; }
     });
     if (carried) updateDealAt(st, CARRY_GRACE_MS);
+  }
+  beginFun(st) { // Fun mode: no money — skip betting, deal straight away. Empty bets = nothing staked.
+    st.game++; st.run = []; st.note = ""; st.winner = null; st.dead = []; st.spare = []; st.dealAt = 0; st.overAt = 0;
+    st.pot = 4; st.kings = { S: 1, H: 1, D: 1, C: 1 }; // fun mode: 8 points a game — 4 in the centre, 1 on each king
+    st.players.forEach((p) => { p.hand = []; p.gq = 0; p.startBal = p.balance; p.bets = {}; p.placed = true; p.carried = false; p.in = true; });
+    dealInto(st);
   }
 
   async commit() {

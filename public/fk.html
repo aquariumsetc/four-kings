@@ -144,38 +144,44 @@ button.cardbtn{padding:0;background:none;border-radius:5px}
 .fan .card small{font-size:1.1rem}
 .fan .card.last{outline:2px solid var(--brass);outline-offset:1px}
 .fan .whobadge{position:absolute;right:-7px;bottom:-7px;width:22px;height:22px;border-radius:50%;background:var(--felt-deep);display:grid;place-items:center;font-size:.8rem;box-shadow:0 0 0 2px var(--ivory);z-index:3;pointer-events:none} /* who played this card */
-/* v2.8.7 top avatar strip (phones): the ring sits on whoever we're waiting on; it hops with the run */
-#fkstripwrap .fkstrip{position:fixed;left:0;right:0;top:0;z-index:8;padding:12px 6px 8px;padding-top:calc(12px + env(safe-area-inset-top,0px));
+/* v2.9.9 top player carousel (phones): a thin strip that glides to whoever played the LAST card and hops forward as play moves round the table (ported from UNO's turn strip) */
+#fkstripwrap .fkstrip{position:fixed;left:0;right:0;top:0;z-index:8;height:108px;padding-top:env(safe-area-inset-top,0px);
   background:linear-gradient(180deg,rgba(15,43,29,.95),rgba(15,43,29,.72) 72%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
-  border-bottom:1px solid var(--line);overflow:visible;clip-path:inset(-60px 0 0 0);display:none}
+  border-bottom:1px solid var(--line);overflow:visible;clip-path:inset(-60px 0 0 0);display:none;touch-action:pan-y;cursor:grab}
 #fkstripwrap .fkstrip.on{display:block}
+#fkstripwrap .fkstrip.dragging{cursor:grabbing} /* drag left/right to peek at the other players; a new card snaps it back to centre whoever just played */
 body.hasvid #fkstripwrap .fkstrip{top:calc(124px + env(safe-area-inset-top,0px))}
 body.hasvid.tbl #fkstripwrap .fkstrip{top:calc(136px + env(safe-area-inset-top,0px))}
-.fkstrip .fkrow{display:flex;justify-content:center;align-items:flex-start;gap:4px;max-width:560px;margin:0 auto}
-.fkstrip .fkchip{flex:1;max-width:76px;text-align:center;transition:transform .4s cubic-bezier(.3,.7,.25,1)}
-.fkstrip .fkchip.cur{transform:scale(1.06)}
-.fkstrip .fkava{width:48px;height:48px;border-radius:50%;margin:0 auto;display:grid;place-items:center;position:relative;font-weight:700;font-size:1.25rem;color:#fff;background:var(--felt-deep);box-shadow:0 0 0 2px var(--line);transition:box-shadow .3s,background .3s}
+.fkstrip .fktrack{position:absolute;left:0;right:0;top:calc(12px + env(safe-area-inset-top,0px));height:84px}
+.fkstrip .fkchip{position:absolute;left:50%;top:0;width:72px;margin-left:-36px;text-align:center;will-change:transform,opacity;
+  transition:transform .5s cubic-bezier(.3,.7,.25,1),opacity .5s} /* slow glide to match UNO */
+.fkstrip.noanim .fkchip{transition:none}
+.fkstrip .fkava{width:52px;height:52px;border-radius:50%;margin:0 auto;display:grid;place-items:center;position:relative;font-weight:700;font-size:1.3rem;color:#fff;background:var(--felt-deep);box-shadow:0 0 0 2px var(--line);transition:box-shadow .3s,background .3s;background-size:cover;background-position:center}
 .fkstrip .fknm{font-weight:600;font-size:.72rem;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(251,247,236,.72)}
 .fkstrip .fkbal{font-size:.68rem;color:rgba(251,247,236,.6)}
 .fkstrip .fkchip.cur .fkava{background:var(--brass);color:#2b2200;box-shadow:0 0 22px rgba(201,162,39,.6)}
-.fkstrip .fkchip.cur .fkava::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--brass);pointer-events:none;box-shadow:0 0 14px 2px rgba(201,162,39,.9),0 0 30px 7px rgba(201,162,39,.5)}
+.fkstrip .fkchip.cur .fkava::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:3px solid var(--brass);pointer-events:none;z-index:1;box-shadow:0 0 14px 2px rgba(201,162,39,.9),0 0 30px 7px rgba(201,162,39,.5)}
 .fkstrip .fkchip.cur .fknm{color:var(--brass)}
 .fkstrip .fkchip.owe .fkava{box-shadow:0 0 0 3px var(--brass);animation:fkowe 1.1s ease-in-out infinite}
 @keyframes fkowe{50%{box-shadow:0 0 0 3px var(--brass),0 0 20px rgba(201,162,39,.6)}}
-.fkstrip .fkchip.out{opacity:.4}
-.fkstrip .fkchip.just .fkava{animation:fkpop .5s ease}
-@keyframes fkpop{30%{transform:scale(1.14)}}
-@media (prefers-reduced-motion:reduce){.fkstrip .fkchip{transition:none}.fkstrip .fkchip.owe .fkava,.fkstrip .fkchip.just .fkava{animation:none}}
+.fkstrip .fkchip.out .fkava{filter:grayscale(.7);opacity:.5}
+.fkstrip .fkchip.past .fkava{filter:grayscale(.5)} /* players already gone past this round read dim */
+.fkstrip .fkchip.just .fkava{animation:fkpop .5s ease} /* the card that just went down */
+@keyframes fkpop{30%{transform:scale(1.16)}}
+.fkstrip .fkchip.flash .fkava{animation:fkflash .5s ease} /* a seat hopped over when the lead passed */
+@keyframes fkflash{0%,100%{box-shadow:0 0 0 2px var(--line)}50%{box-shadow:0 0 0 5px rgba(201,162,39,.85),0 0 22px rgba(201,162,39,.6)}}
+@media (prefers-reduced-motion:reduce){.fkstrip .fkchip{transition:none}.fkstrip .fkchip.owe .fkava,.fkstrip .fkchip.just .fkava,.fkstrip .fkchip.flash .fkava{animation:none}}
 /* fit: reserve space for the fixed strip and drop the now-duplicate standings on phones */
-.app.fkstripon{padding-top:calc(104px + env(safe-area-inset-top,0px))}
-body.hasvid .app.fkstripon{padding-top:calc(224px + env(safe-area-inset-top,0px))}
-body.hasvid.tbl .app.fkstripon{padding-top:calc(236px + env(safe-area-inset-top,0px))}
+.app.fkstripon{padding-top:calc(118px + env(safe-area-inset-top,0px))}
+body.hasvid .app.fkstripon{padding-top:calc(238px + env(safe-area-inset-top,0px))}
+body.hasvid.tbl .app.fkstripon{padding-top:calc(250px + env(safe-area-inset-top,0px))}
 .app.fkstripon .scores{display:none}
 @media (orientation:landscape) and (max-height:560px){
-  #fkstripwrap .fkstrip{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-bottom:4px}
-  .fkstrip .fkava{width:40px;height:40px;font-size:1.05rem}
+  #fkstripwrap .fkstrip{height:76px}
+  .fkstrip .fktrack{top:calc(5px + env(safe-area-inset-top,0px));height:64px}
+  .fkstrip .fkava{width:42px;height:42px;font-size:1.05rem}
   .fkstrip .fknm,.fkstrip .fkbal{font-size:.64rem}
-  .app.fkstripon{padding-top:calc(84px + env(safe-area-inset-top,0px))}
+  .app.fkstripon{padding-top:calc(90px + env(safe-area-inset-top,0px))}
 }
 .minirun .card.ghost{width:44px;height:60px;font-size:1.5rem}.minirun .card.ghost small{font-size:1.05rem}
 .minirun .lbl{position:absolute;left:0;right:0;top:100%;text-align:center;font-size:.62rem;opacity:.75;margin-top:2px}
@@ -225,7 +231,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.8 · 29 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.9 · 30 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -601,35 +607,106 @@ function render(){
 }
 /* ---- v2.8.7 top avatar strip (phones): ring on who we're waiting on; hops with the run ---- */
 const FKHUE=[205,0,275,150,35,320,95,250,15,180];
-let fkRow=null, fkchips=[], fkKey='', fkShown=false, fkPrevRun=-1;
-function ensureFkStrip(){ if(fkRow) return; const w=document.getElementById('fkstripwrap'); w.innerHTML='<div class="fkstrip" id="fkstrip"><div class="fkrow" id="fkrow"></div></div>'; fkRow=document.getElementById('fkrow'); }
-function buildFkStrip(st){ ensureFkStrip(); fkRow.innerHTML=''; fkchips=st.players.map((p,k)=>{ const el=document.createElement('div'); el.className='fkchip'; el.innerHTML='<div class="fkava"></div><div class="fknm"></div><div class="fkbal"></div>'; fkRow.appendChild(el); return {el,k}; }); }
+/* ---- v2.9.9 player carousel: a top strip of players that glides to whoever played the LAST card, hopping forward as play moves round. Ported from UNO's turn strip; driven by st.run / st.leader instead of the current turn. ---- */
+const FK_COPIES=9, FK_MID=4;
+let fktrackEl=null, fkchips=[], fkN=0, fkCur=0, fkFocus=0, fkPrevFocus=null, fkPrevSig='', fkRingOn=false, fkKey='', fkShown=false,
+    fkDragging=false, fkDragStartX=0, fkDragStartFocus=0, fkDragMoved=false;
+function fkMyIndex(st){ for(let i=0;i<st.players.length;i++) if(st.players[i].id===pid) return i; return -1; }
+function ensureFkStrip(){
+  if(fktrackEl) return;
+  const w=document.getElementById('fkstripwrap');
+  w.innerHTML='<div class="fkstrip" id="fkstrip"><div class="fktrack" id="fktrack"></div></div>';
+  fktrackEl=document.getElementById('fktrack');
+  fkStripDragSetup();
+}
+// drag the strip left/right to peek at the other players; a new card snaps it back to centre whoever just played
+function fkStripDragSetup(){
+  const el=document.getElementById('fkstrip'); if(!el||el.dataset.drag) return; el.dataset.drag='1';
+  const stepPx=()=>Math.min(78,(el.clientWidth||340)*0.21);
+  const lim=()=>Math.max(1,fkN-1);
+  el.addEventListener('pointerdown',e=>{ if(!fkchips.length) return; fkDragging=true; fkDragMoved=false; fkDragStartX=e.clientX; fkDragStartFocus=fkFocus; el.classList.add('dragging'); try{el.setPointerCapture(e.pointerId);}catch(_){} });
+  el.addEventListener('pointermove',e=>{ if(!fkDragging) return; const dx=e.clientX-fkDragStartX; if(Math.abs(dx)>4) fkDragMoved=true; let f=fkDragStartFocus-dx/stepPx(); f=Math.max(fkCur-lim(),Math.min(fkCur+lim(),f)); fkFocus=f; placeFkStrip(false); e.preventDefault(); });
+  const end=e=>{ if(!fkDragging) return; fkDragging=false; el.classList.remove('dragging'); try{el.releasePointerCapture(e.pointerId);}catch(_){} fkFocus=Math.max(fkCur-lim(),Math.min(fkCur+lim(),Math.round(fkFocus))); placeFkStrip(true); };
+  el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+}
+// who played the LAST card: the last entry in the run; else the leader (start of a run); else your own seat (betting/swap-race — no card down yet). In turn-mode swap the strip follows whose turn it is to keep/swap.
+function fkFocusIndex(st){
+  if(st.phase==='play'||st.phase==='claim'){
+    if(st.run&&st.run.length) return st.run[st.run.length-1].who;
+    if(st.leader>=0) return st.leader;
+  }
+  if(st.phase==='swap'&&st.swapTurn!=null&&st.swapTurn>=0) return st.swapTurn;
+  const me=fkMyIndex(st); return me>=0?me:(st.first||0);
+}
+function buildFkStrip(st){
+  ensureFkStrip(); const n=st.players.length; fkN=n; fktrackEl.innerHTML=''; fkchips=[];
+  for(let c=0;c<FK_COPIES;c++) for(let i=0;i<n;i++){ const g=c*n+i;
+    const el=document.createElement('div'); el.className='fkchip'; el.dataset.g=g;
+    el.innerHTML='<div class="fkava"></div><div class="fknm"></div><div class="fkbal"></div>';
+    fktrackEl.appendChild(el); fkchips.push({el,g,pi:i});
+  }
+}
 function paintFkStrip(st){
-  st.players.forEach((p,k)=>{ const ch=fkchips[k]; if(!ch) return;
+  for(const ch of fkchips){ const p=st.players[ch.pi]; if(!p) continue;
     const ava=ch.el.querySelector('.fkava'), nm=ch.el.querySelector('.fknm'), bal=ch.el.querySelector('.fkbal');
     const ph = !p.bot && photos[p.id];
-    if(ph){ ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundSize='cover'; ava.style.backgroundPosition='center'; ava.style.backgroundColor=`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`; ava.textContent=''; }
-    else { ava.style.backgroundImage=''; ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[k%FKHUE.length]} 55% 44%)`; ava.textContent = p.bot?'🤖':(p.emoji||(p.name||'?').charAt(0).toUpperCase()); }
+    if(ph){ ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundColor=`hsl(${FKHUE[ch.pi%FKHUE.length]} 55% 44%)`; ava.textContent=''; }
+    else { ava.style.backgroundImage=''; ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[ch.pi%FKHUE.length]} 55% 44%)`; ava.textContent = p.bot?'\uD83E\uDD16':(p.emoji||(p.name||'?').charAt(0).toUpperCase()); }
     nm.textContent = (p.id===pid&&mode!=='table')?'You':p.name;
     bal.textContent = '$'+m$(p.balance);
-    const cur = st.phase!=='ante' && st.waitingOn>=0 && st.waitingOn===k;
-    const owe = st.phase==='ante' ? (!p.placed&&!p.broke) : (st.phase==='swap'&&st.swapTurn==null&&p.in&&!p.kept);
+    const owe = st.phase==='ante' ? (!p.placed&&!p.broke) : (st.phase==='swap'&&st.swapTurn==null ? (p.in&&!p.kept) : false);
     const out = st.phase==='ante' ? !!p.broke : !p.in;
-    ch.el.classList.toggle('cur', cur);
-    ch.el.classList.toggle('owe', owe&&!cur);
-    ch.el.classList.toggle('out', out&&!cur);
-  });
+    ch.el.classList.toggle('owe', owe);
+    ch.el.classList.toggle('out', out);
+  }
 }
+function placeFkStrip(animated){
+  const el=document.getElementById('fkstrip'); if(!el||!fkchips.length) return;
+  if(!animated||fkDragging) el.classList.add('noanim');
+  const w=el.clientWidth||340, step=Math.min(78,w*0.21);
+  for(const ch of fkchips){ const d=ch.g-fkFocus, ad=Math.abs(d), mid=ad<0.5; // position by fkFocus (drag target); the ring stays on fkCur (who really played last)
+    const scale=mid?1.12:Math.max(.7,1-ad*.13);
+    ch.el.style.transform=`translateX(${d*step}px) scale(${scale})`;
+    const rel=ch.g-fkCur; // play runs forward: >0 = still to come, <0 = already placed/passed this round
+    ch.el.style.opacity = ad>3?0 : mid?1 : rel>=0?Math.max(.82,.98-ad*.05) : .34;
+    ch.el.style.zIndex=String(50-Math.round(ad));
+    ch.el.classList.toggle('cur', fkRingOn&&ch.g===fkCur);
+    ch.el.classList.toggle('past', fkRingOn&&rel<0&&!mid);
+  }
+  if(!animated&&!fkDragging){ void el.offsetWidth; el.classList.remove('noanim'); }
+}
+function recenterFkStrip(){ if(fkCur<2*fkN){fkCur+=fkN;fkFocus+=fkN;placeFkStrip(false);} else if(fkCur>(FK_COPIES-2)*fkN){fkCur-=fkN;fkFocus-=fkN;placeFkStrip(false);} }
+function flashFkStrip(g){ const c=fkchips.find(x=>x.g===g); if(c){ c.el.classList.add('flash'); setTimeout(()=>c.el.classList.remove('flash'),520); } }
+function popFkChip(g){ const c=fkchips.find(x=>x.g===g); if(c){ c.el.classList.remove('just'); void c.el.offsetWidth; c.el.classList.add('just'); setTimeout(()=>c.el&&c.el.classList.remove('just'),540); } }
 function syncFkStrip(on){
   if(!on||!S){ fkShown=false; const s=document.getElementById('fkstrip'); if(s) s.classList.remove('on'); return; }
-  ensureFkStrip(); document.getElementById('fkstrip').classList.add('on');
-  const st=S, key=st.players.length+'|'+st.players.map(p=>(p.id||p.name)+':'+(p.bot?'b':'')+':'+(p.emoji||'')).join(',');
-  if(key!==fkKey){ fkKey=key; buildFkStrip(st); }
+  const prevShown=fkShown; ensureFkStrip(); fkShown=true;
+  document.getElementById('fkstrip').classList.add('on');
+  const st=S, n=st.players.length;
+  fkRingOn=(st.phase==='play'||st.phase==='claim'||(st.phase==='swap'&&st.swapTurn!=null&&st.swapTurn>=0));
+  const key=n+'|'+st.players.map(p=>(p.id||p.name)+':'+(p.bot?'b':'')+':'+(p.emoji||'')).join(',');
+  let rebuilt=false;
+  if(key!==fkKey){ fkKey=key; buildFkStrip(st); rebuilt=true; }
   paintFkStrip(st);
-  const rl=st.run?st.run.length:0;
-  if(fkShown&&rl>fkPrevRun&&rl>0){ const w=st.run[rl-1].who, ch=fkchips[w]; if(ch){ ch.el.classList.remove('just'); void ch.el.offsetWidth; ch.el.classList.add('just'); setTimeout(()=>ch.el&&ch.el.classList.remove('just'),540); } }
-  fkPrevRun=rl; fkShown=true;
+  const target=fkFocusIndex(st);
+  const top=(st.run&&st.run.length)?st.run[st.run.length-1]:null;
+  const sig=top?(top.who+':'+top.c.s+top.c.r):'';            // a unique id for the last card placed
+  const placedNow = prevShown&&!rebuilt&&sig&&sig!==fkPrevSig; // a new card just went down
+  if(!prevShown||fkPrevFocus===null||rebuilt){
+    fkCur=FK_MID*n+target; fkFocus=fkCur; fkPrevFocus=target; fkPrevSig=sig; placeFkStrip(false); return;
+  }
+  if(target!==fkPrevFocus){
+    const steps=(((target-fkPrevFocus)%n)+n)%n || n; // forward distance round the table
+    const oldCur=fkCur;
+    for(let k=1;k<steps;k++) flashFkStrip(oldCur+k);  // seats hopped over (players who passed, or non-adjacent claimers)
+    fkCur=oldCur+steps; fkPrevFocus=target; fkFocus=fkCur; recenterFkStrip(); placeFkStrip(true);
+  } else {
+    placeFkStrip(false);
+  }
+  if(placedNow) popFkChip(fkCur); // pop whoever just put a card down (covers a glide to a new player AND the same player claiming again)
+  fkPrevSig=sig;
 }
+window.addEventListener('resize',()=>{ if(fkShown) placeFkStrip(false); });
 if(typeof matchMedia==='function'){ ['(max-width:760px)','(max-height:560px) and (orientation:landscape)'].forEach(q=>{ const mq=matchMedia(q); const h=()=>{ if(S) render(); }; if(mq.addEventListener) mq.addEventListener('change',h); else if(mq.addListener) mq.addListener(h); }); }
 window.addEventListener('orientationchange',()=>{ if(S) setTimeout(render,160); });
 function tickDeal(){ const el=document.getElementById('dealin'); if(!el||!S||S.phase!=='ante'||!S.dealAt) return; const left=Math.max(0,Math.ceil((dealSeen-Date.now())/1000)); el.textContent=left; if(left>0) timer=setTimeout(tickDeal,250); }

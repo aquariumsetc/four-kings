@@ -107,6 +107,7 @@
       <input id="tamt" inputmode="decimal" autocomplete="off" placeholder="coins to add">
       <div class="pick" id="amtpick"></div>
       <button class="go" id="dotop">Add coins to wallet</button>
+      <button class="go ghost" id="dotopall" style="margin-top:8px">Add the same to ALL players</button>
       <div class="msg" id="tmsg"></div>
       <p class="muted small" style="margin-top:10px">Use a negative amount to take coins back (a correction).</p>
     </div>
@@ -196,6 +197,16 @@ $('dotop').onclick = async () => {
   const r = await api({ op: amt < 0 ? 'adjust' : 'topup', pin: bankPin, name, amt });
   if (!r.ok) { $('tmsg').className='msg err'; $('tmsg').textContent = r.err; return; }
   $('tmsg').className='msg ok'; $('tmsg').textContent = `${esc(r.name)} now has ${fmt(r.balance)} coins.`;
+  $('tamt').value = '';
+  openBank();
+};
+$('dotopall').onclick = async () => {
+  const amt = +$('tamt').value;
+  $('tmsg').className = 'msg';
+  if (!amt || amt <= 0) { $('tmsg').className='msg err'; $('tmsg').textContent='Enter a positive amount first.'; return; }
+  const r = await api({ op:'topupall', pin: bankPin, amt });
+  if (!r.ok) { $('tmsg').className='msg err'; $('tmsg').textContent = r.err; return; }
+  $('tmsg').className='msg ok'; $('tmsg').textContent = `Added ${fmt(amt)} to all ${r.count} player${r.count===1?'':'s'}.`;
   $('tamt').value = '';
   openBank();
 };

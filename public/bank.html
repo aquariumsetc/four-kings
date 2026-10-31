@@ -38,6 +38,8 @@
   .hide{display:none}
   .pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .pick button{flex:1 1 auto;min-width:64px;padding:.5rem;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--fg);border-radius:10px;font:inherit;font-weight:700;cursor:pointer}
+  .pick.wallets button{flex:0 1 auto;min-width:0;padding:.5rem .85rem}
+  .pick button.on{background:var(--brass);border-color:var(--brass);color:var(--ink)}
 </style>
 </head>
 <body>
@@ -102,7 +104,7 @@
 
       <div style="margin-top:16px"><b>Add coins</b></div>
       <label>Player name</label>
-      <select id="tname"><option value="">— pick a player —</option></select>
+      <div class="pick wallets" id="tpick"></div>
       <label>Amount</label>
       <input id="tamt" inputmode="decimal" autocomplete="off" placeholder="coins to add">
       <div class="pick" id="amtpick"></div>
@@ -163,6 +165,7 @@ $('wout').onclick = () => { $('walletView').classList.add('hide'); $('walletLogi
 
 // ---- banker ----
 let bankPin = '';
+let pick = '';  // the wallet the banker has tapped to add coins to
 $('setpin').onclick = async () => {
   const r = await api({ op:'setpin', pin: $('newpin').value });
   if (!r.ok) { $('setmsg').className = 'msg err'; $('setmsg').textContent = r.err; return; }
@@ -182,15 +185,17 @@ function renderLedger(players){
   tb.innerHTML = players.map(p =>
     `<tr data-name="${esc(p.name)}"><td>${esc(p.name)}</td><td class="r">${fmt(p.balance)}</td><td class="r muted">${fmt(p.totalIn)}</td><td class="r" style="color:var(--green)">${fmt(p.totalWon)}</td><td class="r" style="color:#ffb3ad">${fmt(p.totalLost)}</td></tr>`
   ).join('') || '<tr><td colspan="5" class="muted">No wallets yet.</td></tr>';
-  const sel = $('tname'), cur = sel.value;
-  sel.innerHTML = '<option value="">— pick a player —</option>' + players.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
-  if (players.some(p => p.name === cur)) sel.value = cur;
-  tb.querySelectorAll('tr[data-name]').forEach(tr => tr.onclick = () => { sel.value = tr.getAttribute('data-name'); });
+  if (!players.some(p => p.name === pick)) pick = '';
+  const tp = $('tpick');
+  tp.innerHTML = players.map(p => `<button type="button" class="${p.name===pick?'on':''}" data-name="${esc(p.name)}">${esc(p.name)}</button>`).join('') || '<span class="muted small">No wallets yet — a player opens one on the My wallet tab first.</span>';
+  const choose = (name) => { pick = name; tp.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.getAttribute('data-name') === name)); };
+  tp.querySelectorAll('button').forEach(b => b.onclick = () => choose(b.getAttribute('data-name')));
+  tb.querySelectorAll('tr[data-name]').forEach(tr => tr.onclick = () => choose(tr.getAttribute('data-name')));
 }
 $('brefresh').onclick = () => openBank();
 [5,10,20,50,100].forEach(v => { const b = document.createElement('button'); b.textContent = '+'+v; b.onclick = () => { $('tamt').value = v; }; $('amtpick').appendChild(b); });
 $('dotop').onclick = async () => {
-  const name = $('tname').value.trim(), amt = +$('tamt').value;
+  const name = pick, amt = +$('tamt').value;
   $('tmsg').className = 'msg';
   if (!name) { $('tmsg').className='msg err'; $('tmsg').textContent='Pick a player first.'; return; }
   if (!amt) { $('tmsg').className='msg err'; $('tmsg').textContent='Enter an amount.'; return; }

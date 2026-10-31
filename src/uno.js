@@ -9,6 +9,7 @@ const DRAWS = ["d2", "w4", "mirror"];
 const STAR = ["steal", "pass", "mirror", "cust"]; // v2.8.82: the non-official "star" wild cards — playable any time it's your turn
 const START_BAL = 1000;
 const money2 = (n, min, max) => { if (!isFinite(n) || n <= 0) return 0; let c = Math.round(n * 100); c = Math.max(Math.round(min * 100), Math.min(Math.round(max * 100), c)); return c / 100; };
+const canAnte = (st, p) => !p.bot && !!p.wallet && p.balance >= st.stake; // money mode: only a signed-in human who can cover the ante is dealt in
 
 const NEXT_MS = 20000;   // game over: next game after this (if auto-next)
 const EMPTY_GRACE = 45000; // v2.8.54: all humans gone this long (bots have no sockets) -> reset the game to a fresh lobby, keeping the room (settings + season scores)
@@ -100,7 +101,7 @@ function startGame(st) {
   st.players.forEach((p) => {
     p.hand = []; p.left = false; p.queued = false; p.startBal = p.balance;
     if (!st.funMode && p.bot && p.balance < st.stake) { p.balance += (st.buyin ?? START_BAL); p.rebuys = (p.rebuys || 0) + 1; p.startBal = p.balance; }
-    p.in = st.funMode ? true : p.balance >= st.stake; if (!p.in) { sitting.push(p.name); return; }
+    p.in = st.funMode ? true : (!p.bot && p.balance >= st.stake); if (!p.in) { sitting.push(p.name); return; } // money mode: bots never ante (coin games are players only — keeps wallet coins conserved)
     if (!st.funMode) { p.balance -= st.stake; st.pot += st.stake; }
   });
   st.deck = buildDeck(st);
@@ -111,7 +112,7 @@ function startGame(st) {
   st.pile = [{ c, who: -1 }]; st.colour = c.c;
   while (!st.players[st.first].in) st.first = (st.first + 1) % st.players.length;
   setTurn(st, st.first);
-  st.note = sitting.length ? `${sitting.join(", ")} can't cover the $${st.stake} stake and ${sitting.length > 1 ? "are" : "is"} sitting out.` : "";
+  st.note = sitting.length ? `${sitting.join(", ")} can't cover the \uD83E\uDE99 ${st.stake} stake and ${sitting.length > 1 ? "are" : "is"} sitting out.` : "";
 }
 function endGame(st, winners, why) {
   const won = Math.floor(st.pot / winners.length);
@@ -119,6 +120,7 @@ function endGame(st, winners, why) {
   st.players[winners[0]].balance += st.pot - won * winners.length;
   st.winner = { idx: winners, won, why }; st.pot = 0; st.phase = "over"; st.overAt = Date.now(); st.drawStack = 0;
   st.event = { t: "win", who: winners, won, why, at: Date.now() };
+  if (!st.funMode) st.needSettle = true; // money mode: the net of this hand is posted to each wallet in commit()
   st.first = (st.first + 1) % st.players.length;
   if (!st.players.some((p) => p.bot)) {
     st.players.forEach((p, i) => {
@@ -270,6 +272,7 @@ function botMove(st, i) {
 export class UnoTable extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
+    this.env = env;
     this.S = null;
     ctx.blockConcurrencyWhile(async () => { const st = (await ctx.storage.get("state")) || fresh(); st.rules = { ...RULES, ...st.rules }; this.S = st; });
   }
@@ -309,7 +312,15 @@ export class UnoTable extends DurableObject {
         if (me) { me.name = name; me.emoji = emoji; break; }
         if (st.players.length >= 10) { err = "The table is full."; changed = false; break; }
         // joining mid-game: you're seated now and dealt in at the next game
-        st.players.push({ id: pid, name, emoji, balance: (st.buyin ?? START_BAL), hand: [], in: false, queued: st.phase === "play" }); break;
+        st.players.push({ id: pid, name, emoji, balance: st.funMode ? (st.buyin ?? START_BAL) : 0, hand: [], in: false, queued: st.phase === "play" }); break; // money mode: stack is 0 until the device signs into its wallet ({t:"wallet"})
+      }
+      case "wallet": { // money mode: this device signs into its coin wallet; the token is verified against the bank
+        if (!me || st.funMode) { changed = false; break; }
+        const wname = String(m.name || "").trim().slice(0, 24), token = String(m.token || "").slice(0, 80);
+        if (!wname || !token) { changed = false; break; }
+        const r = await this.bank("bal", { name: wname, token });
+        if (!r || !r.ok) { err = (r && r.err) || "Wallet sign-in failed."; changed = false; break; }
+        me.wallet = { name: wname, token }; me.balance = r.balance; break;
       }
       case "leave": if (me && (between || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.turn > i) st.turn--; } else changed = false; break;
       case "uno": if (me) err = callUno(st, i); if (err) changed = false; break;
@@ -319,15 +330,19 @@ export class UnoTable extends DurableObject {
       case "quit": if (st.phase === "play" && me && me.in) leaveGame(st, i); else changed = false; break;
       case "addbot": {
         if (!isHost || !between || st.players.length >= 10) { changed = false; break; }
+        if (!st.funMode) { err = "Bots are for Fun mode. Coin games are players only."; changed = false; break; }
         const used = new Set(st.players.map((p) => p.name));
         st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name: BOT_NAMES.find((n) => !used.has(n)) || "Bot", bot: true, balance: (st.buyin ?? START_BAL), hand: [], in: false }); break;
       }
       case "removebot": { const b = st.players.map((p) => p.bot).lastIndexOf(true); if (isHost && between && b >= 0) { st.players.splice(b, 1); st.first = 0; } else changed = false; break; }
-      case "start": case "next":
-        if ((m.t === "start" ? isHost && st.phase === "lobby" : st.phase === "over" && (me || role === "table")) && (st.funMode ? st.players.length >= 2 : st.players.filter((p) => p.balance >= st.stake || p.bot).length >= 2)) startGame(st);
-        else { changed = false; if (m.t === "start") err = "Need at least two players who can cover the stake."; }
+      case "start": case "next": {
+        const can = m.t === "start" ? (isHost && st.phase === "lobby") : (st.phase === "over" && (me || role === "table"));
+        const ready = st.funMode ? st.players.length >= 2 : st.players.filter((p) => canAnte(st, p)).length >= 2;
+        if (can && ready) { await this.syncWalletsIn(st); startGame(st); }
+        else { changed = false; if (m.t === "start") err = st.funMode ? "Need at least two players." : "Need two signed-in players who can cover the ante."; }
         break;
-      case "rebuy": if (me && me.balance < st.stake && st.phase !== "play") { me.balance += (st.buyin ?? START_BAL); me.rebuys = (me.rebuys || 0) + 1; } else changed = false; break;
+      }
+      case "rebuy": if (!st.funMode) { err = "Top up your coins on the Game Bank page."; changed = false; } else if (me && me.balance < st.stake && st.phase !== "play") { me.balance += (st.buyin ?? START_BAL); me.rebuys = (me.rebuys || 0) + 1; } else changed = false; break;
       case "play": if (me) err = play(st, i, (m.ids || []).map(Number), { colour: m.colour, target: m.target }); if (err) changed = false; break;
       case "draw": if (me) err = draw(st, i); if (err) changed = false; break;
       case "pass": if (me) err = pass(st, i); if (err) changed = false; break;
@@ -340,7 +355,7 @@ export class UnoTable extends DurableObject {
         if (m.buyin != null) { const v = money2(+m.buyin, Math.max(0.05, st.stake ?? 1), 1000000); if (v) { st.buyin = v; st.stakesSet = true; if (st.phase === "lobby") st.players.forEach((p) => { p.balance = v; p.startBal = v; }); } }
         if ([30000, 60000, 0].includes(m.turnMs)) st.turnMs = m.turnMs;
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); }
-        if (typeof m.funMode === "boolean" && st.phase !== "play") st.funMode = m.funMode; // fun mode: no money
+        if (typeof m.funMode === "boolean" && st.phase !== "play") { st.funMode = m.funMode; if (!st.funMode && st.players.some((p) => p.bot)) { st.players = st.players.filter((p) => !p.bot); st.first = 0; } } // fun mode: no money. Switching to coins drops any bots (coin games are players only)
         if (m.rule && m.rule in RULES) st.rules[m.rule] = !!m.on; // v2.8.71: rule/preset changes take effect immediately, even mid-hand — change a rule "for this go" and keep playing (cards added by Steal/Pass/Mirror/Custom only enter the deck at the next deal)
         if (m.preset && PRESETS[m.preset]) st.rules = { ...PRESETS[m.preset] };
         if (["table", "phones"].includes(m.layout)) st.layout = m.layout; // iPad in the middle, or everyone on their own device
@@ -358,6 +373,27 @@ export class UnoTable extends DurableObject {
   broadcast() { for (const ws of this.ctx.getWebSockets()) if (ws.readyState === 1) this.send(ws); }
   async stop() { const keep = { stake: this.S.stake, buyin: this.S.buyin, stakesSet: this.S.stakesSet, funMode: this.S.funMode, turnMs: this.S.turnMs, autoNext: this.S.autoNext, rules: this.S.rules, customs: this.S.customs, ledger: this.S.ledger }; this.S = Object.assign(fresh(), keep); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); this.broadcast(); } // v2.8.73: keep the room's rules/settings/scores on a full stop — only clear players + any stuck game
 
+  // ---- Game Bank wiring (money mode): coins move only via this server-to-server call ----
+  async bank(op, body) {
+    if (!this.env || !this.env.BANK) return { ok: false, err: "bank unavailable" };
+    const req = new Request("https://bank/bankapi", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op, secret: this.env.BANK_SECRET, ...body }) });
+    try { return await (await this.env.BANK.get(this.env.BANK.idFromName("bank")).fetch(req)).json(); } catch (e) { return { ok: false, err: String((e && e.message) || e) }; }
+  }
+  async syncWalletsIn(st) { // refresh each signed-in human's stack from their wallet right before a deal (so Bank-page top-ups show, and you play straight from the wallet)
+    if (st.funMode) return;
+    for (const p of st.players) { if (p.bot || !p.wallet) continue; const r = await this.bank("bal", { name: p.wallet.name, token: p.wallet.token }); if (r && r.ok) p.balance = r.balance; }
+  }
+  async settleHand(st) { // post the net of the hand to each signed-in human's wallet (at most once per hand)
+    if (st.funMode) return;
+    for (const p of st.players) {
+      if (p.bot || !p.wallet || p.startBal === undefined) continue;
+      const net = Math.round((p.balance - p.startBal) * 100) / 100;
+      if (net === 0) continue;
+      const r = await this.bank("settle", { name: p.wallet.name, token: p.wallet.token, delta: net, reason: "UNO hand" });
+      if (r && r.ok) p.balance = r.balance; else st.bankNote = "Some coins couldn't be settled with the bank.";
+    }
+  }
+
   // timers: bots, idle humans, auto-next
   due(st) {
     if (st.emptyAt) return st.emptyAt + EMPTY_GRACE; // paused while empty; wake at the reset deadline
@@ -374,7 +410,7 @@ export class UnoTable extends DurableObject {
       if (open > 0) { delete st.emptyAt; await this.commit(); this.broadcast(); return; } // someone came back
       if (Date.now() >= st.emptyAt + EMPTY_GRACE - 50) { this.S = Object.assign(fresh(), { stake: st.stake, buyin: st.buyin, stakesSet: st.stakesSet, funMode: st.funMode, turnMs: st.turnMs, autoNext: st.autoNext, rules: st.rules, customs: st.customs, ledger: st.ledger }); await this.commit(); this.broadcast(); return; } // empty long enough -> fresh lobby, room kept
     }
-    if (st.phase === "over" && st.autoNext && Date.now() >= st.overAt + NEXT_MS - 50) { if (st.funMode ? st.players.length >= 2 : st.players.filter((p) => p.balance >= st.stake || p.bot).length >= 2) startGame(st); else st.overAt = 0; }
+    if (st.phase === "over" && st.autoNext && Date.now() >= st.overAt + NEXT_MS - 50) { if (st.funMode ? st.players.length >= 2 : st.players.filter((p) => canAnte(st, p)).length >= 2) { await this.syncWalletsIn(st); startGame(st); } else st.overAt = 0; }
     else if (st.phase === "play" && Date.now() >= (st.wakeAt || 0) - 50) {
       const p = st.players[st.turn];
       if (p.bot) botMove(st, st.turn);
@@ -383,7 +419,9 @@ export class UnoTable extends DurableObject {
     await this.commit();
   }
   async commit() {
-    const st = this.S; st.v++;
+    const st = this.S;
+    if (st.phase === "over" && st.needSettle) { st.needSettle = false; await this.settleHand(st); } // money mode: bank the hand once, before persist/broadcast
+    st.v++;
     const t = this.due(st); st.wakeAt = t;
     if (t) await this.ctx.storage.setAlarm(Math.max(Date.now() + 20, t)); else await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.put("state", st);
@@ -394,7 +432,7 @@ export class UnoTable extends DurableObject {
     const peers = this.ctx.getWebSockets().map((w) => { const a = w.deserializeAttachment() || {}; const p = st.players.find((x) => x.id === a.pid); return { sid: a.sid, pid: a.pid, role: a.role, video: !!a.video, name: a.role === "table" ? "Table" : p ? p.name : "Guest" }; });
     const view = {
       ...st, deck: undefined, deckCount: st.deck.length, pile: st.pile.slice(-8), wakeAt: undefined, pickedSoFar: undefined,
-      players: st.players.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, balance: p.balance, in: !!p.in, left: !!p.left, queued: !!p.queued, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
+      players: st.players.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, signedIn: !!p.wallet, balance: p.balance, in: !!p.in, left: !!p.left, queued: !!p.queued, rebuys: p.rebuys || 0, cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined })),
       you: pid, sid, peers, host: role === "table" || !!creator || (!tablePresent && st.players.length > 0 && st.players[0].id === pid), serverNow: Date.now(),
       turnBy: st.phase === "play" && st.turnMs && !st.players[st.turn]?.bot ? st.turnAt + st.turnMs : 0,
       canPlay: role === "hand" && st.phase === "play" && st.players[st.turn]?.id === pid ? st.players[st.turn].hand.filter((c) => playable(st, c)).map((c) => c.id) : [],

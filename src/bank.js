@@ -62,7 +62,7 @@ export class GameBank extends DurableObject {
     }
 
     // ----- everything below needs the banker PIN -----
-    const adminOps = ["ledger", "topup", "adjust", "resetpass"];
+    const adminOps = ["ledger", "topup", "adjust", "resetpass", "topupall"];
     if (adminOps.includes(m.op)) {
       if (!S.adminHash) return json({ ok: false, err: "No bank PIN set yet.", noPin: true });
       if (!(await this.adminOk(String(m.pin || "")))) return json({ ok: false, err: "Wrong bank PIN." });
@@ -86,6 +86,21 @@ export class GameBank extends DurableObject {
       if (w.history.length > 250) w.history = w.history.slice(-250);
       await this.save();
       return json({ ok: true, name: w.name, balance: w.balance });
+    }
+
+    if (m.op === "topupall") {
+      const amt = money(m.amt);
+      if (!amt || amt <= 0) return json({ ok: false, err: "Enter a positive amount." });
+      let n = 0;
+      for (const key in S.players) {
+        const w = S.players[key];
+        w.balance = money(w.balance + amt); w.totalIn = money(w.totalIn + amt);
+        (w.history = w.history || []).push({ t: "topup", amt, bal: w.balance, at: now(), note: "all players" });
+        if (w.history.length > 250) w.history = w.history.slice(-250);
+        n++;
+      }
+      await this.save();
+      return json({ ok: true, count: n });
     }
 
     if (m.op === "resetpass") {

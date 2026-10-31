@@ -489,7 +489,15 @@ export default {
     if (url.pathname === "/ice") return iceServers(env);
     if (url.pathname === "/bankapi") { // the one shared GameBank (NOT /bank — that maps to the bank.html asset)
       if (!env.BANK) return new Response(JSON.stringify({ ok: false, err: "BANK binding missing \u2014 deploy the updated wrangler.toml (it adds the BANK Durable Object + v3 migration)." }), { status: 200, headers: { "content-type": "application/json" } });
-      try { return await env.BANK.get(env.BANK.idFromName("bank")).fetch(req); }
+      let body; try { body = await req.json(); } catch (e) { return new Response(JSON.stringify({ ok: false, err: "bad request" }), { status: 200, headers: { "content-type": "application/json" } }); }
+      // Public surface only. "settle" (and any future internal op) is NOT allowed here — coins move
+      // only via a direct DO->DO call from the game Durable Objects. Also strip any client-supplied
+      // "secret" so the browser can never smuggle the internal settle secret through this route.
+      const PUBLIC_OPS = ["status", "setpin", "claim", "me", "bal", "ledger", "topup", "adjust", "topupall", "resetpass"];
+      if (!body || !PUBLIC_OPS.includes(body.op)) return new Response(JSON.stringify({ ok: false, err: "Not allowed." }), { status: 200, headers: { "content-type": "application/json" } });
+      if ("secret" in body) delete body.secret;
+      const clean = new Request("https://bank/bankapi", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      try { return await env.BANK.get(env.BANK.idFromName("bank")).fetch(clean); }
       catch (e) { return new Response(JSON.stringify({ ok: false, err: "GameBank error: " + ((e && e.message) || String(e)) }), { status: 200, headers: { "content-type": "application/json" } }); }
     }
     if (url.pathname === "/stopall") { const n = await env.TABLE.get(env.TABLE.idFromName("__rooms__")).stopAll(); return new Response("Stopped " + n + " room(s).", { headers: { "content-type": "text/plain" } }); }

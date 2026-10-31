@@ -286,7 +286,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.8.85 · 30 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.16 · 31 Oct 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:''};
@@ -309,6 +309,8 @@ let room=(qs.get('room')||get('uno-room')||'').toUpperCase().replace(/[^A-Z0-9]/
 let mode=qs.get('mode')||get('uno-mode')||'';
 let wantLayout=qs.get('layout')==='phones'?'phones':'', autoVidTried=false; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'), sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', unoHints=get('uno-hints')==='1', showRules=false;
 let S=null, ws=null, reconnectIn=800, skew=0, sel=[], viewMsg='', lastEvent=0, animDir=null, overlay=null, nudged='', customDraft=null, autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0, holdT=null, held=false;
+let walletName=get('gn-wallet-name')||'', walletToken=get('gn-wallet-token')||'', walletSent=false, walletBusy=false, walletErr='', walletRejected=false;
+const COIN='\uD83E\uDE99'; const mc=v=>COIN+' '+m$(v); // money mode shows coins, not $
 const app=document.getElementById('app'), ovlEl=document.getElementById('ovl'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
 const pidx=(st,id)=>st.players.findIndex(p=>p.id===id);
@@ -335,9 +337,9 @@ function connect(){
   set('uno-last',mode);
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/uws/${room}?pid=${encodeURIComponent(pid)}&role=${mode}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(myPhoto) ws.send(JSON.stringify({t:'photo',photo:myPhoto})); if(!framed&&rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(!framed&&isTbl()) loadIce(); };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; walletSent=false; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(myPhoto) ws.send(JSON.stringify({t:'photo',photo:myPhoto})); if(!framed&&rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(!framed&&isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
-    if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2600); return; }
+    if(m.t==='err'){ if(S&&!S.funMode&&mode!=='table'&&walletSent){ const meP=S.players.find(p=>p.id===pid); if(meP&&!meP.signedIn){ walletRejected=true; walletSent=false; walletToken=''; set('gn-wallet-token',''); walletErr=m.msg; render(); return; } } viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2600); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
     if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; if(S) paintStrip(S); return; }
     if(m.t==='closed'){ if(!framed) location.replace('/?home=1'); return; } // session finished (standalone goes home; framed is handled by the shell)
@@ -351,9 +353,10 @@ function onState(st,old){
   if(st.goto&&st.goto.to==='fk'&&st.goto.at>+(qs.get('from')||0)){ if(framed) return; const bots=st.host&&st.goto.bots?'&bots='+st.goto.bots:''; const toRoom=!!st.goto.lounge&&mode!=='table'; if(toRoom&&st.host) set('fk-lhost',room); location.replace('/?room='+room+'&mode='+(toRoom?'lounge':mode)+'&from='+st.goto.at+bots+(toRoom&&st.host?'&lounge=1':'')); return; }
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; send({t:'join',name:nick,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
+  if(!st.funMode && mode!=='table'){ const meP=st.players.find(p=>p.id===pid); if(meP){ if(meP.signedIn){ walletRejected=false; walletErr=''; } else if(walletName&&walletToken&&!walletSent&&!walletRejected){ walletSent=true; send({t:'wallet',name:walletName,token:walletToken}); } } }
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(9,+qs.get('bots'));k++) send({t:'addbot'}); history.replaceState(null,'','/uno.html?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
   if(st.phase==='lobby'&&old&&old.phase&&old.phase!=='lobby') autoStartTried=false; // v2.8.44: a reset ("Clear the table") or finished game dropped back to a fresh lobby — re-arm the room-launch auto-deal so it re-deals instead of stranding everyone in "Setting up…"
-  if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) send({t:'start'}); },1200); } // launched from the room: deal straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
+  if(framed&&st.host&&st.phase==='lobby'&&(st.funMode?st.players.length>=2:st.players.filter(p=>p.signedIn).length>=2)&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&(S.funMode?S.players.length>=2:S.players.filter(p=>p.signedIn).length>=2)) send({t:'start'}); },1200); } // launched from the room: deal straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
   if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; send({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ send({t:'settings',layout:wantLayout}); wantLayout=''; }
   if(framed&&st.host&&st.phase==='lobby'&&!st.stakesSet&&!seededStakes){ seededStakes=true; const b=+get('gn-buyin'),k=+get('gn-uno-stake'),msg={t:'settings',funMode:get('gn-funmode')==='1'}; if(b>0)msg.buyin=b; if(k>0)msg.stake=k; send(msg); } // seed from the home-page Table stakes (once per fresh room)
@@ -600,12 +603,28 @@ const sfx={
 
 /* ---------- rendering ---------- */
 function heroHTML(){ return `<div class="setuphero"><div class="ghero-ring">🃏</div><div class="ghero-name">Ultium <b class="u1">U</b><b class="u2">N</b><b class="u3">O</b></div></div>`; } // v2.8.83: game identity on the loading/setup screens
+function needWalletSignin(st){ if(st.funMode||mode==='table') return false; const me=st.players.find(p=>p.id===pid); return !!me && !me.signedIn; }
+function signinHTML(st){
+  const busy = walletName && walletToken && walletSent && !walletRejected && !walletErr;
+  return `<div class="center" style="padding:1.6rem 1rem;max-width:420px;margin:0 auto">${heroHTML()}
+    <h2 style="margin-top:.6rem">Play for coins ${COIN}</h2>
+    <p class="dim">Sign in to your Game Bank wallet \u2014 just once on this device, then we remember you.</p>
+    ${busy?`<p class="dim" style="margin-top:12px">Signing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></p>`:`
+    <input id="wname" placeholder="Wallet name" value="${esc(walletName||nick||'')}" maxlength="24" autocomplete="username" style="margin-top:10px">
+    <input id="wpass" type="password" placeholder="Wallet password (3+ characters)" maxlength="60" autocomplete="current-password" style="margin-top:8px">
+    ${walletErr?`<p class="small" style="color:#ffb3ad;margin-top:6px">${esc(walletErr)}</p>`:''}
+    <button class="big" id="wsignin" ${walletBusy?'disabled':''} style="margin-top:10px;width:100%">${walletBusy?'Signing in\u2026':'Play for coins'}</button>
+    <p class="small dim" style="margin-top:10px">A new name starts a fresh wallet at 0 ${COIN}. Top up or check balances on the <a href="/bank.html" target="_blank" style="color:var(--brass)">Game Bank</a> page.</p>`}
+    <p class="small dim" style="margin-top:14px"><button class="ghost small" id="wback">${framed?'\uD83D\uDCF9 Back to the room':'Change table'}</button></p>
+  </div>`;
+}
 function render(){
   if(!room||!mode){ if(framed){ tellShell('home'); return; } location.replace('/?home=1'); return; } // the Game Night home page has the game picker
   if(!S){ app.innerHTML=`<div class="center" style="padding:1.6rem 0">${heroHTML()}<p class="dim">Connecting to table ${esc(room)}<span class="dots"><i>.</i><i>.</i><i>.</i></span></p></div>`; return; }
-  if(framed&&S.phase==='lobby'){ const n=S.players.length; app.className='app';
+  if(needWalletSignin(S)){ app.className='app'; app.innerHTML=signinHTML(S); ovlEl.innerHTML=''; bind(); return; }
+  if(framed&&S.phase==='lobby'){ const n=S.funMode?S.players.length:S.players.filter(p=>p.signedIn).length; app.className='app';
     const esc=S.host?`<div class="row" style="max-width:420px;margin:16px auto 0"><button class="ghost small" id="toroom">📹 Back to the room</button><button class="ghost small" id="endsession" style="border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish · everyone out</button></div>`:''; // v2.8.44: always give the host a way out of the lobby/setup state — no more limbo after "Clear the table"
-    const main=n>=2?`<div class="center" style="padding:1.4rem 0 .4rem">${heroHTML()}<h2>Dealing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2></div>`:`<div class="center" style="padding:1.4rem 1rem .4rem">${heroHTML()}<h2>Setting up the table<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2><p class="dim">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="dim">Waiting for the host to start.</p>`}</div>`;
+    const main=n>=2?`<div class="center" style="padding:1.4rem 0 .4rem">${heroHTML()}<h2>Dealing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2></div>`:`<div class="center" style="padding:1.4rem 1rem .4rem">${heroHTML()}<h2>Setting up the table<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2><p class="dim">Anyone who opens this game from the room joins automatically.</p>${S.funMode&&S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="dim">Waiting for ${S.funMode?'the host to start':'another player to sign in'}\u2026</p>`}</div>`;
     app.innerHTML=main+esc; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot and host escapes
   const withTable=mode==='both'||(mode==='hand'&&S.layout==='phones'); // own-devices game: every phone shows the table
   const stripOn=(S.phase==='play'||S.phase==='over')&&S.players.length>=2; // compact strip layout during play AND on the end screen, so the full-size round table doesn't take over after a game
@@ -615,6 +634,7 @@ function render(){
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
   if(S.host) html+=`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Rules &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>`;
   html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button>${IOS&&(sfxOn||winOn)?` <span class="dim" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${unoHints?'on':'off'}</button>`:''} · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
+  if(!S.funMode && mode!=='table' && S.phase!=='play'){ const meP=S.players.find(p=>p.id===pid); if(meP&&meP.signedIn) html+=`<p class="center small dim" style="opacity:.7">${COIN} wallet: ${esc(walletName||meP.name)} \u00b7 <button class="ghost small" id="walletout">use another wallet</button></p>`; }
   app.innerHTML=html;
   ovlEl.innerHTML=overlay?overlayHTML(overlay):'';
   bind(); drawRing(); tick(); syncStrip(stripOn);
@@ -630,7 +650,7 @@ function seatsHTML(st){
   const n=st.players.length;
   return st.players.map((p,i)=>{ const a=(-90+360*i/n)*Math.PI/180, x=50+44*Math.cos(a), y=50+44*Math.sin(a);
     const turn=st.phase==='play'&&st.turn===i, cls=`seat ${turn?'turn':''} ${st.phase==='play'&&!p.in?'out':''} ${p.in&&p.cards===1&&st.phase==='play'?'one':''}`;
-    const ct=st.phase==='play'?(p.in?(turn&&st.picking?`picking up ${st.pickTotal-st.drawStack}/${st.pickTotal}`:p.cards===1?'ONE card!':p.cards+' cards'):p.left?'left':'sitting out'):'$'+p.balance;
+    const ct=st.phase==='play'?(p.in?(turn&&st.picking?`picking up ${st.pickTotal-st.drawStack}/${st.pickTotal}`:p.cards===1?'ONE card!':p.cards+' cards'):p.left?'left':'sitting out'):mc(p.balance);
     return `<div class="${cls}" style="left:${x}%;top:${y}%"><div class="nm">${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.bot?' 🤖':''}</div><div class="ct">${ct}</div></div>`; }).join('');
 }
 function pileHTML(st){
@@ -644,8 +664,8 @@ function roundHTML(st){
       <path d="M50 4 A46 46 0 0 1 96 50" fill="none" stroke="#ffd166" stroke-width="1.6" marker-end="url(#ah)"/><path d="M50 96 A46 46 0 0 1 4 50" fill="none" stroke="#ffd166" stroke-width="1.6" marker-end="url(#ah)"/></svg></div>
     ${st.phase==='play'||st.phase==='over'?`<div class="halo" style="--hc:${col}"></div><div class="dirlbl" id="dirlbl"></div><div class="pile">${pileHTML(st)}</div>
     <div class="deck">${backHTML()}<div class="n">${st.deckCount} left</div></div>
-    <div class="potchip"><div class="n">${st.funMode?'\uD83C\uDF89':'$'+m$(st.pot)}</div><div class="l">${st.funMode?'Fun mode':'in the pot'}</div>${st.colour?`<div class="potcol" style="color:var(--${st.colour})">${CNAME[st.colour]}</div>`:''}</div>
-    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc">${st.funMode?'<div class="n">\uD83C\uDF89</div><div class="l">Fun mode \u2014 no money</div>':`<div class="n">$${m$(st.stake)}</div><div class="l">stake each</div>`}<div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div>${st.players.length<2?`<ol><li>${st.layout==='phones'?'Tap <b>Share join link</b> and send it to everyone':'Scan the code with a phone camera to join'}</li><li>Short of players? <b>Add a bot</b></li><li>Pick the rules, then <b>Deal</b></li></ol>`:`<p class="dim" style="margin-top:8px">Everyone in — tap <b>Deal</b> to start. More players, rules &amp; options are below.</p>`}</div>`}
+    <div class="potchip"><div class="n">${st.funMode?'\uD83C\uDF89':mc(st.pot)}</div><div class="l">${st.funMode?'Fun mode':'in the pot'}</div>${st.colour?`<div class="potcol" style="color:var(--${st.colour})">${CNAME[st.colour]}</div>`:''}</div>
+    ${st.drawStack?`<div class="stackbadge">${st.picking?st.drawStack+' to pick up':'+'+st.drawStack+' pending'}</div>`:''}`:`<div class="lobbyc">${st.funMode?'<div class="n">\uD83C\uDF89</div><div class="l">Fun mode \u2014 no money</div>':`<div class="n">${mc(st.stake)}</div><div class="l">stake each</div>`}<div class="lt">${st.players.length<2?'Waiting for players':`${st.players.length} players ready`}</div>${st.players.length<2?`<ol><li>${st.layout==='phones'?'Tap <b>Share join link</b> and send it to everyone':'Scan the code with a phone camera to join'}</li>${st.funMode?'<li>Short of players? <b>Add a bot</b></li>':''}<li>Pick the rules, then <b>Deal</b></li></ol>`:`<p class="dim" style="margin-top:8px">Everyone in — tap <b>Deal</b> to start. More players, rules &amp; options are below.</p>`}</div>`}
     ${seatsHTML(st)}</div>`;
 }
 function tableHTML(st,handInner){
@@ -655,13 +675,13 @@ function tableHTML(st,handInner){
   const resetBtn=host?`<button class="ghost small" id="reset" style="width:100%;margin-top:6px">Clear the table</button>`:'';
   let side='';
   if(st.phase==='lobby'){
-    side=`${host?`<button class="big" id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button>${st.players.length<2?'<p class="center small dim">Need at least 2 players — add a bot, or share the link below.</p>':''}<div class="row" style="margin-top:8px"><button class="ghost" id="addbot">Add a bot</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}${scoresHTML(st)}${codeBlock}${resetBtn}`;
+    side=`${host?`<button class="big" id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button>${st.players.length<2?`<p class="center small dim">Need at least 2 ${st.funMode?'players — add a bot, or share':'signed-in players — share'} the link below.</p>`:''}${st.funMode?`<div class="row" style="margin-top:8px"><button class="ghost" id="addbot">Add a bot</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`:''}${scoresHTML(st)}${codeBlock}${resetBtn}`;
   } else if(st.phase==='play'){
     const p=st.players[st.turn];
     side=`<div class="panel center"><div class="small dim">Now playing</div><h2>${esc(p?p.name:'')}</h2><p class="small dim">${esc(st.note||'')}</p></div>${host?`<button class="ghost big" id="finish">Finish the game</button><p class="small dim center">Whoever has the fewest cards wins the pot.</p>`:''}${scoresHTML(st)}${handInner?`<button class="ghost small" id="quit" style="width:100%;margin-top:6px">Leave this game</button>`:''}${resetBtn}`; // v2.8.80: "Leave this game" sits directly above "Clear the table" (for players; the iPad table itself gets no Leave)
   } else if(st.phase==='over'){
     const w=st.winner, iWon=!!(w&&w.idx.some(i=>st.players[i]&&st.players[i].id===pid));
-    side=`<div class="panel center"><h2>${w?(iWon?'You win!':w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins')):'Game over'}</h2>${w?`<p>${st.funMode?esc(w.why):`$${m$(w.won)}${w.idx.length>1?' each':''} · ${esc(w.why)}`}</p>`:''}</div><div class="endbar"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot">🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>${scoresHTML(st)}`;
+    side=`<div class="panel center"><h2>${w?(iWon?'You win!':w.idx.map(i=>esc(st.players[i].name)).join(' & ')+(w.idx.length>1?' share the pot':' wins')):'Game over'}</h2>${w?`<p>${st.funMode?esc(w.why):`${mc(w.won)}${w.idx.length>1?' each':''} · ${esc(w.why)}`}</p>`:''}</div><div class="endbar"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px">${st.funMode?`<button class="ghost small" id="addbot">🤖 Add a bot</button>`:''}${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>${scoresHTML(st)}`;
   }
   // During play on own-devices, fold the compact mat (discard · pot · deck) into the top of the "Your cards" panel so it's ONE box, not a separate mat box stacked above a card box wasting vertical space.
   if(handInner&&st.phase==='play'){
@@ -674,7 +694,7 @@ function nextHTML(st){ return `${st.autoNext?`<p class="center small dim">Next g
 function scoresHTML(st){
   if(!st.players.length) return '';
   const rows=st.players.map(p=>{ const L=(st.ledger||{})[p.id]; return {p,w:L?L.wins:0,g:L?L.games:0}; }).sort((a,b)=>b.w-a.w||b.p.balance-a.p.balance);
-  return `<div class="panel scores"><div class="small dim">Wins this season (games without bots)</div><table>${rows.map(r=>`<tr class="${r.p.id===pid&&mode!=='table'?'me':''}"><td>${esc(r.p.name)}${r.p.bot?' 🤖':''}${r.p.rebuys?` <span class="dim small">↻${r.p.rebuys}</span>`:''}</td><td class="r">${r.w} win${r.w===1?'':'s'}</td><td class="r">${st.funMode?'':'$'+m$(r.p.balance)}</td></tr>`).join('')}</table>${st.host&&Object.keys(st.ledger||{}).length?`<button class="ghost small" id="clearboard" style="margin-top:6px">Reset wins</button>`:''}</div>`;
+  return `<div class="panel scores"><div class="small dim">Wins this season (games without bots)</div><table>${rows.map(r=>`<tr class="${r.p.id===pid&&mode!=='table'?'me':''}"><td>${esc(r.p.name)}${r.p.bot?' 🤖':''}${r.p.rebuys?` <span class="dim small">↻${r.p.rebuys}</span>`:''}</td><td class="r">${r.w} win${r.w===1?'':'s'}</td><td class="r">${st.funMode?'':mc(r.p.balance)}</td></tr>`).join('')}</table>${st.host&&Object.keys(st.ledger||{}).length?`<button class="ghost small" id="clearboard" style="margin-top:6px">Reset wins</button>`:''}</div>`;
 }
 function settingsHTML(st){
   const pick=(attr,val,cur,label)=>`<button class="ghost small ${cur?'on':''}" data-${attr}="${val}">${label}</button>`;
@@ -695,8 +715,7 @@ function settingsHTML(st){
   ${rulesTabs}
   <div class="small dim">${pr?'':'Custom rules — tap a tab to reset.'}</div>
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
-  ${st.funMode?'<div class="small dim" style="margin-top:6px">\uD83C\uDF89 Fun mode \u2014 no money. Everyone plays for the win.</div>':`<div class="srow"><span>Buy-in · each wallet</span><span class="numin">$<input type="number" inputmode="decimal" min="0.1" step="1" id="buyinin" value="${m$(st.buyin??20)}"></span></div>
-  <div class="srow"><span>Minimum bet (ante)</span><span class="numin">$<input type="number" inputmode="decimal" min="0.05" step="0.05" id="stakein" value="${m$(st.stake??1)}"></span></div>`}
+  ${st.funMode?'<div class="small dim" style="margin-top:6px">\uD83C\uDF89 Fun mode \u2014 no money. Everyone plays for the win.</div>':`<div class="srow"><span>Ante (min bet)</span><span class="numin">${COIN} <input type="number" inputmode="decimal" min="0.05" step="0.05" id="stakein" value="${m$(st.stake??1)}"></span></div><div class="small dim" style="margin-top:4px">Everyone plays straight from their coin wallet \u2014 no buy-in. Top up on the <a href="/bank.html" target="_blank" style="color:var(--brass)">Game Bank</a>.</div>`}
   ${timerRow}
   ${nextRow}
   <div class="small dim" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>
@@ -712,11 +731,11 @@ function handMain(st,embedded){
     return `<h2 style="margin-top:1rem">Join table ${esc(room)}</h2><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18" style="margin-top:8px"><button class="big" id="join">Join game</button>${st.players.length?`<p class="small dim">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
   }
   const notYou=`<button class="ghost small" id="notyou">Not ${esc(p.name)}?</button>`;
-  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2>${notYou}<p class="dim">Ante is $${m$(st.stake)}. Waiting for the table to deal.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> <button class="ghost" id="addbot">Add a bot</button> `:''}<button class="ghost" id="leave">Leave the table</button></div>`;
+  if(st.phase==='lobby') return `<div class="center" style="padding:1.5rem 0"><h2>You're in, ${esc(p.name)}</h2>${notYou}<p class="dim">Ante is ${mc(st.stake)}. Waiting for the table to deal.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Deal 7 cards each</button> ${st.funMode?`<button class="ghost" id="addbot">Add a bot</button> `:''}`:''}<button class="ghost" id="leave">Leave the table</button></div>`;
   if(st.phase==='over'){ const w=st.winner, won=w&&w.idx.includes(i);
-    return `<div class="center" style="padding:1.2rem 0"><h2>${won?'You win!':w?w.idx.map(k=>esc(st.players[k].name)).join(' & ')+' won':'Game over'}</h2>${w?`<p class="dim">${st.funMode?esc(w.why):`$${m$(w.won)}${w.idx.length>1?' each':''} · ${esc(w.why)}`}</p>`:''}${(!st.funMode&&p.balance<st.stake)?`<button class="ghost" id="rebuy">Out of money: rebuy $${m$(st.buyin??20)}</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st)}</div>`; }
+    return `<div class="center" style="padding:1.2rem 0"><h2>${won?'You win!':w?w.idx.map(k=>esc(st.players[k].name)).join(' & ')+' won':'Game over'}</h2>${w?`<p class="dim">${st.funMode?esc(w.why):`${mc(w.won)}${w.idx.length>1?' each':''} · ${esc(w.why)}`}</p>`:''}${(!st.funMode&&p.balance<st.stake)?`<a class="ghost" href="/bank.html" target="_blank" style="display:inline-block;margin-top:6px">Low on coins \u2014 top up in the Game Bank</a>`:''}${(mode==='both'||embedded)?'':nextHTML(st)}</div>`; }
   // play
-  if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.queued?`<h2 style="color:var(--fg)">You're in, ${esc(p.name)}!</h2>You'll be dealt in when the next game starts.<br>${notYou}`:p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake&&!p.queued?' Rebuy between games to get back in.':''}</div>`;
+  if(!p.in) return `${statusHTML(st,i)}<div class="center dim" style="padding:1.5rem 0">${p.queued?`<h2 style="color:var(--fg)">You're in, ${esc(p.name)}!</h2>You'll be dealt in when the next game starts.<br>${notYou}`:p.left?'You left this game. You\'re back in next game.':'You couldn\'t cover the stake this game.'}${p.balance<st.stake&&!p.queued?' Top up in the Game Bank to get back in.':''}</div>`;
   const hand=sortHand(p.hand||[]), mine=st.turn===i, can=new Set(st.canPlay||[]);
   const selCard=sel.length?hand.find(c=>c.id===sel[0]):null;
   const rows={}; hand.forEach(c=>{ (rows[c.c]=rows[c.c]||[]).push(c); });
@@ -794,6 +813,9 @@ function bind(){
   on('#leave',()=>send({t:'leave'})); on('#start',()=>send({t:'start'})); on('#nextgame',()=>send({t:'next'}));
   on('#endsession',()=>{ if(confirm('Finish the game session for everyone? This ends the game and closes the room — every player goes back to home.')){ send({t:'stopgame'}); if(framed) tellShell('endsession'); else location.replace('/?home=1'); } });
   on('#addbot',()=>send({t:'addbot'})); on('#removebot',()=>send({t:'removebot'})); on('#rebuy',()=>send({t:'rebuy'}));
+  on('#wsignin',async()=>{ const nm=((q('#wname')||{}).value||'').trim().slice(0,24), pw=((q('#wpass')||{}).value||''); if(!nm||pw.length<3){ walletErr='Enter a wallet name and a password of 3+ characters.'; render(); return; } walletBusy=true; walletErr=''; render(); try{ const r=await fetch('/bankapi',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({op:'claim',name:nm,pass:pw})}).then(x=>x.json()); walletBusy=false; if(!r.ok){ walletErr=r.err||'Sign-in failed.'; render(); return; } walletName=nm; walletToken=r.token; set('gn-wallet-name',nm); set('gn-wallet-token',r.token); walletRejected=false; walletErr=''; walletSent=true; render(); send({t:'wallet',name:nm,token:r.token}); }catch(e){ walletBusy=false; walletErr='Network error \u2014 try again.'; render(); } });
+  on('#wback',()=>{ if(framed) tellShell('home'); else location.href='/?home=1'; });
+  on('#walletout',()=>{ if(S&&S.phase==='play') return; send({t:'leave'}); walletName=''; walletToken=''; set('gn-wallet-name',''); set('gn-wallet-token',''); walletSent=false; walletRejected=false; walletErr=''; autoTried=false; render(); });
   on('#reset',()=>{ if(confirm('Clear the table for everyone?')) send({t:'reset'}); });
   on('#clearboard',()=>{ if(confirm('Reset the wins scoreboard?')) send({t:'clearboard'}); });
   on('#finish',()=>{ overlay={k:'finish'}; render(); });

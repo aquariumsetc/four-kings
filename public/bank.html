@@ -11,6 +11,9 @@
   .wrap{max-width:560px;margin:0 auto}
   h1{font-family:"Fraunces",Georgia,serif;font-size:1.7rem;margin:.2rem 0 .1rem}
   .sub{color:var(--dim);font-size:.9rem;margin:0 0 14px}
+  .warn{background:rgba(224,69,60,.14);border:1px solid var(--red);color:#ffd9d5;border-radius:12px;padding:12px 14px;margin:0 0 14px;font-size:.9rem;line-height:1.4} /* v2.9.19: shown only when BANK_SECRET is missing */
+  .warn b{color:#fff}
+  .warn.hide{display:none}
   a.back{color:var(--brass);text-decoration:none;font-size:.9rem}
   .tabs{display:flex;gap:8px;margin:14px 0}
   .tab{flex:1;padding:.7rem;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--fg);border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
@@ -47,6 +50,9 @@
   <a class="back" href="/">← Back to Game Night</a>
   <h1>🏦 Game Bank</h1>
   <p class="sub">One coin wallet per player, shared across every game. Coins are added by the banker.</p>
+
+  <!-- v2.9.19: hidden unless the server reports BANK_SECRET is unset. Without it, balances still load but a hand's winnings can't be written back — they silently vanish on the next deal. -->
+  <div id="secretWarn" class="warn hide">⚠️ <b>Bank not fully configured.</b> The <code>BANK_SECRET</code> isn't set on the server, so money games won't save winnings or losses — balances load but each hand's result is lost on the next deal. Set it with <code>wrangler secret put BANK_SECRET</code> and redeploy. (Play-money "fun mode" is unaffected.)</div>
 
   <div class="tabs">
     <button class="tab on" id="tab-wallet">💰 My wallet</button>
@@ -137,7 +143,11 @@ $('tab-bank').onclick = async () => {
   const st = await api({ op:'status' });
   $('bankSetpin').classList.toggle('hide', !!st.pinSet);
   $('bankLogin').classList.toggle('hide', !st.pinSet);
+  $('secretWarn').classList.toggle('hide', st.secretSet !== false); // v2.9.19: only show when the server explicitly says the secret is unset (undefined on an older worker → stay hidden, no false alarm)
 };
+
+// v2.9.19: on load, ask the server whether BANK_SECRET is configured and surface the warning if not — so it's loud on arrival, not only after opening the Banker tab.
+(async () => { try { const st = await api({ op:'status' }); $('secretWarn').classList.toggle('hide', st.secretSet !== false); } catch (e) {} })();
 
 // ---- player wallet ----
 $('wname').value = get('gb-name');

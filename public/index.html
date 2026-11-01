@@ -225,7 +225,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.9.17 · 31 Oct 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.9.18 · 01 Nov 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -571,10 +571,12 @@ function startOwn(game){ room=newCode(); set(game==='uno'?'uno-room':'fk-room',r
 function startRoom(){ room=newCode(); set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
 // v2.8.51: named, persistent rooms — "EVERYONE" always reopens the same room (the DO is keyed by name). Saved rooms become one-tap buttons on the home screen.
 const normRoom=s=>(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
+// v2.9.18: the /ws and /uws routes require a 3–16 char code. A 1–2 char name built a URL the route rejects, so the socket never opened and the shell hung on "Joining…". Route every create/join entry point through this guard: empty is a silent no-op (unchanged), a typed-but-too-short name gets a hint instead of the hang.
+function roomFromInput(v){ const c=normRoom(v); if(c&&c.length<3){ alert('Room names need at least 3 letters or numbers.'); return ''; } return c; }
 function savedRooms(){ try{ return JSON.parse(get('gn-rooms')||'[]').filter(Boolean); }catch(e){ return []; } }
 function addSavedRoom(name){ if(!name) return; const l=savedRooms().filter(r=>r!==name); l.unshift(name); set('gn-rooms',JSON.stringify(l.slice(0,8))); }
 function rmSavedRoom(name){ set('gn-rooms',JSON.stringify(savedRooms().filter(r=>r!==name))); render(); }
-function openNamedRoom(name){ name=normRoom(name); if(name.length<2) return; room=name; set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; addSavedRoom(name); freshRoom(); history.replaceState(null,'','/?room='+room+'&mode=lounge'); render(); connect(); }
+function openNamedRoom(name){ name=roomFromInput(name); if(!name) return; room=name; set('fk-lhost',room); set('fk-room',room); wantGame=''; wantLobby=true; wantStart=null; addSavedRoom(name); freshRoom(); history.replaceState(null,'','/?room='+room+'&mode=lounge'); render(); connect(); }
 function bind(){
   const q=s=>app.querySelector(s);
   if(q('#newtable')) q('#newtable').onclick=()=>{ location.href='/fk.html?setup=table'; };
@@ -590,7 +592,7 @@ function bind(){
   if(q('#editrooms')) q('#editrooms').onclick=()=>{ roomsEdit=!roomsEdit; render(); };
   app.querySelectorAll('.rmroom2').forEach(b=>b.onclick=()=>{ if(confirm('Remove "'+b.dataset.rm+'" from this device\'s saved-room list? It won\'t end anyone\'s game — it just stops showing here.')) rmSavedRoom(b.dataset.rm); });
   app.querySelectorAll('.roomquick').forEach(b=>b.onclick=e=>{ const rm=e.target.closest('.rmroom'); if(rm){ e.stopPropagation(); rmSavedRoom(rm.dataset.rm); return; } if(b.dataset.switchroom){ location.href='/?room='+normRoom(b.dataset.switchroom)+'&mode=lounge'; return; } openNamedRoom(b.dataset.room); });
-  if(q('#joingame')){ const go=()=>{ const c=normRoom(q('#code').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } }; q('#joingame').onclick=go; q('#code').onkeydown=e=>{ if(e.key==='Enter') go(); }; }
+  if(q('#joingame')){ const go=()=>{ const c=roomFromInput(q('#code').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } }; q('#joingame').onclick=go; q('#code').onkeydown=e=>{ if(e.key==='Enter') go(); }; }
   if(q('#iabx')) q('#iabx').onclick=()=>{ iabDismissed=true; render(); };
   if(q('#lgofk')) q('#lgofk').onclick=()=>{ const m=roomMessageFor('pick-fk'); if(m) sendMsg(m); };
   if(q('#lgouno')) q('#lgouno').onclick=()=>{ const m=roomMessageFor('pick-uno'); if(m) sendMsg(m); };
@@ -606,7 +608,7 @@ function bind(){
   if(q('#sharelink')) q('#sharelink').onclick=()=>shareInvite(q('#sharelink'),'🔗 Share link');
   if(q('#showqr')) q('#showqr').onclick=()=>{ const box=q('#qrbox'); if(!box) return; box.hidden=!box.hidden; const qr=q('#qr'); if(!box.hidden&&qr&&window.QRCode&&!qr.hasChildNodes()){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} } };
   if(q('#entercode')) q('#entercode').onclick=()=>{ const b=q('#codebox'); if(b) b.hidden=!b.hidden; };
-  if(q('#gocode')) q('#gocode').onclick=()=>{ const c=normRoom(q('#joincode').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } };
+  if(q('#gocode')) q('#gocode').onclick=()=>{ const c=roomFromInput(q('#joincode').value); if(c){ addSavedRoom(c); location.href='/?room='+c+'&mode=lounge'; } };
 }
 
 /* ---------- a game frame asks the shell to move the whole party ---------- */

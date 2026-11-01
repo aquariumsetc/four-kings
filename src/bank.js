@@ -105,7 +105,7 @@ export class GameBank extends DurableObject {
     }
 
     // ===== banker: first-time PIN set =====
-    if (m.op === "status") return json({ ok: true, pinSet: !!this.adminHash });
+    if (m.op === "status") return json({ ok: true, pinSet: !!this.adminHash, secretSet: !!(this.env && this.env.BANK_SECRET) }); // v2.9.19: report ONLY whether BANK_SECRET is configured (never the value), so the bank page can warn when winnings can't be settled. Safe to expose: knowing it's set/unset gives no attacker leverage (settle still needs the secret itself).
     if (m.op === "setpin") {
       if (this.adminHash) return json({ ok: false, err: "The bank PIN is already set." });
       const pin = String(m.pin || "");

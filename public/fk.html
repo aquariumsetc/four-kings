@@ -232,7 +232,7 @@ body.hasvid.tbl .app{padding-top:136px}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.12 · 30 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.17 · 31 Oct 2026'; // shown at the bottom of every screen
 const SUITS=['S','H','D','C'];
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const NAME={S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
@@ -258,11 +258,12 @@ let mode=qs.get('home')?'':(qs.get('mode')||get('fk-mode')||'');
 let wantLayout='', wantLounge=qs.get('lounge')==='1'&&mode==='lounge', autoVidTried=false; if(wantLounge) history.replaceState(null,'','/?room='+room+'&mode=lounge'); /* one-shot: a refresh must not drag everyone back to the room */ let autoTried=false, autoStartTried=false, autoNextOff=false, dealingUntil=framed?Date.now()+6000:0; let emoji=get('fk-emoji')||''; let nick=get('fk-nick'); let hints=get('fk-hints')==='1', autoOn=get('fk-auto')==='1', skew=0, nudged='', showRules=false; let sfxOn=get('fk-sfx')!=='0', winOn=get('fk-win')!=='0', musicOn=get('fk-music')==='1', lastLeft=-1;
 let S=null, prev=null, ws=null, timer=null, bannerTimer=null, lastEvent=0, draft={suits:[],total:10}, viewMsg='', claimSeen=0, dealSeen=0, reconnectIn=800;
 let seededStakes=false;
+let walletName=get('gn-wallet-name')||'', walletToken=get('gn-wallet-token')||'', walletSent=false, walletBusy=false, walletErr='', walletRejected=false; const COIN='\uD83E\uDE99';
 let qSeenKey=null, qSeenAt=0, queenShow=false, qTimer=null; // v2.8.98: the queen win-banner in the note auto-dismisses ~3s after it appears so it doesn't linger into the next lead prompt
 const m$=x=>{ x=Math.round(x*100)/100; return x%1===0?''+x:x.toFixed(2); }; // v2.9.7: split bets can be fractional ($2.50), so show cents only when needed
-const mp=v=> (S&&S.funMode) ? String(Math.round(v)) : '$'+m$(v); // fun mode shows plain points, money mode shows dollars
+const mp=v=> (S&&S.funMode) ? String(Math.round(v)) : COIN+' '+m$(v); // fun mode shows plain points, money mode shows dollars
 const betsOf=d=>{ const o={}; const n=d.suits.length; if(!n) return o; const cents=Math.round(d.total*100), base=Math.floor(cents/n); let rem=cents-base*n; d.suits.forEach(x=>{ o[x]=(base+(rem>0?1:0))/100; if(rem>0) rem--; }); return o; }; // split the stake evenly, giving any odd cent to the first king(s) so it sums exactly
-const betsText=b=>Object.keys(b).map(x=>'$'+m$(b[x])+' '+SYM[x]).join(' + ');
+const betsText=b=>Object.keys(b).map(x=>COIN+' '+m$(b[x])+' '+SYM[x]).join(' + ');
 const sameBets=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const app=document.getElementById('app'), connEl=document.getElementById('conn');
 const isTbl=()=>mode==='table'||mode==='both';
@@ -289,9 +290,9 @@ function connect(){
   const role=mode==='lounge'?(get('fk-lhost')===room?'both':'hand'):mode;
   ws=new WebSocket(`${proto}://${location.host}/ws/${room}?pid=${encodeURIComponent(pid)}&role=${role}`);
   connEl.textContent='connecting…';
-  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(myPhoto) ws.send(JSON.stringify({t:'photo',photo:myPhoto})); if(!framed&&rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(!framed&&isTbl()) loadIce(); };
+  ws.onopen=()=>{ connEl.textContent='● live'; reconnectIn=800; walletSent=false; keepAwake(); ws.send(JSON.stringify({t:'hello'})); if(myPhoto) ws.send(JSON.stringify({t:'photo',photo:myPhoto})); if(!framed&&rtc.on) ws.send(JSON.stringify({t:'video',on:true})); if(!framed&&isTbl()) loadIce(); };
   ws.onmessage=ev=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;}
-    if(m.t==='err'){ viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2500); return; }
+    if(m.t==='err'){ if(S&&!S.funMode&&mode!=='table'&&mode!=='lounge'&&walletSent){ const meP=S.players.find(p=>p.id===pid); if(meP&&!meP.signedIn){ walletRejected=true; walletSent=false; walletToken=''; set('gn-wallet-token',''); walletErr=m.msg; render(); return; } } viewMsg=m.msg; render(); setTimeout(()=>{viewMsg='';render();},2500); return; }
     if(m.t==='rtc'){ onRtc(m.from,m.data); return; }
     if(m.t==='photo'){ if(m.photo) photos[m.pid]=m.photo; else delete photos[m.pid]; if(S) paintFkStrip(S); return; }
     if(m.t==='closed'){ if(!framed) location.replace('/?home=1'); return; } // session finished (standalone goes home; framed is handled by the shell)
@@ -307,8 +308,9 @@ function onState(st,old){
   if(mode==='lounge'&&!st.lounge&&!wantLounge){ mode=st.host?'both':'hand'; set('fk-mode',mode); }
   if(mode!=='table'&&!autoTried&&!st.players.some(p=>p.id===pid)&&nick){ autoTried=true; sendMsg({t:'join',name:nick,auto:autoOn,emoji}); }
   else if(!st.players.some(p=>p.id===pid)) autoTried=true;
+  if(!st.funMode && mode!=='table' && mode!=='lounge'){ const meP=st.players.find(p=>p.id===pid); if(meP){ if(meP.signedIn){ walletRejected=false; walletErr=''; } else if(walletName&&walletToken&&!walletSent&&!walletRejected){ walletSent=true; sendMsg({t:'wallet',name:walletName,token:walletToken}); } } }
   if(qs.get('bots')&&st.host&&st.phase==='lobby'&&!st.players.some(p=>p.bot)){ for(let k=0;k<Math.min(7,+qs.get('bots'));k++) sendMsg({t:'addbot'}); history.replaceState(null,'','/?room='+room+'&mode='+mode+(qs.get('from')?'&from='+qs.get('from'):'')); qs.delete('bots'); }
-  if(framed&&st.host&&st.phase==='lobby'&&st.players.length>=2&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&S.players.length>=2) sendMsg({t:'start'}); },1200); } // launched from the room: start straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
+  if(framed&&st.host&&st.phase==='lobby'&&(st.funMode?st.players.length>=2:st.players.filter(p=>p.signedIn).length>=2)&&!autoStartTried){ autoStartTried=true; setTimeout(()=>{ if(S&&S.host&&S.phase==='lobby'&&(S.funMode?S.players.length>=2:S.players.filter(p=>p.signedIn).length>=2)) sendMsg({t:'start'}); },1200); } // launched from the room: start straight in once 2+ players are present — never auto-adds a bot (bots are added only by tapping Add a bot)
   if(framed&&st.host&&st.phase==='over'&&st.autoNext&&!autoNextOff){ autoNextOff=true; sendMsg({t:'settings',autoNext:false}); } // room flow: no auto-advance — "Play another game" is an explicit tap
   if(wantLayout&&st.host){ sendMsg({t:'settings',layout:wantLayout}); wantLayout=''; }
   if(framed&&st.host&&st.phase==='lobby'&&!st.stakesSet&&!seededStakes){ seededStakes=true; const b=+get('gn-buyin'),k=+get('gn-fk-stake'),msg={t:'settings',funMode:get('gn-funmode')==='1'}; if(b>0)msg.buyin=b; if(k>0)msg.stake=k; sendMsg(msg); } // seed this room from the home-page Table stakes (once per fresh room)
@@ -332,7 +334,7 @@ function showBanner(st){
   const sparks=Array.from({length:14},(_,i)=>{ const a=i/14*Math.PI*2, d=120+Math.random()*120; return `<span class="spark" style="--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;animation-delay:${Math.random()*.3}s">${['✨','⭐','💰','🎉'][i%4]}</span>`; }).join('');
   const body=e.t==='queen'
     ?`<h2>${me?'You':esc(name)} took the King of ${NAME[e.suit]}!</h2>${cardHTML({s:e.suit,r:12})}<div class="big">+$${e.won}</div><div class="sub">played the Queen of ${NAME[e.suit]}</div>`
-    :`<h2>${me?'You are':esc(name)+' is'} out of cards!</h2><div class="big">${S.funMode?'+'+Math.round(e.won):'+$'+e.won}</div><div class="sub">takes the centre</div>`;
+    :`<h2>${me?'You are':esc(name)+' is'} out of cards!</h2><div class="big">${S.funMode?'+'+Math.round(e.won):'+'+COIN+' '+m$(e.won)}</div><div class="sub">takes the centre</div>`;
   b.innerHTML=`<div class="fanfare" style="position:relative">${sparks}${body}</div>`;
   if(winOn){ try{ chime(e.t==='out'); coins(e.t==='out'?28:14, .35); }catch(x){} }
   if(bannerTimer) clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>{ b.innerHTML=''; },4300);
@@ -559,12 +561,12 @@ function settingsHTML(st){
   if(!st.host) return `<div class="panel small settings">${mine}</div>`;
   const tableHead=`<div class="muted" style="margin:12px 0 4px">For everyone at the table</div>`;
   const pickD=(attr,val,cur,label,dis)=>`<button class="ghost small" data-${attr}="${val}" style="${cur?on:''}${dis?';opacity:.35':''}"${dis?' disabled':''}>${label}</button>`;
-  const stakeRow=`<div class="srow"><span>Minimum bet</span><span class="numin">$<input type="number" inputmode="decimal" min="0.05" step="0.05" id="stakein" value="${m$(st.stake??1)}"></span></div>`;
+  const stakeRow=`<div class="srow"><span>Minimum bet (ante)</span><span class="numin">${COIN} <input type="number" inputmode="decimal" min="0.05" step="0.05" id="stakein" value="${m$(st.stake??1)}"></span></div>`;
   const buyinRow=`<div class="srow"><span>Buy-in · each stack</span><span class="numin">$<input type="number" inputmode="decimal" min="0.1" step="1" id="buyinin" value="${m$(st.buyin??20)}"></span></div>`;
   const stakeNote=`<div class="muted" style="margin:2px 0 6px">Buy-in is each player's starting stack (changing it in the lobby resets everyone). Minimum bet is the smallest bet and the step — at most half the buy-in.</div>`;
   // mid-game: only the table settings the server honours during a live hand (the card timer + next-game). Spare hand, layout and game-switch change between games.
   if(st.phase!=='lobby'&&st.phase!=='over') return `<div class="panel small settings">${mine}${tableHead}${timerRow}${nextRow}<div class="muted" style="margin-top:4px">A longer card timer gives everyone more time before a lead or claim is played for them; Off never plays a card for anyone — good when you're all in the room together. Spare&#8209;hand, layout &amp; game&#8209;switch options are available between games.</div></div>`;
-  return `<div class="panel small settings">${mine}${tableHead}${st.funMode?'<div class="muted" style="margin:2px 0 6px">\uD83C\uDF89 Fun mode \u2014 points. 8 a game: 4 in the centre, 1 on each king. Win a king\u2019s queen for its point; go out to take the centre.</div>':buyinRow+stakeRow+stakeNote}
+  return `<div class="panel small settings">${mine}${tableHead}${st.funMode?'<div class="muted" style="margin:2px 0 6px">\uD83C\uDF89 Fun mode \u2014 points. 8 a game: 4 in the centre, 1 on each king. Win a king\u2019s queen for its point; go out to take the centre.</div>':stakeRow+`<div class="muted" style="margin:2px 0 6px">Everyone plays straight from their coin wallet \u2014 no buy-in. Top up on the <a href="/bank.html" target="_blank" style="color:#d8b24a">Game Bank</a>.</div>`}
   <div class="srow"><span>How we're playing</span><span>${pick('layout','table',st.layout!=='phones','iPad table')} ${pick('layout','phones',st.layout==='phones','Own devices')}</span></div>
   ${timerRow}
   <div class="srow"><span>Spare hand</span><span>${pick('swapmode','race',swapRace(st),'Fastest finger')} ${pick('swapmode','turn',!swapRace(st),'In turn')}</span></div>
@@ -580,6 +582,22 @@ function boardHTML(st,host){
   ${host?`<button class="ghost small" id="clearboard" style="margin-top:6px">Reset scoreboard</button>`:''}</div>`;
 }
 function heroHTML(){ return `<div class="setuphero"><div class="ghero-ring">👑</div><div class="ghero-name">4 Kings</div></div>`; } // v2.8.83: game identity on the loading/setup screens
+function needWalletSignin(st){ if(!st||st.funMode||mode==='table'||mode==='lounge') return false; const meP=st.players.find(p=>p.id===pid); return !!meP && !meP.signedIn; }
+function signinHTML(st){
+  const busy = walletName && walletToken && walletSent && !walletRejected && !walletErr;
+  return `<div class="wait" style="max-width:420px;margin:0 auto">${heroHTML()}
+    <h2 style="margin-top:.4rem">Play for coins ${COIN}</h2>
+    <p class="muted">Sign in to your Game Bank wallet \u2014 just once on this device, then we remember you.</p>
+    ${busy?`<p class="muted" style="margin-top:12px">Signing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></p>`:`
+    <input id="wname" placeholder="Wallet name" value="${esc(walletName||nick||'')}" maxlength="24" autocomplete="username" style="margin-top:10px">
+    <input id="wpass" type="password" placeholder="Wallet password (3+ characters)" maxlength="60" autocomplete="current-password" style="margin-top:8px">
+    ${walletErr?`<p class="small" style="color:#ffb3ad;margin-top:6px">${esc(walletErr)}</p>`:''}
+    <button class="big" id="wsignin" ${walletBusy?'disabled':''} style="margin-top:10px;width:100%">${walletBusy?'Signing in\u2026':'Play for coins'}</button>
+    <p class="small muted" style="margin-top:10px">A new name starts a fresh wallet at 0 ${COIN}. Top up or check balances on the <a href="/bank.html" target="_blank" style="color:#d8b24a">Game Bank</a> page.</p>`}
+    <p class="small muted" style="margin-top:14px"><button class="ghost small" id="wback">${framed?'\uD83D\uDCF9 Back to the room':'Change table'}</button></p>
+  </div>`;
+}
+function fkWalletFoot(st){ if(st.funMode||mode==='table'||mode==='lounge'||(st.phase!=='lobby'&&st.phase!=='over')) return ''; const meP=st.players.find(p=>p.id===pid); return meP&&meP.signedIn?`<p class="center small muted" style="opacity:.7">${COIN} wallet: ${esc(walletName||meP.name)} \u00b7 <button class="ghost small" id="walletout">use another wallet</button></p>`:''; }
 function render(){
   if(timer){clearTimeout(timer);timer=null;}
   // v2.8.98: the persistent queen win-banner (baked into the note) shows for ~3s, then auto-dismisses even if the state doesn't change
@@ -590,9 +608,10 @@ function render(){
     if(queenShow) qTimer=setTimeout(()=>{ if(S) render(); }, Math.max(40,qSeenAt+3000-Date.now()+40));
   } else { qSeenKey=null; queenShow=false; if(qTimer){clearTimeout(qTimer);qTimer=null;} }
   // v2.8.92: when framed, the FRAME never decides "back to the room" on its own — the SHELL owns the room<->game switch (it unframes this page when the room's lounge is on). The frame only shows the game. This kills the stuck "Back to the Game Night room…" screen that appeared when the frame's own copy of `lounge` was briefly stale after a launch.
-  if(framed&&S&&S.phase==='lobby'){ const n=S.players.length; app.className='app';
+  if(S && needWalletSignin(S)){ app.className='app'; app.innerHTML=signinHTML(S); const _b=document.getElementById('banner'); if(_b) _b.innerHTML=''; bind(); return; }
+  if(framed&&S&&S.phase==='lobby'){ const n=S.funMode?S.players.length:S.players.filter(p=>p.signedIn).length; app.className='app';
     const hostbar=S.host?`<div class="row" style="max-width:420px;margin:16px auto 0"><button class="ghost small" id="toroom">📹 Back to the room</button><button class="ghost small" id="endsession" style="border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish · everyone out</button></div>`:''; // v2.8.84: give 4 Kings setup the same host escapes UNO has — no need for the browser back button
-    const main=n>=2?`<div class="wait">${heroHTML()}<h2>Dealing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2></div>`:`<div class="wait">${heroHTML()}<h2>Setting up the table<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2><p class="muted">Anyone who opens this game from the room joins automatically.</p>${S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="muted">Waiting for the host to start.</p>`}</div>`;
+    const main=n>=2?`<div class="wait">${heroHTML()}<h2>Dealing you in<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2></div>`:`<div class="wait">${heroHTML()}<h2>Setting up the table<span class="dots"><i>.</i><i>.</i><i>.</i></span></h2><p class="muted">Anyone who opens this game from the room joins automatically.</p>${S.funMode&&S.host?`<button class="big" id="addbot" style="margin-top:14px">🤖 Add a bot to play now</button>`:`<p class="muted">Waiting for ${S.funMode?'the host to start':'another player to sign in'}\u2026</p>`}</div>`;
     app.innerHTML=main+hostbar; bind(); return; } // framed = launched from the room: never show the full lobby — a slim setup card, with a manual Add-a-bot when you're on your own
   if(!room||!mode){ app.className='app'; app.innerHTML=startHTML(); bind(); return; }
   if(mode==='lounge'&&S){ app.className='app'; app.innerHTML=loungeHTML(S); document.getElementById('banner').innerHTML=''; bind(); renderVideo(); return; }
@@ -601,7 +620,7 @@ function render(){
   const fkStripOn=['ante','swap','play','claim'].includes(S.phase)&&S.players.length>=2; // the avatar strip shows during a live game on every device (table, own-devices phones, hand devices)
   app.className='app'+(isTbl()||(mode==='hand'&&S.layout==='phones')?' table':'')+(fkStripOn?' fkstripon':'')+(S.funMode?' funmode':''); // own-devices game: players get the wide table layout too
   const fkHandPanel=withTable&&S.phase!=='ante'?`<div class="panel" style="border:1px solid rgba(201,162,39,.45)"><div class="small muted" style="margin-bottom:4px">Your cards</div>${handMain(S,true)}</div>`:''; /* v2.8.95: during betting your controls go inline under "Place your bets" (see tableHTML) — no "Your cards" box (you have no cards yet, and it buried the suit buttons) */
-  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,fkHandPanel,true):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Settings &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div><p class="center small muted" style="opacity:.6;margin-top:1.2rem">Game Night ${VERSION}</p>`; /* v2.8.99: sound, hints, auto-play, How to play, table-mode & change-table all moved inside ⚙️ (settingsHTML) so the bottom isn't cluttered; the panel is now open to everyone, with the table-wide settings still host-only inside it */
+  app.innerHTML=(mode==='table'?tableHTML(S):withTable?tableHTML(S,fkHandPanel,true):handHTML(S))+(viewMsg?`<div class="notice">${esc(viewMsg)}</div>`:'')+`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Settings &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>${fkWalletFoot(S)}<p class="center small muted" style="opacity:.6;margin-top:1.2rem">Game Night ${VERSION}</p>`; /* v2.8.99: sound, hints, auto-play, How to play, table-mode & change-table all moved inside ⚙️ (settingsHTML) so the bottom isn't cluttered; the panel is now open to everyone, with the table-wide settings still host-only inside it */
   bind();
   const qr=document.getElementById('qr'); if(qr&&window.QRCode){ try{ new QRCode(qr,{text:qr.dataset.link,width:180,height:180,colorDark:'#1b1a17',colorLight:'#fbf7ec',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   tickAll();
@@ -657,7 +676,7 @@ function paintFkStrip(st){
     if(ph){ ava.style.backgroundImage='url('+ph+')'; ava.style.backgroundColor=`hsl(${FKHUE[ch.pi%FKHUE.length]} 55% 44%)`; ava.textContent=''; }
     else { ava.style.backgroundImage=''; ava.style.background = p.bot?'var(--felt-deep)':`hsl(${FKHUE[ch.pi%FKHUE.length]} 55% 44%)`; ava.textContent = p.bot?'\uD83E\uDD16':(p.emoji||(p.name||'?').charAt(0).toUpperCase()); }
     nm.textContent = (p.id===pid&&mode!=='table')?'You':p.name;
-    bal.textContent = st.funMode ? (Math.round(p.balance)+' pt'+(Math.round(p.balance)===1?'':'s')) : '$'+m$(p.balance);
+    bal.textContent = st.funMode ? (Math.round(p.balance)+' pt'+(Math.round(p.balance)===1?'':'s')) : COIN+' '+m$(p.balance);
     const owe = st.phase==='ante' ? (!p.placed&&!p.broke) : (st.phase==='swap'&&st.swapTurn==null ? (p.in&&!p.kept) : false);
     const out = st.phase==='ante' ? !!p.broke : !p.in;
     ch.el.classList.toggle('owe', owe);
@@ -778,12 +797,12 @@ function tableHTML(st,handPanel,embedded){
     const invite=`<div class="panel center" style="margin-top:8px"><div class="small muted">Invite players · table <b>${esc(room)}</b></div><div class="codebig">${esc(room)}</div><div class="qrwrap"><div class="qr" id="qr" data-link="${esc(link)}"></div><div style="max-width:240px;text-align:left"><div class="small muted">Scan with the phone camera to join, or send the link, or type the code on the main page.</div><button class="ghost" id="sharelink" data-link="${esc(link)}" style="margin-top:8px">🔗 Share join link</button></div></div></div>`;
     main=`<h2>Table ${esc(room)}</h2>
     <div class="panel">${st.players.length?st.players.map(p=>`<div><span class="tick"></span>${esc(p.name)}${p.bot?' <span class="muted small">🤖 bot</span>':''}</div>`).join(''):'<span class="muted">Nobody yet.</span>'} <span class="muted small">(${st.players.length}/8)</span></div>
-    ${host?`<button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>${st.players.length<2?'<p class="center small muted">Need at least 2 players: add a bot, or share the code below.</p>':'<p class="center small muted">Everyone in — start when you\'re ready. Table settings are at the bottom.</p>'}<div class="row" style="margin-top:6px"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}
+    ${host?`<button class="big" id="start" ${st.players.length<2?'disabled':''}>Start the game</button>${st.players.length<2?`<p class="center small muted">Need at least 2 ${st.funMode?'players: add a bot, or share':'signed-in players: share'} the code below.</p>`:'<p class="center small muted">Everyone in — start when you\'re ready. Table settings are at the bottom.</p>'}${st.funMode?`<div class="row" style="margin-top:6px"><button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot player</button><button class="ghost" id="removebot" ${st.players.some(p=>p.bot)?'':'disabled'}>Remove a bot</button></div>`:''}`:''}
     ${mode==='table'&&window.innerWidth<760?`<div class="notice small">Playing on this phone too? Tap <b>table + my hand</b> at the bottom to get your cards on this screen as well.</div>`:''}
     ${invite}`;
   } else if(st.phase==='ante'){
     const waiting=st.players.filter(p=>!p.placed&&!p.broke), brokeP=st.players.filter(p=>p.broke&&!p.placed);
-    const roster=`<div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} <span class="muted small">${p.placed?betsText(p.bets)+(p.carried?' · same as last game':''):p.broke?'out of money: can rebuy on their phone':'deciding…'}</span></div>`).join('')}</div>`;
+    const roster=`<div class="panel">${st.players.map(p=>`<div>${p.placed?'<span class="tick"></span>':'○ '}${esc(p.name)} <span class="muted small">${p.placed?betsText(p.bets)+(p.carried?' · same as last game':''):p.broke?'low on coins: can top up on their phone':'deciding…'}</span></div>`).join('')}</div>`;
     const foot=st.dealAt?`<p class="center small muted">Dealing in <span class="dealin" id="dealin">${Math.ceil((st.dealAt-st.serverNow)/1000)}</span> s${waiting.length?` · ${waiting.map(p=>esc(p.name)).join(', ')} will sit out if not ready`:' — last chance to change your bet'}</p>`:`<p class="center small muted">${st.players.filter(p=>p.placed).length<2?'Waiting for at least two players to bet…':''}</p>`;
     const dealBtn=host&&st.canDeal?`<button class="big" id="deal">Deal the cards now${waiting.length?` <span class="small" style="font-weight:400">(${waiting.map(p=>esc(p.name)).join(', ')} sit${waiting.length>1?'':'s'} out)</span>`:''}</button>`:'';
     if(embedded){ // v2.8.95: own-devices phone — your suit buttons + stake sit right under "Place your bets"; who's-betting status goes below them (no confusing "Your cards" box)
@@ -808,7 +827,7 @@ function tableHTML(st,handPanel,embedded){
   } else if(st.phase==='over'){
     const left=SUITS.reduce((a,s)=>a+st.kings[s],0);
     main=`<div class="pile">${pileHTML(st,false)}</div><div class="panel center">${st.winner?`<h2>${esc(pname(st,st.winner.idx))} is out of cards</h2><p>They take the ${mp(st.winner.won)} from the centre.</p>${noteHTML(st,'small')}<p class="small muted">${left?`${mp(left)} stays on the kings for next game.`:'The kings are empty.'}</p>`:`<h2>Game over, nobody out</h2><p>${esc(st.note)}</p><p class="small muted">${mp(st.pot)} stays in the centre${left?` and ${mp(left)} on the kings`:''} for next game.</p>`}</div>
-    <div class="endbar" style="margin-top:10px"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px"><button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>🤖 Add a bot</button>${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>`;
+    <div class="endbar" style="margin-top:10px"><button class="big" id="nextgame">▶ Play another game</button>${host?`<div class="row" style="margin-top:8px">${st.funMode?`<button class="ghost small" id="addbot" ${st.players.length>=8?'disabled':''}>🤖 Add a bot</button>`:''}${st.layout==='phones'?`<button class="ghost small" id="toroom">📹 Back to the room</button>`:''}</div><button class="ghost small" id="endsession" style="width:100%;margin-top:8px;border:1px solid rgba(224,69,60,.55);color:#ffb3ad">⏹ Finish session · everyone out</button>`:''}</div>`;
   }
   return `<div class="tgrid${handPanel?' withhand':''}"><div class="tl-round">${kingsHTML(st)}${main}</div><div class="tl-side">${scoresHTML(st)}${(st.phase==='lobby'||st.phase==='over')?boardHTML(st,host):''}${host&&st.phase!=='over'&&(st.phase!=='lobby'||st.players.length)?`<button class="ghost small" id="reset" style="width:100%">Clear the table</button>`:''}</div>${handPanel?`<div class="tl-hand">${handPanel}</div>`:''}</div>`;
 }
@@ -827,9 +846,9 @@ function handMain(st,embedded,bare){
     else main=`<h2>Join table ${esc(room)}</h2><input id="nick" placeholder="Your name at the table" value="${esc(nick)}" maxlength="18"><button class="big" id="join" ${st.players.length>=8?'disabled':''}>Join game</button>${st.players.length?`<p class="small muted">At the table: ${st.players.map(x=>esc(x.name)).join(', ')}</p>`:''}`;
     return main;
   }
-  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> <button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${st.claimMs?fmtSec(st.claimMs/1000)+(st.claimMs>=60000?' min':' s'):'Off'}</p>`:''}</div>`; }
+  if(st.phase==='lobby'){ main=`<div class="wait"><h2>You're in, ${esc(p.name)}</h2><button class="ghost small" id="notyou">Not ${esc(p.name)}?</button><p class="muted">Waiting for the table to start the game.</p>${st.host&&!embedded?`<button id="start" ${st.players.length<2?'disabled':''}>Start the game</button> ${st.funMode?`<button class="ghost" id="addbot" ${st.players.length>=8?'disabled':''}>Add a bot</button> `:''}`:''}<button class="ghost" id="leave">Leave</button>${!st.host?`<p class="small muted">Time to play the next card: ${st.claimMs?fmtSec(st.claimMs/1000)+(st.claimMs>=60000?' min':' s'):'Off'}</p>`:''}</div>`; }
   else if(st.phase==='ante'&&p.broke&&!p.placed){
-    main=`<div class="wait"><h2>You're out of money</h2><p class="muted">You have $${m$(p.balance)}, and the smallest bet needs $${m$(2*(S.stake||1))}. Rebuy to keep playing, or sit this one out.</p><button class="big" id="rebuy">Rebuy $${m$(S.buyin||20)}</button><p class="small muted">Rebuys show as ↻ in the standings and don't count as winnings on the season scoreboard.</p></div>`;
+    main=`<div class="wait"><h2>Low on coins</h2><p class="muted">You have ${COIN} ${m$(p.balance)}, and the smallest bet needs ${COIN} ${m$(2*(S.stake||1))}. Top up your wallet to keep playing, or sit this one out.</p><a class="big" href="/bank.html" target="_blank" style="display:inline-block">Top up in the Game Bank</a><p class="small muted">Top up on the Game Bank page, then you're back in next game.</p></div>`;
   }
   else if(st.phase==='ante'){
     if(p.placed&&!draft.suits.length){ draft.suits=Object.keys(p.bets); draft.total=p.bet; }
@@ -848,7 +867,7 @@ function handMain(st,embedded,bare){
       ${st.host&&st.canDeal&&!embedded?`<button class="big ghost" id="deal">Deal the cards now</button>`:''}`;
   }
   else if(['swap','play','claim'].includes(st.phase)&&!p.in){
-    main=`${miniRun(st)}<div class="wait">${p.broke?'<h2>You\'re sitting this game out</h2><p class="muted">You ran out of money. You can rebuy before the next game.</p>':`<h2>You're in, ${esc(p.name)}!</h2><p class="muted">You'll be dealt in when the next game starts.</p>`}</div>`;
+    main=`${miniRun(st)}<div class="wait">${p.broke?'<h2>You\'re sitting this game out</h2><p class="muted">You\'re low on coins. Top up in the Game Bank before the next game.</p>':`<h2>You're in, ${esc(p.name)}!</h2><p class="muted">You'll be dealt in when the next game starts.</p>`}</div>`;
   }
   else if(st.phase==='swap'){
     const left=`<span data-until="${local(st.swapBy)}">${Math.ceil((st.swapBy-st.serverNow)/1000)}</span> s`;
@@ -878,7 +897,7 @@ function handMain(st,embedded,bare){
       ${handView(hand,null,{need,hint:hints})}`;
   }
   else if(st.phase==='over'){
-    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">${mp(st.winner.won)} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} ${mp(st.pot)} stays in the centre for next game.</p>`}${(!S.funMode&&p.broke)?`<button class="ghost" id="rebuy" style="margin-bottom:8px">Out of money: rebuy $${m$(S.buyin||20)}</button>`:''}${(mode==='both'||embedded)?'':nextHTML(st,true)}</div>`;
+    main=`${miniRun(st)}<div class="wait">${st.winner?`<h2>${st.winner.idx===i?'You take the centre!':esc(pname(st,st.winner.idx))+' is out of cards'}</h2><p class="muted">${mp(st.winner.won)} from the centre. Waiting for the next game.</p>`:`<h2>Game over, nobody out</h2><p class="muted">${esc(st.note)} ${mp(st.pot)} stays in the centre for next game.</p>`}${(!S.funMode&&p.broke)?`<a class="ghost" href="/bank.html" target="_blank" style="display:inline-block;margin-bottom:8px">Low on coins \u2014 top up in the Game Bank</a>`:''}${(mode==='both'||embedded)?'':nextHTML(st,true)}</div>`;
   }
   return main;
 }
@@ -915,6 +934,9 @@ function bind(){
   if(q('#leaveRoom')) q('#leaveRoom').onclick=()=>{ if(framed){ tellShell('home'); return; } stopVideo(); Object.keys(rtc.peers).forEach(closePeer); if(ws){ws.onclose=null;ws.close();} ws=null; S=null; mode=''; set('fk-mode',''); render(); renderVideo(); };
   if(q('#start')) q('#start').onclick=()=>sendMsg({t:'start'}); if(q('#sharelink')) q('#sharelink').onclick=async()=>{ const b=q('#sharelink'), link=b.dataset.link; try{ if(navigator.share){ await navigator.share({title:'4 Kings, table '+room,text:'Join my 4 Kings table',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; } try{ await navigator.clipboard.writeText(link); b.textContent='Copied!'; }catch(e){ prompt('Copy this link:',link); } setTimeout(()=>{ if(b.isConnected) b.textContent='🔗 Share join link'; },1800); };
   if(q('#addbot')) q('#addbot').onclick=()=>sendMsg({t:'addbot'});
+  if(q('#wsignin')) q('#wsignin').onclick=async()=>{ const nm=((q('#wname')||{}).value||'').trim().slice(0,24), pw=((q('#wpass')||{}).value||''); if(!nm||pw.length<3){ walletErr='Enter a wallet name and a password of 3+ characters.'; render(); return; } walletBusy=true; walletErr=''; render(); try{ const r=await fetch('/bankapi',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({op:'claim',name:nm,pass:pw})}).then(x=>x.json()); walletBusy=false; if(!r.ok){ walletErr=r.err||'Sign-in failed.'; render(); return; } walletName=nm; walletToken=r.token; set('gn-wallet-name',nm); set('gn-wallet-token',r.token); walletRejected=false; walletErr=''; walletSent=true; render(); sendMsg({t:'wallet',name:nm,token:r.token}); }catch(e){ walletBusy=false; walletErr='Network error \u2014 try again.'; render(); } };
+  if(q('#wback')) q('#wback').onclick=()=>{ if(framed) tellShell('home'); else location.href='/?home=1'; };
+  if(q('#walletout')) q('#walletout').onclick=()=>{ if(S&&S.phase!=='lobby'&&S.phase!=='over') return; sendMsg({t:'leave'}); walletName=''; walletToken=''; set('gn-wallet-name',''); set('gn-wallet-token',''); walletSent=false; walletRejected=false; walletErr=''; autoTried=false; render(); };
   app.querySelectorAll('[data-timer]').forEach(b=>b.onclick=()=>sendMsg({t:'settings',claimMs:+b.dataset.timer}));
   {const _si=q('#stakein'); if(_si) _si.onchange=e=>{const v=+e.target.value; if(v>0) sendMsg({t:'settings',stake:v});}}
   {const _bi=q('#buyinin'); if(_bi) _bi.onchange=e=>{const v=+e.target.value; if(v>0) sendMsg({t:'settings',buyin:v});}}

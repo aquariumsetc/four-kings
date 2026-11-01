@@ -21,6 +21,7 @@ const SWAP_RACE_MS = 12000;    // fastest-finger swap window
 const NEXT_MS = 15000;         // game over: next game starts after this (if auto-next is on)
 const EMPTY_GRACE = 45000;      // v2.8.54: all humans gone this long -> reset the game to the room lounge (keep settings + season scores)
 const MIN_BET = 10, START_BAL = 1000;
+const canAnte = (st, p) => !p.bot && !!p.wallet && p.balance >= 2 * (st.stake || MIN_BET); // money mode: a signed-in human who can cover the minimum bet
 const money2 = (n, min, max) => { if (!isFinite(n) || n <= 0) return 0; let c = Math.round(n * 100); c = Math.max(Math.round(min * 100), Math.min(Math.round(max * 100), c)); return c / 100; };
 
 let curStake = MIN_BET; // v2.9.8: the active table's minimum-bet unit; one value per room, set at each entry point (DO is single-threaded)
@@ -84,7 +85,7 @@ function updateDealAt(st, graceMs) {
 function dealInto(st) {
   const sitting = [];
   st.players.forEach((p) => {
-    p.in = !!p.placed; p.hand = []; p.gq = 0;
+    p.in = !!p.placed && (st.funMode || !p.bot); p.hand = []; p.gq = 0; // money mode: bots never ante (coin games are players only)
     if (!p.in) { p.bets = p.bets || {}; if (!broke(p)) sitting.push(p.name); return; }
     const t = betTotal(p); p.balance -= 2 * t; st.pot += t; for (const s in p.bets) st.kings[s] = Math.round((st.kings[s] + p.bets[s]) * 100) / 100;
   });
@@ -135,7 +136,7 @@ function playFrom(st, who, r) {
 }
 // back to "waiting for players" after a game: nothing is dealt, money on the kings and in the centre stays put
 function toLobby(st) { if (st.phase !== "over") return; st.phase = "lobby"; st.run = []; st.note = ""; st.winner = null; st.dead = []; st.spare = []; st.swapAns = {}; st.dealAt = 0; st.overAt = 0; st.players.forEach((p) => { p.hand = []; p.in = false; p.placed = false; p.carried = false; }); }
-function endGame(st) { st.phase = "over"; st.overAt = Date.now(); st.first = (st.first + 1) % st.players.length; recordGame(st); }
+function endGame(st) { st.phase = "over"; st.overAt = Date.now(); st.first = (st.first + 1) % st.players.length; if (!st.funMode) st.needSettle = true; recordGame(st); } // money mode: net of this hand is posted to each wallet in commit()
 function endRun(st, who, note) { st.leader = who; st.colour = RED[st.runSuit] ? "black" : "red"; st.note = note; st.phase = "play"; st.turnAt = Date.now(); settleLeader(st); }
 // The leader must lead the required colour. With none, the lead passes to the next player;
 // if it comes all the way round, the game ends and the centre and kings carry over.
@@ -285,9 +286,17 @@ export class Table extends DurableObject {
         if (me) { me.name = name; me.emoji = emoji; changed = true; break; }
         if (st.players.length >= 8) { err = "The table is full."; break; }
         // joining mid-game: you're seated now and dealt in at the next game
-        st.players.push({ id: pid, name, emoji, balance: (st.funMode ? 0 : (st.buyin || START_BAL)), bets: {}, placed: false, hand: [], startBal: (st.funMode ? 0 : (st.buyin || START_BAL)), auto: !!m.auto, in: false });
+        st.players.push({ id: pid, name, emoji, balance: 0, bets: {}, placed: false, hand: [], startBal: 0, auto: !!m.auto, in: false }); // money mode: stack is 0 until the device signs into its wallet ({t:"wallet"}); fun mode ignores balance
         if (st.phase === "ante") { if (st.dealAt) st.dealAt = Math.max(st.dealAt, Date.now() + JOIN_GRACE_MS); updateDealAt(st); }
         changed = true; break;
+      }
+      case "wallet": { // money mode: this device signs into its coin wallet; the token is verified against the bank
+        if (!me || st.funMode) break;
+        const wname = String(m.name || "").trim().slice(0, 24), token = String(m.token || "").slice(0, 80);
+        if (!wname || !token) break;
+        const r = await this.bank("bal", { name: wname, token });
+        if (!r || !r.ok) { err = (r && r.err) || "Wallet sign-in failed."; break; }
+        me.wallet = { name: wname, token }; me.balance = r.balance; changed = true; break;
       }
       case "leave": if (me && (between || st.phase === "ante" || !me.in)) { st.players.splice(i, 1); st.first = 0; if (st.leader > i) st.leader--; st.run.forEach((x) => { if (x.who > i) x.who--; }); changed = true; } break;
       case "switchgame":
@@ -299,6 +308,7 @@ export class Table extends DurableObject {
       case "endsession": { const msg = JSON.stringify({ t: "closed" }); for (const w of this.ctx.getWebSockets()) { if (w.readyState === 1) try { w.send(msg); } catch {} } this.S = fresh(); await this.ctx.storage.put("state", this.S); await this.ctx.storage.deleteAlarm(); changed = false; } break; // finish the whole session: every connected device goes home, then the room is wiped clean
       case "addbot": {
         if (!isHost || !between || st.players.length >= 8) break;
+        if (!st.funMode) { err = "Bots are for Fun mode. Coin games are players only."; break; }
         const used = new Set(st.players.map((p) => p.name)); const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${st.players.length + 1}`;
         st.players.push({ id: "bot-" + crypto.randomUUID().slice(0, 6), name, bot: true, balance: (st.funMode ? 0 : (st.buyin || START_BAL)), bets: {}, placed: false, hand: [] }); changed = true; break;
       }
@@ -306,11 +316,20 @@ export class Table extends DurableObject {
         if (!isHost || !between) break;
         const bi = st.players.map((p) => p.bot).lastIndexOf(true); if (bi >= 0) { st.players.splice(bi, 1); st.first = 0; changed = true; } break;
       }
-      case "start": if (isHost && st.phase === "lobby" && st.players.length >= 2) { st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; } break;
+      case "start": {
+        if (!(isHost && st.phase === "lobby" && st.players.length >= 2)) break;
+        if (!st.funMode && st.players.filter((p) => canAnte(st, p)).length < 2) { err = "Need two signed-in players who can cover the ante."; break; }
+        await this.syncWalletsIn(st); st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; break;
+      }
       // anyone at the table can move on to the next game
-      case "next": if ((me || role === "table") && st.phase === "over") { st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; } break;
+      case "next": {
+        if (!((me || role === "table") && st.phase === "over")) break;
+        if (!st.funMode && st.players.filter((p) => canAnte(st, p)).length < 2) { err = "Need two signed-in players who can cover the ante."; break; }
+        await this.syncWalletsIn(st); st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; break;
+      }
       case "reset": if (isHost) { this.S = fresh(); Object.assign(this.S, { claimMs: st.claimMs, swapMode: st.swapMode, autoNext: st.autoNext, stake: st.stake, buyin: st.buyin, stakesSet: st.stakesSet, funMode: st.funMode }); await this.ctx.storage.deleteAlarm(); changed = true; } break;
       case "rebuy": {
+        if (!st.funMode) { err = "Top up your coins on the Game Bank page."; break; }
         if (!me || !broke(me) || !(between || st.phase === "ante")) break;
         me.balance += (st.buyin || START_BAL); me.rebuys = (me.rebuys || 0) + 1; if (st.phase === "ante") me.startBal = (me.startBal ?? 0) + (st.buyin || START_BAL);
         if (st.phase === "ante") { if (st.dealAt) st.dealAt = Math.max(st.dealAt, Date.now() + JOIN_GRACE_MS); updateDealAt(st); }
@@ -353,7 +372,7 @@ export class Table extends DurableObject {
         if ([0, 5000, 30000, 300000].includes(Number(m.claimMs))) { st.claimMs = Number(m.claimMs); changed = true; } // 0 = Off (no auto-play)
         if (["race", "turn"].includes(m.swapMode) && st.phase !== "swap") { st.swapMode = m.swapMode; changed = true; }
         if (typeof m.autoNext === "boolean") { st.autoNext = m.autoNext; if (st.phase === "over") st.overAt = Date.now(); changed = true; }
-        if (typeof m.funMode === "boolean" && (st.phase === "lobby" || st.phase === "over")) { st.funMode = m.funMode; st.players.forEach((p) => { p.balance = m.funMode ? 0 : (st.buyin || START_BAL); p.startBal = p.balance; }); changed = true; } // fun mode: no money, set between games
+        if (typeof m.funMode === "boolean" && (st.phase === "lobby" || st.phase === "over")) { st.funMode = m.funMode; if (!st.funMode && st.players.some((p) => p.bot)) { st.players = st.players.filter((p) => !p.bot); st.first = 0; } st.players.forEach((p) => { p.balance = 0; p.startBal = 0; }); changed = true; } // fun mode: no money. Coins: stack is 0 until each device signs into its wallet; switching to coins drops bots
         if (["table", "phones"].includes(m.layout)) { st.layout = m.layout; changed = true; }
         if (typeof m.lounge === "boolean" && st.phase === "lobby") { st.lounge = m.lounge; changed = true; } // Game Night room: video chat before a game is picked
         if (m.stake != null) { const v = money2(+m.stake, 0.05, (st.buyin ?? START_BAL) / 2); if (v) { st.stake = v; curStake = v; st.stakesSet = true; changed = true; } } // v2.9.8: minimum bet (10¢–$10); must be ≤ half the buy-in
@@ -384,6 +403,27 @@ export class Table extends DurableObject {
   async register(code) { if (!code) return; const r = (await this.ctx.storage.get("rooms")) || []; if (!r.includes(code)) { r.push(code); if (r.length > 1000) r.shift(); await this.ctx.storage.put("rooms", r); } } // the "__rooms__" instance keeps the list of active room codes
   async stopAll() { const r = (await this.ctx.storage.get("rooms")) || []; let n = 0; for (const code of r) { try { await this.env.TABLE.get(this.env.TABLE.idFromName(code)).stop(); n++; } catch (e) {} try { await this.env.UNO.get(this.env.UNO.idFromName(code)).stop(); } catch (e) {} } await this.ctx.storage.put("rooms", []); return n; }
 
+  // ---- Game Bank wiring (money mode): coins move only via this server-to-server call ----
+  async bank(op, body) {
+    if (!this.env || !this.env.BANK) return { ok: false, err: "bank unavailable" };
+    const req = new Request("https://bank/bankapi", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op, secret: this.env.BANK_SECRET, ...body }) });
+    try { return await (await this.env.BANK.get(this.env.BANK.idFromName("bank")).fetch(req)).json(); } catch (e) { return { ok: false, err: String((e && e.message) || e) }; }
+  }
+  async syncWalletsIn(st) { // refresh each signed-in human's stack from their wallet right before a deal (so Bank-page top-ups show, and you play straight from the wallet)
+    if (st.funMode) return;
+    for (const p of st.players) { if (p.bot || !p.wallet) continue; const r = await this.bank("bal", { name: p.wallet.name, token: p.wallet.token }); if (r && r.ok) p.balance = r.balance; }
+  }
+  async settleHand(st) { // post the net of the hand to each signed-in human's wallet (at most once per hand)
+    if (st.funMode) return;
+    for (const p of st.players) {
+      if (p.bot || !p.wallet || p.startBal === undefined) continue;
+      const net = Math.round((p.balance - p.startBal) * 100) / 100;
+      if (net === 0) continue;
+      const r = await this.bank("settle", { name: p.wallet.name, token: p.wallet.token, delta: net, reason: "4K hand" });
+      if (r && r.ok) p.balance = r.balance; else st.bankNote = "Some coins couldn't be settled with the bank.";
+    }
+  }
+
   async alarm() {
     const st = this.S; curStake = (this.S && this.S.stake) || MIN_BET;
     if (st.emptyAt) {
@@ -402,7 +442,7 @@ export class Table extends DurableObject {
       const multi = leadOptions(st, st.leader).length > 1, who = st.players[st.leader].name, best = bestLead(st, st.leader);
       if (best) { doLead(st, st.leader, best); if (multi) st.note = (st.note ? st.note + " " : "") + `${who} took a while, so their lowest ${NAME[best.s]} went down.`; changed = true; }
     }
-    else if (due(d.nextBy)) { st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; }
+    else if (due(d.nextBy)) { if (st.funMode || st.players.filter((p) => canAnte(st, p)).length >= 2) { await this.syncWalletsIn(st); st.funMode ? this.beginFun(st) : this.beginAnte(st); changed = true; } }
     else if (now >= (st.botAt || 0) - 50) { const i = botPending(st); if (i >= 0) { botAct(st, i); changed = true; } st.botAt = 0; }
     if (changed) await this.commit(); else await this.schedule();
   }
@@ -434,7 +474,9 @@ export class Table extends DurableObject {
   }
 
   async commit() {
-    const st = this.S; st.v++; st.botAt = 0;
+    const st = this.S;
+    if (st.phase === "over" && st.needSettle) { st.needSettle = false; await this.settleHand(st); } // money mode: bank the hand once, before persist/broadcast
+    st.v++; st.botAt = 0;
     await this.schedule();
     await this.ctx.storage.put("state", st);
     this.broadcast();
@@ -451,7 +493,7 @@ export class Table extends DurableObject {
       // who the table is waiting on right now. v2.9.1: during a claim we DON'T reveal the holder (-1) — you have to spot the needed card in your own hand; no "waiting on you" / highlight. The server still tracks the real holder internally (holderOf) for bots and the timer.
       waitingOn: st.phase === "play" ? st.leader : st.phase === "swap" && st.swapMode === "turn" ? swapTurn(st) : -1,
       players: st.players.map((p) => ({
-        id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, auto: !!p.auto, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, carried: !!p.carried,
+        id: p.id, name: p.name, emoji: p.emoji || "", bot: !!p.bot, signedIn: !!p.wallet, auto: !!p.auto, balance: p.balance, bets: p.bets || {}, bet: betTotal(p), placed: p.placed, carried: !!p.carried,
         broke: broke(p), in: !!p.in, rebuys: p.rebuys || 0, kept: !!(st.swapAns || {})[p.id],
         cards: p.hand.length, hand: role === "hand" && p.id === pid ? p.hand : undefined,
       })),

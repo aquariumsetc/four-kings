@@ -286,7 +286,7 @@ body.hasvid .conn{top:calc(124px + env(safe-area-inset-top,0px))}
 <div id="sndhint" hidden>🔇 Tap anywhere for sound</div>
 <script>
 (function(){
-const VERSION='v2.9.16 · 31 Oct 2026'; // shown at the bottom of every screen
+const VERSION='v2.9.17 · 01 Nov 2026'; // shown at the bottom of every screen
 const COLS=['R','Y','G','B'], CNAME={R:'red',Y:'yellow',G:'green',B:'blue'};
 const WILDS=['wild','w4','steal','pass','mirror','cust'];
 const LBL={skip:'⊘',rev:'⇄',d2:'+2',wild:'',w4:'+4',steal:'⇆',pass:'⇢',mirror:'+✋',cust:''};
@@ -633,7 +633,7 @@ function render(){
   let html=mode==='table'?tableHTML(S):withTable?tableHTML(S,handInner):handHTML(S);
   if(viewMsg) html+=`<div class="notice">${esc(viewMsg)}</div>`;
   if(S.host) html+=`<div style="max-width:560px;margin:.6rem auto"><button class="ghost small" id="rulesToggle" style="width:100%">⚙️ Rules &amp; options ${showRules?'▾':'▸'}</button>${showRules?settingsHTML(S):''}</div>`;
-  html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button>${IOS&&(sfxOn||winOn)?` <span class="dim" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${unoHints?'on':'off'}</button>`:''} · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Game Night ${VERSION}</span></div>`;
+  html+=`<div class="foot">Table ${esc(room)} · <button class="ghost small" id="switch">${mode==='table'?'use as my hand':mode==='both'?'table only':'use as the table'}</button>${mode!=='both'?` <button class="ghost small" id="both">table + my hand</button>`:''} <button class="ghost small" id="leaveRoom">change table</button><br>Sound: <button class="ghost small" id="sfx">${sfxOn?'🔊':'🔇'} effects: ${sfxOn?'on':'off'}</button> <button class="ghost small" id="winsnd">${winOn?'🔊':'🔇'} wins: ${winOn?'on':'off'}</button>${IOS&&(sfxOn||winOn)?` <span class="dim" style="font-size:.85em">· iPhone: ringer switch must be on</span>`:''}${mode!=='table'?` · <button class="ghost small" id="hints">beginner hints: ${unoHints?'on':'off'}</button>`:''} · <button class="ghost small" id="howto">How to play</button><br><span style="opacity:.6">Cam’s Game Night ${VERSION}</span></div>`;
   if(!S.funMode && mode!=='table' && S.phase!=='play'){ const meP=S.players.find(p=>p.id===pid); if(meP&&meP.signedIn) html+=`<p class="center small dim" style="opacity:.7">${COIN} wallet: ${esc(walletName||meP.name)} \u00b7 <button class="ghost small" id="walletout">use another wallet</button></p>`; }
   app.innerHTML=html;
   ovlEl.innerHTML=overlay?overlayHTML(overlay):'';
@@ -644,7 +644,7 @@ function startHTML(){
   return `<div style="padding-top:1.6rem"><h1>Ultium UNO</h1><p class="dim">Match colour or number, stack the draws, flip the direction, and get rid of every card. One device is the table in the middle; everyone else holds their cards on their phone.</p>
   <div class="panel"><h3>Set up the table</h3><button class="big" id="newtable">This device is the table</button><button class="big ghost" id="newboth">This device is the table and my hand</button></div>
   <div class="panel"><h3>Join with a code</h3><input class="code" id="code" placeholder="CODE" maxlength="6" value="${esc(room)}" autocapitalize="characters" autocomplete="off"><button class="big ghost" id="joinroom">Join as a player</button></div>
-  <p class="small dim center"><a href="/" style="color:var(--dim)">Play 4 Kings instead</a></p><p class="small dim center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+  <p class="small dim center"><a href="/" style="color:var(--dim)">Play 4 Kings instead</a></p><p class="small dim center" style="opacity:.6">Cam’s Game Night ${VERSION}</p></div>`;
 }
 function seatsHTML(st){
   const n=st.players.length;
@@ -721,7 +721,7 @@ function settingsHTML(st){
   <div class="small dim" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">Rules — tap any to turn it on or off</div>
   ${ruleTogs}
   ${customBlock}
-  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to 4 Kings</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the Game Night room</button>`:''}</span></div></div>`;
+  <div class="srow"><span>Change game</span><span><button class="ghost small" id="switchgame">Switch everyone to 4 Kings</button>${st.layout==='phones'?` <button class="ghost small" id="toroom">Back to the room</button>`:''}</span></div></div>`;
 }
 function handHTML(st){ return handMain(st)+(st.phase!=='play'?scoresHTML(st):''); }
 function handMain(st,embedded){
@@ -851,7 +851,7 @@ function bind(){
   on('#notyou',()=>{ set('fk-nick',''); nick=''; autoTried=true; send({t:'leave'}); });
   on('#howto',()=>{ overlay={k:'howto'}; render(); });
   on('#switchgame',()=>{ if(confirm('Switch everyone at this table to 4 Kings? Phones follow automatically.')){ if(framed){ send({t:'switchgame',to:'fk'}); tellShell('switch-fk'); } else send({t:'switchgame',to:'fk'}); } });
-  document.querySelectorAll('#toroom').forEach(b=>b.onclick=()=>{ if(confirm('Take everyone back to the Game Night room? Money and the scoreboard are kept; bots leave.')){ if(framed){ send({t:'switchgame',to:'fk',room:true}); tellShell('back-to-room'); } else send({t:'switchgame',to:'fk',room:true}); } });
+  document.querySelectorAll('#toroom').forEach(b=>b.onclick=()=>{ if(confirm('Take everyone back to the room? Money and the scoreboard are kept; bots leave.')){ if(framed){ send({t:'switchgame',to:'fk',room:true}); tellShell('back-to-room'); } else send({t:'switchgame',to:'fk',room:true}); } });
   document.querySelectorAll('[data-turnms]').forEach(b=>b.onclick=()=>send({t:'settings',turnMs:+b.dataset.turnms}));
   document.querySelectorAll('[data-autonext]').forEach(b=>b.onclick=()=>send({t:'settings',autoNext:b.dataset.autonext==='1'}));
   document.querySelectorAll('[data-rule]').forEach(b=>b.onchange=()=>send({t:'settings',rule:b.dataset.rule,on:b.checked}));

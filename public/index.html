@@ -6,9 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><!-- installed app: dark status bar, content fills under it — no pale strip up top -->
-<meta name="apple-mobile-web-app-title" content="Game Night">
+<meta name="apple-mobile-web-app-title" content="Cam’s Game Night">
 <meta name="theme-color" content="#153f2a">
-<title>Game Night</title>
+<title>Cam’s Game Night</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icon.png">
 <link rel="icon" href="/icon.png">
@@ -225,7 +225,7 @@ body.ingame .tile .tgear{display:none} /* v2.8.57: the name/emoji editor only ex
 <input type="file" accept="image/*" capture="user" id="selfiein" hidden>
 <script>
 (function(){
-const VERSION='v2.9.18 · 01 Nov 2026'; // shown at the bottom of the home page and the room
+const VERSION='v2.9.19 · 01 Nov 2026'; // shown at the bottom of the home page and the room
 const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const get=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
 const set=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
@@ -476,7 +476,7 @@ function loungeHTML(st){
   const link=location.origin+'/?room='+room+'&mode=lounge';
   const people=st.players.filter(p=>!p.bot).map(p=>`<div class="lp"><span>${p.emoji?esc(p.emoji)+' ':''}${esc(p.name)}${p.id===pid?' <span class="muted small">(you)</span>':''}</span><span class="small muted">${onVid.has(p.name)?'📷 on video':''}</span></div>`).join('')||'<div class="muted small">Nobody here yet.</div>';
   return `<div class="home">
-  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night room <span class="roomtag" title="You're in room ${esc(room)}">${esc(room)}</span></h1><p class="muted small">Everyone here is shown above. Tap <b>Start video</b> to turn your camera on; the host picks a game when you're ready. <b>Everyone must be in room ${esc(room)}.</b></p></div></div>
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Cam’s Game Night room <span class="roomtag" title="You're in room ${esc(room)}">${esc(room)}</span></h1><p class="muted small">Everyone here is shown above. Tap <b>Start video</b> to turn your camera on; the host picks a game when you're ready. <b>Everyone must be in room ${esc(room)}.</b></p></div></div>
   ${me
     ? `<button class="ghost small" id="editme" style="margin-bottom:8px">✏️ Edit your name &amp; emoji</button><div id="meedit" class="panel" ${meOpen?'':'hidden'}><div class="small muted" style="margin-bottom:6px">Your name &amp; emoji</div><input id="nick" value="${esc(me.name)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow2">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><div class="small muted" style="margin:12px 0 7px">Your photo (optional — shows instead of your emoji, so everyone can see whose turn it is)</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${myPhoto?`<span style="width:44px;height:44px;border-radius:10px;background-image:url(${myPhoto});background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.15);display:inline-block"></span>`:''}<button class="ghost small" id="takeselfie">📷 ${myPhoto?'Retake':'Take a selfie'}</button>${myPhoto?`<button class="ghost small" id="rmselfie">Remove</button>`:''}</div><button class="big" id="saveme" style="margin-top:12px">Save</button></div>`
     : `<div class="panel"><h3>You</h3><input id="nick" placeholder="Your name" value="${esc(nick)}" maxlength="18"><div class="small muted" style="margin:10px 0 7px">Your avatar</div><div class="emojirow" id="emojirow">${EMOJIS.map(e=>`<button class="emo ${emoji===e?'on':''}" data-emoji="${e}">${e}</button>`).join('')}<button class="emo ${!emoji?'on':''}" data-emoji="">Aa</button></div><button class="big" id="join" style="margin-top:12px">Join the room</button></div>`
@@ -493,14 +493,14 @@ function loungeHTML(st){
   :`<div class="panel center"><p class="muted">Waiting for ${esc(hostP?hostP.name:'the host')} to pick a game…</p></div>`}
   <p class="center"><button class="ghost small" id="leaveRoom">Leave the room</button></p>
   <p class="center" style="margin-top:10px"><button class="ghost small" id="stopallbtn" style="opacity:.7">🛑 Stop all games &amp; activity</button></p>
-  <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+  <p class="small muted center" style="opacity:.6">Cam’s Game Night ${VERSION}</p></div>`;
 }
 function startHTML(){
   // Game Night home: both games side by side (no "resume" — leaving a game closes it; you start a new one from here)
   const k=(t,red,rot)=>`<span class="mini ${red?'red':''}" style="transform:rotate(${rot}deg)">${t}</span>`;
   const u=(bg,t,rot,fg)=>`<span class="mini u" style="background:${bg};color:${fg||'#fff'};transform:rotate(${rot}deg)">${t}</span>`;
   return `<div class="home">
-  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
+  <div class="hhead"><img src="/icon.png" alt="" width="68" height="68"><div><h1>Cam’s Game Night</h1><p class="muted">Card games for the whole family. One screen sits in the middle as the table; everyone else plays on their own phone. No accounts, nothing to install.</p></div></div>
   <div class="panel"><h3 style="margin:0">🎲 Your rooms</h3>
     <div class="small muted" style="margin-top:4px">Name a room your family remembers — open the same one every time, no codes. (Add the app to your Home Screen and you're in with one tap.)</div>
     ${(()=>{ const sr=savedRooms(); if(!sr.length) return ''; return `<div class="irow" style="margin-top:12px"><select id="roompick" class="roomsel"><option value="">— pick a saved room —</option>${sr.map(r=>`<option value="${esc(r)}">🎲 ${esc(r)}</option>`).join('')}</select></div><div style="margin-top:6px"><button class="linkbtn small" id="editrooms">${roomsEdit?'✓ Done':'Edit list'}</button></div>${roomsEdit?`<div class="roomedit">${sr.map(r=>`<span class="roomchip2">🎲 ${esc(r)} <button class="rmroom2" data-rm="${esc(r)}" aria-label="Remove ${esc(r)}">Remove</button></span>`).join('')}</div>`:''}`; })()}
@@ -529,7 +529,7 @@ function startHTML(){
     <button id="joingame" style="margin-top:8px;width:100%">Join game</button></div>
   <div class="panel ways"><div><b>Play with an iPad table</b><br>Everyone in one room. Open this on the iPad (or a TV or laptop) in the middle; it shows the table and a code. Everyone else scans it and plays on their phone.</div><div><b>Play on our own devices</b><br>No shared screen, so it's great for playing from different houses. Your phone runs the game and every phone shows the table plus its own cards. Send the join link, then tap <b>Start video</b> to see each other.</div></div>
   <p class="center" style="margin-top:10px"><button class="ghost small" id="stopallbtn" style="opacity:.7">🛑 Stop all games &amp; activity</button></p>
-  <p class="small muted center" style="opacity:.6">Game Night ${VERSION}</p></div>`;
+  <p class="small muted center" style="opacity:.6">Cam’s Game Night ${VERSION}</p></div>`;
 }
 // v2.8.76: in-game name editor. Saves to the shared identity (fk-nick/fk-emoji), re-joins on the room socket (so the room/4 Kings DO and the video tile show the name — no more "Guest"), and tells the active game frame to re-join its own DO (UNO is a separate DO, so it must self-update).
 function openNameModal(){
@@ -564,7 +564,7 @@ function showRoomQR(){ // v2.8.50: the QR button next to the room chip pops a sc
   m.onclick=e=>{ if(e.target===m||e.target.id==='qrclose') m.remove(); };
 }
 async function shareInvite(btn,label){ const link=roomLink(); const base=label||(btn&&btn.textContent)||'';
-  try{ if(navigator.share){ await navigator.share({title:'Game Night room '+room,text:'Join my Game Night room',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
+  try{ if(navigator.share){ await navigator.share({title:'Cam’s Game Night room '+room,text:'Join my room',url:link}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
   try{ await navigator.clipboard.writeText(link); if(btn){ btn.textContent='Copied!'; setTimeout(()=>{ if(btn.isConnected&&base) btn.textContent=base; },1800); } }catch(e){ prompt('Copy this link:',link); } }
 function freshRoom(){ curGame=null; inLobby=false; stageGame=null; lastGotoAt=0; autoTried=false; S=null; }
 function startOwn(game){ room=newCode(); set(game==='uno'?'uno-room':'fk-room',room); set('fk-lhost',room); wantGame=game; wantLobby=false; wantStart=game==='uno'?[{t:'settings',layout:'phones'},{t:'switchgame',to:'uno'}]:[{t:'settings',layout:'phones'}]; freshRoom(); history.replaceState(null,'','/'); render(); connect(); }
@@ -621,7 +621,7 @@ window.addEventListener('message',e=>{ const d=e&&e.data; if(!d||d.gn!=='action'
 /* ---------- test hook (read-only; lets the end-to-end check that the camera survives a game change) ---------- */
 window.__gn={stream:()=>rtc.stream,streamId:()=>rtc.stream&&rtc.stream.id,peers:()=>Object.keys(rtc.peers),on:()=>rtc.on,screen:()=>({room,curGame,inLobby,host:!!(S&&S.host)})};
 
-document.getElementById('gohome').onclick=()=>{ if(confirm('Leave this game and go back to the Game Night home page?')) goHome(); };
+document.getElementById('gohome').onclick=()=>{ if(confirm('Leave this game and go back to the home page?')) goHome(); };
 /* ---------- boot ---------- */
 if(qs.get('home')) history.replaceState(null,'','/'); // the home-screen icon opens the home page once
 if(room){ wantGame = qs.get('game')==='uno'?'uno':(qs.get('mode')==='lounge'?'':'fk'); if(qs.get('mode')==='lounge') wantLobby=true; if(qs.get('room')) history.replaceState(null,'','/'); } // v2.8.90: a deep-link / reload of a room URL in lounge mode must also want the lounge — otherwise it falls through to a blank 4 Kings frame (openNamedRoom set this, a URL open didn't)
@@ -640,7 +640,7 @@ async function checkVersion(){
 function showUpdateBar(){
   if(document.getElementById('updbar')) return;
   const bar=document.createElement('div'); bar.id='updbar';
-  bar.innerHTML='<span>A new version of Game Night is ready.</span><button id="updnow">Refresh</button>';
+  bar.innerHTML='<span>A new version of Cam’s Game Night is ready.</span><button id="updnow">Refresh</button>';
   document.body.appendChild(bar);
   document.getElementById('updnow').onclick=()=>location.reload();
 }
